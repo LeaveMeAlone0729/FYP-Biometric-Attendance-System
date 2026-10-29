@@ -6,6 +6,10 @@ Flutter Android app, FastAPI biometric services and MySQL for the **facial recog
 
 Attendance is inserted only after all checks pass. Face verification alone cannot record attendance.
 
+Module owner: **Chew Zhexuan**. See the [module/file map](docs/MODULE_OWNERSHIP.md)
+and [API integration guide](docs/API_INTEGRATION.md) for the organized code,
+request contracts, teammate integration points and importable OpenAPI file.
+
 Device registration, installation binding, Wi-Fi/campus verification and IP allowlists are outside this module and are handled by the teammate's project. This demo does not implement or report those checks. The phone still needs an ordinary connection to the backend API.
 
 For an existing database, run `backend\venv\Scripts\python.exe backend\migrate.py` from the project root before restarting the updated backend. This removes only the retired `device_hash` columns from `students` and `auth_sessions`, preserving accounts, encrypted face templates, consent, login sessions and attendance history. `setup.py` also applies this idempotent migration; fresh databases already use the current schema.

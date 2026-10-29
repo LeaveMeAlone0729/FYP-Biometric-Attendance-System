@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../theme.dart';
-import 'camera_screen.dart';
+import '../modules/biometrics/screens/camera_screen.dart';
 
 class AttendanceFlowScreen extends StatefulWidget {
   const AttendanceFlowScreen({super.key, this.onRecorded});
