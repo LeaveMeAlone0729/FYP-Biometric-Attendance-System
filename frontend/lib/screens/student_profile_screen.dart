@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../theme.dart';
+import '../modules/devices/screens/my_device_screen.dart';
 import '../modules/biometrics/screens/camera_screen.dart';
 import '../modules/biometrics/services/biometric_api.dart';
 
@@ -135,6 +136,21 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.phonelink_lock),
+                title: const Text('My Device'),
+                subtitle: const Text(
+                  'Register or view your trusted Android device',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MyDeviceScreen()),
                 ),
               ),
             ),

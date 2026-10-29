@@ -10,7 +10,7 @@ Module owner: **Chew Zhexuan**. See the [module/file map](docs/MODULE_OWNERSHIP.
 and [API integration guide](docs/API_INTEGRATION.md) for the organized code,
 request contracts, teammate integration points and importable OpenAPI file.
 
-Device registration, installation binding, Wi-Fi/campus verification and IP allowlists are outside this module and are handled by the teammate's project. This demo does not implement or report those checks. The phone still needs an ordinary connection to the backend API.
+Device registration is now available as the teammate's separate Phase 1 module in the shared backend and Android app; see [the registration guide](docs/DEVICE_REGISTRATION.md). Installation binding for attendance, device replacement, Wi-Fi/campus verification and IP allowlists are not enforced yet. The phone still needs an ordinary connection to the backend API.
 
 For an existing database, run `backend\venv\Scripts\python.exe backend\migrate.py` from the project root before restarting the updated backend. This removes only the retired `device_hash` columns from `students` and `auth_sessions`, preserving accounts, encrypted face templates, consent, login sessions and attendance history. `setup.py` also applies this idempotent migration; fresh databases already use the current schema.
 
@@ -155,3 +155,12 @@ Original source and earlier work artifacts are archived in `.work/cleanup-202610
 The app database was transferred from Laragon to XAMPP after a port-3306 conflict. It uses `attendance_proposal_xampp`. Earlier migration backups are in `.work/cleanup-20261029/work-history.zip`; current cleanup backups are described in [CLEANUP.md](CLEANUP.md). Use XAMPP's MySQL control for this project and leave Laragon's MySQL stopped.
 
 Implementation references: [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/python), [Flutter camera plugin](https://pub.dev/packages/camera), [FastAPI security](https://fastapi.tiangolo.com/tutorial/security/).
+
+## Device registration — Phase 1
+
+Student → Account & Sign Out → **My Device** registers one Android installation
+using an Android Keystore public key and signed server challenge. Apply the
+additive migration with `backend\venv\Scripts\python.exe backend\migrate_devices.py`.
+See [device registration setup, REST contracts and USB testing](docs/DEVICE_REGISTRATION.md).
+Registration does not yet gate attendance; login and the biometric/liveness flow
+continue unchanged. No device replacement shortcut is provided.

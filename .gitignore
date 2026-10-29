@@ -1,10 +1,29 @@
+# Local workspace
 .work/
+
+# Backend secrets and generated files
 backend/.env
 backend/venv/
 backend/models/*.task
 backend/*.db
-**/__pycache__/
-*.log
-*.pyc
 backend/.pytest_cache/
-frontend/android/.kotlin/
+**/__pycache__/
+*.py[cod]
+*.log
+
+# Python virtual environments
+/venv/
+**/venv/
+.venv/
+**/.venv/
+
+# Local environment configuration
+.env
+.env.*
+!.env.example
+
+# Flutter generated files
+frontend/android/.gradle/
+.dart_tool/
+build/
+.flutter-plugins-dependencies
