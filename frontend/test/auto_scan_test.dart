@@ -1,3 +1,5 @@
+// Module owner: Chew Zhexuan
+// Module: Facial Recognition and Liveness Detection
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:camera/camera.dart';

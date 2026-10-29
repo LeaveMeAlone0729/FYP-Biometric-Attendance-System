@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../theme.dart';
-import 'camera_screen.dart';
+import '../modules/biometrics/screens/camera_screen.dart';
+import '../modules/biometrics/services/biometric_api.dart';
 
 class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
@@ -11,6 +12,8 @@ class StudentProfileScreen extends StatefulWidget {
 
 class _StudentProfileScreenState extends State<StudentProfileScreen> {
   final _api = ApiClient.instance;
+  // Chew Zhexuan: the profile's face enrollment actions use the biometric module.
+  final _biometrics = BiometricApi();
   bool _busy = false;
   String? _error;
   @override
@@ -54,7 +57,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       _error = null;
     });
     try {
-      await _api.delete('/biometrics');
+      await _biometrics.removeRegistration();
       await _refresh();
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
