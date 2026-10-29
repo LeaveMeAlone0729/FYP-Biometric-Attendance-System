@@ -1364,6 +1364,428 @@
           }
         ]
       }
+    },
+    "/api/v1/devices/registration-challenges": {
+      "post": {
+        "tags": [
+          "Device registration"
+        ],
+        "summary": "Begin Registration",
+        "operationId": "beginDeviceRegistration",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationChallengeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid capture, identity mismatch, or invalid input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer login.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DeviceErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    }
+                  ],
+                  "title": "Response 422 Begindeviceregistration"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Verification is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/devices/registrations": {
+      "post": {
+        "tags": [
+          "Device registration"
+        ],
+        "summary": "Confirm Registration",
+        "operationId": "confirmDeviceRegistration",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationConfirmation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid capture, identity mismatch, or invalid input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer login.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DeviceErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    }
+                  ],
+                  "title": "Response 422 Confirmdeviceregistration"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Verification is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/devices/current": {
+      "get": {
+        "tags": [
+          "Device registration"
+        ],
+        "summary": "Current Device",
+        "operationId": "getRegisteredDevice",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid capture, identity mismatch, or invalid input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer login.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DeviceErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    }
+                  ],
+                  "title": "Response 422 Getregistereddevice"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Verification is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1571,6 +1993,101 @@
           "expires_in"
         ],
         "title": "ChallengeStarted"
+      },
+      "DeviceErrorResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false,
+            "title": "Success",
+            "default": false
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "DeviceErrorResponse"
+      },
+      "DeviceInfo": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "device_name": {
+            "type": "string",
+            "title": "Device Name"
+          },
+          "device_model": {
+            "type": "string",
+            "title": "Device Model"
+          },
+          "platform": {
+            "type": "string",
+            "const": "android",
+            "title": "Platform"
+          },
+          "status": {
+            "type": "string",
+            "const": "ACTIVE",
+            "title": "Status"
+          },
+          "public_key_fingerprint": {
+            "type": "string",
+            "title": "Public Key Fingerprint"
+          },
+          "registered_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Registered At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "device_name",
+          "device_model",
+          "platform",
+          "status",
+          "public_key_fingerprint",
+          "registered_at"
+        ],
+        "title": "DeviceInfo"
+      },
+      "DeviceResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "device": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "device"
+        ],
+        "title": "DeviceResponse"
       },
       "ErrorResponse": {
         "properties": {
@@ -1869,6 +2386,107 @@
           "group_id"
         ],
         "title": "Registration"
+      },
+      "RegistrationChallengeResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "registration_id": {
+            "type": "string",
+            "title": "Registration Id"
+          },
+          "algorithm": {
+            "type": "string",
+            "const": "ECDSA_P256_SHA256",
+            "title": "Algorithm",
+            "default": "ECDSA_P256_SHA256"
+          },
+          "signature_encoding": {
+            "type": "string",
+            "const": "base64-DER",
+            "title": "Signature Encoding",
+            "default": "base64-DER"
+          },
+          "signing_payload": {
+            "type": "string",
+            "title": "Signing Payload"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "registration_id",
+          "signing_payload",
+          "expires_at"
+        ],
+        "title": "RegistrationChallengeResponse"
+      },
+      "RegistrationConfirmation": {
+        "properties": {
+          "registration_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 20,
+            "title": "Registration Id"
+          },
+          "signature": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Signature"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "registration_id",
+          "signature"
+        ],
+        "title": "RegistrationConfirmation"
+      },
+      "RegistrationRequest": {
+        "properties": {
+          "public_key_spki": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 40,
+            "title": "Public Key Spki"
+          },
+          "platform": {
+            "type": "string",
+            "const": "android",
+            "title": "Platform",
+            "default": "android"
+          },
+          "device_name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Device Name"
+          },
+          "device_model": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Device Model"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "public_key_spki",
+          "device_name",
+          "device_model"
+        ],
+        "title": "RegistrationRequest"
       },
       "ScanAdjustment": {
         "properties": {

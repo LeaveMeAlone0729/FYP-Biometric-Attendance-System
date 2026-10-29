@@ -48,3 +48,11 @@ this module.
 For integration, start with [API_INTEGRATION.md](API_INTEGRATION.md). Existing
 backend imports and Flutter camera imports continue working through small
 compatibility files; new code should import from the module folders.
+
+## Device registration (Phase 1)
+
+The teammate device module lives in `backend/modules/devices/` and
+`frontend/lib/modules/devices/`, with the Android Keystore bridge in
+`DeviceKeyStoreChannel.kt`. See [DEVICE_REGISTRATION.md](DEVICE_REGISTRATION.md).
+It registers devices only and does not enforce device/network attendance checks.
+The facial recognition and liveness algorithms and existing completion stay unchanged.

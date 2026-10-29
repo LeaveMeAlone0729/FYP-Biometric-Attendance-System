@@ -239,3 +239,13 @@ HTTP status and documented response fields, rather than matching message text.
 The automated tests validate contract, ownership and workflow behavior. Real
 face/gesture acceptance and spoof resistance still require consented camera
 evaluation; the finger challenge is a research liveness heuristic.
+
+## Device registration API (Phase 1)
+
+The shared backend now also exposes authenticated device registration at
+`/api/v1/devices/registration-challenges`, `/api/v1/devices/registrations` and
+`/api/v1/devices/current`. See [DEVICE_REGISTRATION.md](DEVICE_REGISTRATION.md)
+for signing bytes, contracts, migration, failure handling and USB phone testing.
+Registration is independent: it does not change any biometric endpoint or gate
+attendance. Device verification, replacement, CIDR checks and the future final
+authorization coordinator remain later phases.
