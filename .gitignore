@@ -1,0 +1,10 @@
+.work/
+backend/.env
+backend/venv/
+backend/models/*.task
+backend/*.db
+**/__pycache__/
+*.log
+*.pyc
+backend/.pytest_cache/
+frontend/android/.kotlin/
