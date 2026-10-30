@@ -304,3 +304,10 @@ when no device is registered. My Device displays registration/current check stat
 and automatically verifies the existing key; there is no manual verification button.
 The Phase 1 registration contracts and Keystore alias remain unchanged. See
 [DEVICE_VERIFICATION.md](DEVICE_VERIFICATION.md) for Phase 2 behavior and testing.
+
+## Stage A policy update
+
+The schema now represents two ACTIVE slots, but the Phase 1 endpoints still permit
+only initial enrollment. Any registration history blocks additional activation
+until Stage B approval. Do not use direct SQL to enroll a real second device.
+See [TWO_DEVICE_STAGE_A.md](TWO_DEVICE_STAGE_A.md).

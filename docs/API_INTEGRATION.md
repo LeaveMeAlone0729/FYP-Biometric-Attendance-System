@@ -260,3 +260,11 @@ currently enabled; PASS is point-in-time evidence and never attendance authority
 Phase 5 must add server-validated attendance-attempt binding and invoke the Flutter
 service automatically, then gate the final insert. Existing biometric endpoints
 and attendance completion remain unchanged in Phase 2.
+
+## Stage A device selection
+
+GET `/api/v1/devices` lists up to two owned ACTIVE registrations. Automatic
+verification challenges now require the local `public_key_fingerprint` selector;
+a valid signature remains mandatory. Initial registration endpoints cannot
+activate a second device. No biometric or attendance API behavior changed. See
+[TWO_DEVICE_STAGE_A.md](TWO_DEVICE_STAGE_A.md) for contracts and rollout safety.

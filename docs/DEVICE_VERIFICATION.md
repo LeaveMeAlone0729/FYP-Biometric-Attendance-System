@@ -292,3 +292,12 @@ Android key attestation and device replacement remain outside this implementatio
 Work remained on SH. No commits, pushes or merges were made. Existing backend
 login, biometric algorithms, liveness/attendance writer and native Keystore
 implementation were verified unchanged against the branch.
+
+## Stage A selector update
+
+Verification now reads the local Keystore fingerprint before issuance and submits
+`public_key_fingerprint` with `operation`. The server selects that owned ACTIVE
+registration and still requires its signature. Missing-key diagnostics may omit
+the challenge and are not attributed to either registered device. My Device uses
+the new device collection endpoint. Second-device enrollment remains blocked.
+See [TWO_DEVICE_STAGE_A.md](TWO_DEVICE_STAGE_A.md) for current contracts.

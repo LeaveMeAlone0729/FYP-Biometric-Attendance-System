@@ -30,7 +30,11 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
   final _name = TextEditingController();
   Map<String, dynamic>? _device;
   String? _error;
-  bool _loading = true, _busy = false, _localMatch = false, _loaded = false;
+  bool _loading = true,
+      _busy = false,
+      _localMatch = false,
+      _loaded = false,
+      _initialAllowed = false;
 
   @override
   void initState() {
@@ -50,7 +54,22 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
       _error = null;
     });
     try {
-      final device = await _api.current();
+      final listing = await _api.listDevices();
+      final rows = (listing['devices'] as List).cast<Map>();
+      final local = rows.isEmpty ? null : await _keys.getPublicKey(_studentId);
+      final matches = rows
+          .where(
+            (row) =>
+                row['public_key_fingerprint'] ==
+                local?['public_key_fingerprint'],
+          )
+          .toList();
+      final device = matches.isNotEmpty
+          ? Map<String, dynamic>.from(matches.first)
+          : rows.length == 1
+          ? Map<String, dynamic>.from(rows.single)
+          : null;
+      _initialAllowed = listing['initial_registration_available'] == true;
       if (mounted) {
         setState(() {
           _device = device;
@@ -58,9 +77,6 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
         });
       }
       // Never create a new key merely by viewing a registered device.
-      final local = device == null
-          ? null
-          : await _keys.getPublicKey(_studentId);
       if (!mounted) {
         return;
       }
@@ -82,6 +98,13 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
 
   Future<void> _register() async {
     if (_busy) return;
+    if (!_initialAllowed) {
+      setState(
+        () => _error =
+            'Additional enrollment requires Stage B approval and is not enabled.',
+      );
+      return;
+    }
     final name = _name.text.trim();
     if (name.isEmpty) {
       setState(() => _error = 'Enter a name for this device.');
@@ -176,9 +199,9 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                       : 'The registered key is not available in this installation. Device replacement requires approval and is not available yet.',
                   warning: !_localMatch,
                 ),
-              ] else if (_loaded) ...[
+              ] else if (_loaded && _initialAllowed) ...[
                 const Text(
-                  'Register this Android installation as your trusted device. Only one device can be registered to your account.',
+                  'Register your initial Android installation. Additional device enrollment requires Stage B approval and is not enabled yet.',
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -199,7 +222,7 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
               ],
               const SizedBox(height: 20),
               const InfoNotice(
-                'Your private key stays in Android Keystore. Device registration does not change attendance verification in Phase 1.',
+                'Your private key stays in Android Keystore. Additional enrollment and replacement are not enabled in Stage A. Attendance is unchanged.',
               ),
               if (_error != null) ...[
                 const SizedBox(height: 16),

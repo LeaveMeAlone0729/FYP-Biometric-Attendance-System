@@ -41,6 +41,14 @@ class FakeKeys extends DeviceKeyStore {
 }
 
 class FakeDevices extends DeviceApi {
+  bool? initialAllowed;
+  @override
+  Future<Map<String, dynamic>> listDevices() async => {
+    'devices': (await current()) == null ? [] : [device!],
+    'initial_registration_available': initialAllowed ?? (device == null),
+    'additional_enrollment_enabled': false,
+  };
+
   Map<String, dynamic>? device;
   bool failConfirm = false, loseResponse = false, failFetch = false;
   int confirmed = 0;
@@ -297,4 +305,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('My Device'), findsOneWidget);
   });
+  testWidgets(
+    'Revocation history never reopens initial enrollment in Stage A',
+    (tester) async {
+      final api = FakeDevices()..initialAllowed = false;
+      final keys = FakeKeys();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DeviceRegistrationScreen(
+            api: api,
+            keyStore: keys,
+            studentId: 'TEST001',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Register this device'), findsNothing);
+      expect(find.byType(TextField), findsNothing);
+      expect(keys.created, 0);
+    },
+  );
 }

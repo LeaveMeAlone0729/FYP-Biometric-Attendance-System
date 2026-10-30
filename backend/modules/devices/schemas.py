@@ -29,6 +29,7 @@ class RegistrationChallengeResponse(BaseModel):
 
 class DeviceInfo(BaseModel):
     device_id: str
+    slot_number: Literal[1, 2]
     device_name: str
     device_model: str
     platform: Literal["android"]
@@ -46,3 +47,12 @@ class DeviceErrorResponse(BaseModel):
     success: Literal[False] = False
     code: str
     message: str
+
+
+class DeviceListResponse(BaseModel):
+    success: Literal[True] = True
+    devices: list[DeviceInfo] = Field(max_length=2)
+    active_count: int = Field(ge=0, le=2)
+    maximum_active_devices: Literal[2] = 2
+    initial_registration_available: bool
+    additional_enrollment_enabled: Literal[False] = False

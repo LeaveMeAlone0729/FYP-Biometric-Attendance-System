@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from api.context import AppContext
 from api.dependencies import authenticated, get_context, get_db
 from api.schemas import ERROR_RESPONSES, ErrorResponse
-from .schemas import (DeviceErrorResponse, DeviceResponse, RegistrationChallengeResponse,
+from .schemas import (DeviceErrorResponse, DeviceResponse, DeviceListResponse, RegistrationChallengeResponse,
                       RegistrationConfirmation, RegistrationRequest)
 from .service import DeviceRegistrationError, DeviceRegistrationService
 from .verification_schemas import (VerificationChallengeRequest, VerificationChallengeResponse,
@@ -49,7 +49,7 @@ def confirm_registration(data: RegistrationConfirmation, identity=Depends(authen
 def current_device(identity=Depends(authenticated), db=Depends(get_db, scope="function"),
                    devices=Depends(service)):
     student, _ = identity
-    return devices.current(db, student)
+    return registration_response(lambda: devices.current(db, student))
 
 
 # Phase 2 reuses authentication and the audit-preserving response boundary.
@@ -81,3 +81,10 @@ def report_verification_failure(data: VerificationFailureRequest, identity=Depen
         db=Depends(get_db, scope="function"), devices=Depends(verification_service)):
     student, auth = identity
     return registration_response(lambda: devices.client_failure(db, student, auth, data))
+
+
+@router.get("", response_model=DeviceListResponse, operation_id="listActiveRegisteredDevices")
+def list_registered_devices(identity=Depends(authenticated), db=Depends(get_db, scope="function"),
+                            devices=Depends(service)):
+    student, _ = identity
+    return registration_response(lambda: devices.listing(db, student))

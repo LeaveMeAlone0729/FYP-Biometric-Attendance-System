@@ -1,6 +1,6 @@
 """Additive Phase 1 tables. No changes to biometric or account records."""
 from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import CheckConstraint, Computed, DateTime, ForeignKey, Index, SmallInteger, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
 
@@ -8,8 +8,18 @@ from models import Base
 class RegisteredDevice(Base):
     __tablename__ = "registered_devices"
     device_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    # Phase 1 has no revocation/replacement route: one registration per student.
-    student_id: Mapped[str] = mapped_column(ForeignKey("students.student_id"), unique=True)
+    __table_args__ = (
+        CheckConstraint("slot_number IN (1, 2)", name="ck_device_slot"),
+        CheckConstraint("status IN ('ACTIVE', 'INACTIVE', 'REVOKED')", name="ck_device_status"),
+        UniqueConstraint("student_id", "active_slot", name="uq_registered_device_active_slot"),
+        Index("ix_registered_devices_student_status", "student_id", "status"),
+    )
+    student_id: Mapped[str] = mapped_column(ForeignKey("students.student_id"))
+    slot_number: Mapped[int] = mapped_column(SmallInteger, default=1, server_default="1")
+    active_slot: Mapped[int | None] = mapped_column(SmallInteger,
+        Computed("CASE WHEN status = 'ACTIVE' THEN slot_number ELSE NULL END", persisted=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime)
+    revocation_reason: Mapped[str | None] = mapped_column(String(255))
     public_key_spki: Mapped[str] = mapped_column(Text)
     public_key_fingerprint: Mapped[str] = mapped_column(String(64), unique=True)
     device_name: Mapped[str] = mapped_column(String(100))

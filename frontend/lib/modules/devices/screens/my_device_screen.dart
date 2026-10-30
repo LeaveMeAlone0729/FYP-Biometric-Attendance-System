@@ -18,7 +18,8 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
   late final DeviceApi _api = widget.api ?? DeviceApi();
   late final DeviceVerificationService _verification =
       widget.verificationService ?? DeviceVerificationService();
-  Map<String, dynamic>? _device;
+  List<Map<String, dynamic>> _devices = [];
+  bool _initialRegistrationAvailable = false;
   DeviceVerificationResult? _result;
   String? _error;
   bool _checking = false, _again = false, _loaded = false, _foreground = true;
@@ -48,10 +49,14 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
       _error = null;
     });
     try {
-      final device = await _api.current();
+      final listing = await _api.listDevices();
       if (!mounted) return;
       setState(() {
-        _device = device;
+        _devices = (listing['devices'] as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+        _initialRegistrationAvailable =
+            listing['initial_registration_available'] == true;
         _loaded = true;
       });
       final result = await _verification.verify();
@@ -86,15 +91,33 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 16),
-        if (_device != null) ...[
-          Text(
-            _device!['device_name'] as String,
-            style: Theme.of(context).textTheme.titleLarge,
+        Text('${_devices.length} / 2 active trusted devices'),
+        for (final device in _devices) ...[
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Slot ${device['slot_number']}: ${device['device_name']}',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  Text(device['device_model'] as String),
+                  Text('Status: ${device['status']}'),
+                  Text('Registered: ${device['registered_at']}'),
+                  if (_result?.deviceId == device['device_id'])
+                    const Text(
+                      'This installation',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                ],
+              ),
+            ),
           ),
-          Text(_device!['device_model'] as String),
-          Text('Status: ${_device!['status']}'),
-          Text('Registered: ${_device!['registered_at']}'),
-        ] else if (_loaded) ...[
+        ],
+        if (_loaded && _initialRegistrationAvailable) ...[
           const Text('No device registered for this account.'),
           TextButton(
             onPressed: _checking
@@ -109,6 +132,11 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
                     if (mounted) _check();
                   },
             child: const Text('Open device registration'),
+          ),
+        ] else if (_loaded) ...[
+          const SizedBox(height: 12),
+          const InfoNotice(
+            'Additional device enrollment is locked until Stage B biometric and liveness approval. Replacement is not enabled.',
           ),
         ],
         const SizedBox(height: 24),

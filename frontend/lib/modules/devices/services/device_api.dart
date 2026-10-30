@@ -4,6 +4,9 @@ class DeviceApi {
   DeviceApi([ApiClient? client]) : _client = client ?? ApiClient.instance;
   final ApiClient _client;
 
+  Future<Map<String, dynamic>> listDevices() async =>
+      Map<String, dynamic>.from(await _client.get('/api/v1/devices') as Map);
+
   Future<Map<String, dynamic>?> current() async {
     final response = await _client.get('/api/v1/devices/current') as Map;
     final device = response['device'];
@@ -37,13 +40,16 @@ class DeviceApi {
     return Map<String, dynamic>.from(response['device'] as Map);
   }
 
-  Future<Map<String, dynamic>> beginVerification(String operation) async =>
-      Map<String, dynamic>.from(
-        await _client.post('/api/v1/devices/verification-challenges', {
-              'operation': operation,
-            })
-            as Map,
-      );
+  Future<Map<String, dynamic>> beginVerification(
+    String operation, {
+    required String publicKeyFingerprint,
+  }) async => Map<String, dynamic>.from(
+    await _client.post('/api/v1/devices/verification-challenges', {
+          'operation': operation,
+          'public_key_fingerprint': publicKeyFingerprint,
+        })
+        as Map,
+  );
 
   Future<Map<String, dynamic>> confirmVerification(
     String challengeId,
@@ -59,7 +65,7 @@ class DeviceApi {
   );
 
   Future<void> reportVerificationFailure(
-    String challengeId,
+    String? challengeId,
     String operation,
     String reasonCode,
   ) async {

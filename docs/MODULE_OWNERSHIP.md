@@ -64,3 +64,11 @@ possession checks and audit. Flutter uses `device_verification_service.dart`;
 My Device triggers checks automatically and displays status only. Phase 1
 enrollment remains in `device_registration_screen.dart`. Native Keystore aliases
 and biometric/attendance code remain unchanged. See [DEVICE_VERIFICATION.md](DEVICE_VERIFICATION.md).
+
+## Stage A — two-slot foundation
+
+The devices module owns slot constraints, collection listing and exact-key
+verification selection. `two_device_migration.py` and `migrate_two_devices.py`
+provide the controlled upgrade. No partner biometric/attendance files or native
+Keystore aliases changed. Second enrollment awaits Stage B; replacement awaits
+Phase 3. See [TWO_DEVICE_STAGE_A.md](TWO_DEVICE_STAGE_A.md).

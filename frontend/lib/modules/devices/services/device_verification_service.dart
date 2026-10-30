@@ -65,7 +65,18 @@ class DeviceVerificationService {
     }
     String? challengeId;
     try {
-      final challenge = await _api.beginVerification(operation);
+      final local = await _keys.getPublicKey(studentId);
+      checkSession();
+      if (local == null) {
+        throw const DeviceVerificationException(
+          'LOCAL_KEY_MISSING',
+          'The registered private key is missing from this installation. Device replacement requires approval.',
+        );
+      }
+      final challenge = await _api.beginVerification(
+        operation,
+        publicKeyFingerprint: local['public_key_fingerprint'] as String,
+      );
       checkSession();
       challengeId = challenge['challenge_id'] as String;
       if (challenge['operation'] != operation ||
@@ -74,14 +85,6 @@ class DeviceVerificationService {
         throw const DeviceVerificationException(
           'INVALID_RESPONSE',
           'The server returned an incompatible device challenge.',
-        );
-      }
-      final local = await _keys.getPublicKey(studentId);
-      checkSession();
-      if (local == null) {
-        throw const DeviceVerificationException(
-          'LOCAL_KEY_MISSING',
-          'The registered private key is missing from this installation. Device replacement requires approval.',
         );
       }
       if (local['public_key_fingerprint'] !=
@@ -147,8 +150,7 @@ class DeviceVerificationService {
             );
       // Only report negative diagnostics, under the same login. These are untrusted
       // client reports and can never create PASS or an attendance authorization.
-      if (challengeId != null &&
-          sameSession() &&
+      if (sameSession() &&
           const {
             'LOCAL_KEY_MISSING',
             'LOCAL_KEY_MISMATCH',

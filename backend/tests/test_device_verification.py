@@ -46,13 +46,14 @@ class DeviceVerificationTests(unittest.TestCase):
         response = self.fixture.confirm(self.fixture.begin().json())
         self.assertEqual(response.status_code, 201, response.text)
         self.device_id = response.json()["device"]["device_id"]
+        self.fingerprint = response.json()["device"]["public_key_fingerprint"]
 
     def tearDown(self):
         self.fixture.tearDown()
 
-    def issue(self, headers=None):
+    def issue(self, headers=None, fingerprint=None):
         return self.client.post(PREFIX+"/verification-challenges", headers=headers or self.headers,
-                                json={"operation":"device_status"})
+                                json={"operation":"device_status", "public_key_fingerprint":fingerprint or self.fingerprint})
 
     def body(self, challenge, key=None):
         signature = (key or self.key).sign(base64.b64decode(challenge["signing_payload"]), ec.ECDSA(hashes.SHA256()))
