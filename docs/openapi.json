@@ -2221,6 +2221,140 @@
           }
         ]
       }
+    },
+    "/api/v1/devices": {
+      "get": {
+        "tags": [
+          "Device registration"
+        ],
+        "summary": "List Registered Devices",
+        "operationId": "listActiveRegisteredDevices",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid capture, identity mismatch, or invalid input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer login.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DeviceErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    }
+                  ],
+                  "title": "Response 422 Listactiveregistereddevices"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Verification is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -2459,6 +2593,14 @@
             "type": "string",
             "title": "Device Id"
           },
+          "slot_number": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "title": "Slot Number"
+          },
           "device_name": {
             "type": "string",
             "title": "Device Name"
@@ -2494,6 +2636,7 @@
         "type": "object",
         "required": [
           "device_id",
+          "slot_number",
           "device_name",
           "device_model",
           "platform",
@@ -2502,6 +2645,53 @@
           "registered_at"
         ],
         "title": "DeviceInfo"
+      },
+      "DeviceListResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceInfo"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "title": "Devices"
+          },
+          "active_count": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Active Count"
+          },
+          "maximum_active_devices": {
+            "type": "integer",
+            "const": 2,
+            "title": "Maximum Active Devices",
+            "default": 2
+          },
+          "initial_registration_available": {
+            "type": "boolean",
+            "title": "Initial Registration Available"
+          },
+          "additional_enrollment_enabled": {
+            "type": "boolean",
+            "const": false,
+            "title": "Additional Enrollment Enabled",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "devices",
+          "active_count",
+          "initial_registration_available"
+        ],
+        "title": "DeviceListResponse"
       },
       "DeviceResponse": {
         "properties": {
@@ -3059,12 +3249,18 @@
             "type": "string",
             "const": "device_status",
             "title": "Operation"
+          },
+          "public_key_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Public Key Fingerprint"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "operation"
+          "operation",
+          "public_key_fingerprint"
         ],
         "title": "VerificationChallengeRequest"
       },
@@ -3134,9 +3330,16 @@
             "title": "Operation"
           },
           "challenge_id": {
-            "type": "string",
-            "maxLength": 64,
-            "minLength": 20,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Challenge Id"
           },
           "reason_code": {
@@ -3153,7 +3356,6 @@
         "type": "object",
         "required": [
           "operation",
-          "challenge_id",
           "reason_code"
         ],
         "title": "VerificationFailureRequest"

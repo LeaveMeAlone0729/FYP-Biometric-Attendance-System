@@ -44,12 +44,34 @@ class DeviceRegistrationService:
             self.deny(db, current, action, 401, "SESSION_EXPIRED", "Please sign in again.")
         return current
 
+    def active_devices(self, db, student):
+        return db.scalars(select(RegisteredDevice).where(
+            RegisteredDevice.student_id == student.student_id, RegisteredDevice.status == "ACTIVE")
+            .order_by(RegisteredDevice.slot_number, RegisteredDevice.device_id)).all()
+
+    def listing(self, db, student):
+        devices = self.active_devices(db, student)
+        if len(devices) > 2:
+            raise DeviceRegistrationError(503, "DEVICE_POLICY_INVALID", "Device policy needs administrator attention.")
+        history = db.scalar(select(func.count()).select_from(RegisteredDevice)
+            .where(RegisteredDevice.student_id == student.student_id))
+        return dict(success=True, devices=[self.info(device) for device in devices],
+            active_count=len(devices), maximum_active_devices=2,
+            initial_registration_available=history == 0, additional_enrollment_enabled=False)
+
     def current(self, db, student):
-        device = db.scalar(select(RegisteredDevice).where(RegisteredDevice.student_id == student.student_id))
-        return {"success": True, "device": self.info(device) if device else None}
+        # Legacy metadata endpoint: retain single-history behavior, never choose
+        # an arbitrary registration when the account has multiple device rows.
+        devices = db.scalars(select(RegisteredDevice).where(
+            RegisteredDevice.student_id == student.student_id)
+            .order_by(RegisteredDevice.slot_number, RegisteredDevice.device_id).limit(2)).all()
+        if len(devices) > 1:
+            raise DeviceRegistrationError(409, "DEVICE_SELECTOR_REQUIRED",
+                "Use the device list and local public-key fingerprint to select this installation.")
+        return {"success": True, "device": self.info(devices[0]) if devices else None}
 
     def info(self, device):
-        return dict(device_id=device.device_id, device_name=device.device_name,
+        return dict(device_id=device.device_id, slot_number=device.slot_number, device_name=device.device_name,
             device_model=device.device_model, platform=device.platform, status=device.status,
             public_key_fingerprint=device.public_key_fingerprint,
             registered_at=iso_time(device.registered_at, self.context.settings))
@@ -58,7 +80,7 @@ class DeviceRegistrationService:
         student = self.lock_identity(db, student, auth, "challenge")
         if db.scalar(select(RegisteredDevice).where(RegisteredDevice.student_id == student.student_id)):
             self.deny(db, student, "challenge", 409, "DEVICE_ALREADY_REGISTERED",
-                      "A device is already registered. Replacement is not available in Phase 1.")
+                      "A device is already registered. Additional enrollment requires Stage B biometric approval; replacement is not enabled.")
         recent = db.scalar(select(func.count()).select_from(DeviceRegistrationEvent).where(
             DeviceRegistrationEvent.student_id == student.student_id,
             DeviceRegistrationEvent.action == "challenge",
@@ -115,14 +137,14 @@ class DeviceRegistrationService:
                       "Registration timed out. Start registration again.", identifier)
         if db.scalar(select(RegisteredDevice).where(RegisteredDevice.student_id == student.student_id)):
             self.deny(db, student, "confirm", 409, "DEVICE_ALREADY_REGISTERED",
-                      "A device is already registered.", identifier)
+                      "Additional enrollment requires Stage B biometric approval; replacement is not enabled.", identifier)
         if not verify_signature(challenge.public_key_spki, challenge.signing_payload, data.signature):
             self.deny(db, student, "confirm", 403, "INVALID_SIGNATURE",
                       "The device signature could not be verified. Start registration again.", identifier)
         device = RegisteredDevice(device_id=secrets.token_urlsafe(32), student_id=student.student_id,
             public_key_spki=challenge.public_key_spki, public_key_fingerprint=challenge.public_key_fingerprint,
             device_name=challenge.device_name, device_model=challenge.device_model,
-            platform="android", status="ACTIVE", registered_at=now)
+            platform="android", slot_number=1, status="ACTIVE", registered_at=now)
         try:
             # The savepoint preserves the failure audit and consumed nonce on a key race.
             with db.begin_nested():

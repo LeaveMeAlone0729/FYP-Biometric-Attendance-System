@@ -47,12 +47,20 @@ class DeviceVerificationService:
             self.deny(db, student, operation, 401, "SESSION_EXPIRED", "Please sign in again.")
         return student
 
-    def device(self, db, student, operation, challenge=None):
-        device = db.scalar(select(RegisteredDevice).where(RegisteredDevice.student_id == student.student_id)
+    def device(self, db, student, operation, challenge=None, fingerprint=None):
+        selector = RegisteredDevice.device_id == challenge.device_id if challenge is not None else (
+            RegisteredDevice.public_key_fingerprint == fingerprint)
+        device = db.scalar(select(RegisteredDevice).where(
+            RegisteredDevice.student_id == student.student_id, selector)
             .with_for_update().execution_options(populate_existing=True))
         if device is None:
-            self.deny(db, student, operation, 409, "DEVICE_NOT_REGISTERED",
-                      "Register this Android device before checking its identity.", challenge)
+            has_registration = db.scalar(select(RegisteredDevice.device_id).where(
+                RegisteredDevice.student_id == student.student_id).limit(1))
+            if has_registration is None:
+                self.deny(db, student, operation, 409, "DEVICE_NOT_REGISTERED",
+                          "Register this Android device before checking its identity.", challenge)
+            self.deny(db, student, operation, 403, "DEVICE_KEY_NOT_REGISTERED",
+                      "This installation key is not registered to your account. Additional enrollment is not enabled yet.", challenge)
         if device.status != "ACTIVE":
             self.deny(db, student, operation, 403, "DEVICE_NOT_ACTIVE",
                       "Your registered device is not active. Contact the project administrator.", challenge)
@@ -72,7 +80,7 @@ class DeviceVerificationService:
     def begin(self, db, student, auth, data):
         operation = data.operation
         student = self.identity(db, student, auth, operation)
-        device = self.device(db, student, operation)
+        device = self.device(db, student, operation, fingerprint=data.public_key_fingerprint)
         recent = db.scalar(select(func.count()).select_from(DeviceVerificationEvent).where(
             DeviceVerificationEvent.student_id == student.student_id,
             DeviceVerificationEvent.result == "ISSUED",
@@ -99,7 +107,7 @@ class DeviceVerificationService:
             expires_at=iso_time(expires, self.context.settings))
 
     def owned_challenge(self, db, student, auth, data):
-        # All device mutations lock student -> auth -> device -> challenge.
+        # Student/auth locks serialize owned mutations before child-row locking.
         challenge = db.scalar(select(DeviceVerificationChallenge).where(
             DeviceVerificationChallenge.challenge_id == data.challenge_id).with_for_update()
             .execution_options(populate_existing=True))
@@ -119,9 +127,6 @@ class DeviceVerificationService:
 
     def confirm(self, db, student, auth, data):
         student = self.identity(db, student, auth, data.operation)
-        # Lock the active device before challenge to match issuance/replacement order.
-        device = db.scalar(select(RegisteredDevice).where(RegisteredDevice.student_id == student.student_id)
-            .with_for_update().execution_options(populate_existing=True))
         challenge = self.owned_challenge(db, student, auth, data)
         device = self.device(db, student, data.operation, challenge)
         if not verify_signature(device.public_key_spki, challenge.signing_payload, data.signature):
@@ -142,6 +147,11 @@ class DeviceVerificationService:
 
     def client_failure(self, db, student, auth, data):
         student = self.identity(db, student, auth, data.operation)
+        if data.challenge_id is None:
+            # No local key means no truthful device selector. Negative telemetry is
+            # intentionally unbound and can never consume another device's proof.
+            self.event(db, student, data.operation, "client_failure", "FAIL", data.reason_code, source="client")
+            return dict(success=True, result="FAIL", code=data.reason_code)
         challenge = self.owned_challenge(db, student, auth, data)
         challenge.consumed_at = self.context.now()
         challenge.result = "FAIL"

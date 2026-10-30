@@ -173,3 +173,11 @@ verification button. Enrollment is available on a separate registration screen.
 Apply `backend\venv\Scripts\python.exe backend\migrate_device_verification.py`.
 See [automatic verification API and USB testing](docs/DEVICE_VERIFICATION.md).
 This standalone check does not authorize or gate attendance.
+
+## Stage A — two-device foundation
+
+Storage now supports two ACTIVE device slots and automatic verification selects
+the local public-key fingerprint. **Second-device enrollment remains blocked**
+until Stage B biometric/liveness approval; replacement remains disabled. Existing
+Samsung keys/registration and attendance are preserved. See
+[Stage A policy, migration evidence and phone testing](docs/TWO_DEVICE_STAGE_A.md).

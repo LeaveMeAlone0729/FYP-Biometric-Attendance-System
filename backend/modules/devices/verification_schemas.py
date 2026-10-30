@@ -4,18 +4,22 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class VerificationChallengeRequest(BaseModel):
+class VerificationOperation(BaseModel):
     model_config = ConfigDict(extra="forbid")
     operation: Literal["device_status"]
 
 
-class VerificationRequest(VerificationChallengeRequest):
+class VerificationChallengeRequest(VerificationOperation):
+    public_key_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class VerificationRequest(VerificationOperation):
     challenge_id: str = Field(min_length=20, max_length=64)
     signature: str = Field(min_length=1, max_length=256)
 
 
-class VerificationFailureRequest(VerificationChallengeRequest):
-    challenge_id: str = Field(min_length=20, max_length=64)
+class VerificationFailureRequest(VerificationOperation):
+    challenge_id: str | None = Field(default=None, min_length=20, max_length=64)
     reason_code: Literal["LOCAL_KEY_MISSING", "LOCAL_KEY_MISMATCH", "KEYSTORE_UNAVAILABLE"]
 
 

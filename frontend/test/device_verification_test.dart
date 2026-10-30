@@ -14,12 +14,13 @@ import 'package:frontend/services/api_client.dart';
 class VerificationKeys extends DeviceKeyStore {
   int created = 0, signed = 0;
   bool missing = false, mismatch = false, unavailable = false;
+  String fingerprint = 'fingerprint';
   Completer<String>? pending;
   final started = Completer<void>();
   @override
   Future<Map<String, dynamic>?> getPublicKey(String studentId) async => missing
       ? null
-      : {'public_key_fingerprint': mismatch ? 'wrong' : 'fingerprint'};
+      : {'public_key_fingerprint': mismatch ? 'wrong' : fingerprint};
   @override
   Future<Map<String, dynamic>> getOrCreateKey(String studentId) async {
     created++;
@@ -44,6 +45,7 @@ class VerificationFixture {
   int issued = 0, confirmed = 0, reported = 0;
   int? denialStatus;
   String denialCode = 'INVALID_DEVICE_SIGNATURE';
+  String selectedFingerprint = 'fingerprint', selectedDeviceId = 'device-1';
   bool unreachable = false, reportFails = false, badResponse = false;
   final keys = VerificationKeys();
   late final ApiClient client = ApiClient(
@@ -63,14 +65,17 @@ class VerificationFixture {
       if (request.url.path.endsWith('verification-challenges')) {
         issued++;
         if (unreachable) throw http.ClientException('Offline');
-        expect(body, {'operation': 'device_status'});
+        expect(body, {
+          'operation': 'device_status',
+          'public_key_fingerprint': keys.mismatch ? 'wrong' : keys.fingerprint,
+        });
         return http.Response(
           jsonEncode({
             'success': true,
             'challenge_id': 'challenge-$issued',
-            'device_id': 'device-1',
+            'device_id': selectedDeviceId,
             'operation': 'device_status',
-            'public_key_fingerprint': 'fingerprint',
+            'public_key_fingerprint': selectedFingerprint,
             'algorithm': 'ECDSA_P256_SHA256',
             'signature_encoding': 'base64-DER',
             'signing_payload': 'payload',
@@ -110,7 +115,7 @@ class VerificationFixture {
           'result': badResponse ? 'FAIL' : 'PASS',
           'verification_id': confirmed,
           'challenge_id': body['challenge_id'],
-          'device_id': 'device-1',
+          'device_id': selectedDeviceId,
           'operation': 'device_status',
           'verified_at': '2026-10-30T12:00:00+08:00',
           'attendance_authorized': false,
@@ -127,20 +132,28 @@ class VerificationFixture {
 class StatusDevices extends DeviceApi {
   bool registered = true;
   @override
-  Future<Map<String, dynamic>?> current() async => registered
-      ? {
-          'device_id': 'device-1',
-          'device_name': 'Samsung',
-          'device_model': 'SM-A346E',
-          'status': 'ACTIVE',
-          'registered_at': '2026-10-30T12:00:00+08:00',
-        }
-      : null;
+  Future<Map<String, dynamic>> listDevices() async => {
+    'devices': registered
+        ? [
+            {
+              'device_id': 'device-1',
+              'device_name': 'Samsung',
+              'device_model': 'SM-A346E',
+              'slot_number': 1,
+              'status': 'ACTIVE',
+              'registered_at': '2026-10-30T12:00:00+08:00',
+            },
+          ]
+        : [],
+    'initial_registration_available': !registered,
+    'additional_enrollment_enabled': false,
+  };
 }
 
 class StatusVerification extends DeviceVerificationService {
   int calls = 0;
   bool fail = false;
+  String selectedDeviceId = 'device-1';
   @override
   Future<DeviceVerificationResult> verify({
     String operation = 'device_status',
@@ -155,7 +168,7 @@ class StatusVerification extends DeviceVerificationService {
     return DeviceVerificationResult(
       verificationId: calls,
       challengeId: 'challenge-$calls',
-      deviceId: 'device-1',
+      deviceId: selectedDeviceId,
       operation: operation,
       verifiedAt: DateTime.parse('2026-10-30T12:00:00+08:00'),
     );
@@ -399,4 +412,60 @@ void main() {
     expect(find.byType(TextField), findsNothing);
     expect(find.text('Register this device'), findsNothing);
   });
+  test('Local tablet fingerprint selects tablet proof independently', () async {
+    final fixture = VerificationFixture();
+    await fixture.login();
+    fixture.keys.fingerprint = 'b' * 64;
+    fixture.selectedFingerprint = 'b' * 64;
+    fixture.selectedDeviceId = 'tablet-2';
+    final result = await fixture.service.verify();
+    expect(result.deviceId, 'tablet-2');
+    expect(fixture.keys.created, 0);
+  });
+
+  testWidgets(
+    'Two devices display the verified current installation without enrollment controls',
+    (tester) async {
+      final devices = TwoStatusDevices();
+      final proof = StatusVerification()..selectedDeviceId = 'tablet-2';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MyDeviceScreen(api: devices, verificationService: proof),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('2 / 2 active trusted devices'), findsOneWidget);
+      expect(find.text('Slot 1: Samsung'), findsOneWidget);
+      expect(find.text('Slot 2: Tablet'), findsOneWidget);
+      expect(find.text('This installation'), findsOneWidget);
+      expect(find.text('Open device registration'), findsNothing);
+      expect(find.text('Verify This Device'), findsNothing);
+    },
+  );
+}
+
+class TwoStatusDevices extends StatusDevices {
+  @override
+  Future<Map<String, dynamic>> listDevices() async => {
+    'devices': [
+      {
+        'device_id': 'device-1',
+        'device_name': 'Samsung',
+        'device_model': 'SM-A346E',
+        'slot_number': 1,
+        'status': 'ACTIVE',
+        'registered_at': '2026-10-30T12:00:00+08:00',
+      },
+      {
+        'device_id': 'tablet-2',
+        'device_name': 'Tablet',
+        'device_model': 'Android tablet',
+        'slot_number': 2,
+        'status': 'ACTIVE',
+        'registered_at': '2026-10-31T12:00:00+08:00',
+      },
+    ],
+    'initial_registration_available': false,
+    'additional_enrollment_enabled': false,
+  };
 }
