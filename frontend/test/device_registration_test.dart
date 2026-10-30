@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:frontend/modules/devices/screens/my_device_screen.dart';
+import 'package:frontend/modules/devices/screens/device_registration_screen.dart';
 import 'package:frontend/modules/devices/services/device_api.dart';
 import 'package:frontend/modules/devices/services/device_key_store.dart';
 import 'package:frontend/screens/student_profile_screen.dart';
@@ -169,7 +169,11 @@ void main() {
     final keys = FakeKeys();
     await tester.pumpWidget(
       MaterialApp(
-        home: MyDeviceScreen(api: api, keyStore: keys, studentId: 'TEST001'),
+        home: DeviceRegistrationScreen(
+          api: api,
+          keyStore: keys,
+          studentId: 'TEST001',
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -190,7 +194,11 @@ void main() {
     final keys = FakeKeys()..available = false;
     await tester.pumpWidget(
       MaterialApp(
-        home: MyDeviceScreen(api: api, keyStore: keys, studentId: 'TEST001'),
+        home: DeviceRegistrationScreen(
+          api: api,
+          keyStore: keys,
+          studentId: 'TEST001',
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -209,7 +217,7 @@ void main() {
       final api = FakeDevices()..loseResponse = true;
       await tester.pumpWidget(
         MaterialApp(
-          home: MyDeviceScreen(
+          home: DeviceRegistrationScreen(
             api: api,
             keyStore: FakeKeys(),
             studentId: 'TEST001',
@@ -231,7 +239,7 @@ void main() {
       final api = FakeDevices()..failConfirm = true;
       await tester.pumpWidget(
         MaterialApp(
-          home: MyDeviceScreen(
+          home: DeviceRegistrationScreen(
             api: api,
             keyStore: FakeKeys(),
             studentId: 'TEST001',
@@ -253,7 +261,7 @@ void main() {
   testWidgets('Failed status fetch cannot start registration', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: MyDeviceScreen(
+        home: DeviceRegistrationScreen(
           api: FakeDevices()..failFetch = true,
           keyStore: FakeKeys(),
           studentId: 'TEST001',

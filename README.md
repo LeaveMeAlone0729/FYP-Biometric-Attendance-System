@@ -164,3 +164,12 @@ additive migration with `backend\venv\Scripts\python.exe backend\migrate_devices
 See [device registration setup, REST contracts and USB testing](docs/DEVICE_REGISTRATION.md).
 Registration does not yet gate attendance; login and the biometric/liveness flow
 continue unchanged. No device replacement shortcut is provided.
+
+## Automatic device verification — Phase 2
+
+My Device now checks the registered installation automatically on entry and app
+resume, using the existing Android Keystore key. It shows status without a manual
+verification button. Enrollment is available on a separate registration screen.
+Apply `backend\venv\Scripts\python.exe backend\migrate_device_verification.py`.
+See [automatic verification API and USB testing](docs/DEVICE_VERIFICATION.md).
+This standalone check does not authorize or gate attendance.

@@ -32,7 +32,7 @@ class DeviceInfo(BaseModel):
     device_name: str
     device_model: str
     platform: Literal["android"]
-    status: Literal["ACTIVE"]
+    status: Literal["ACTIVE", "INACTIVE", "REVOKED"]
     public_key_fingerprint: str
     registered_at: datetime
 

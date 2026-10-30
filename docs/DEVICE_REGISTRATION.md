@@ -296,3 +296,11 @@ The four pre-existing edits in `.gitignore`, `frontend/analysis_options.yaml`,
 `frontend/android/gradle.properties` and `frontend/pubspec.lock` were preserved.
 No changes were committed, pushed or merged. Biometric algorithm/service files,
 login endpoints and the attendance writer were not modified.
+
+## Phase 2 update
+
+Registration is now on a separate Register Device screen linked from My Device
+when no device is registered. My Device displays registration/current check status
+and automatically verifies the existing key; there is no manual verification button.
+The Phase 1 registration contracts and Keystore alias remain unchanged. See
+[DEVICE_VERIFICATION.md](DEVICE_VERIFICATION.md) for Phase 2 behavior and testing.

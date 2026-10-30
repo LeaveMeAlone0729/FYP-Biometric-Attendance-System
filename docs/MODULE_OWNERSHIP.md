@@ -56,3 +56,11 @@ The teammate device module lives in `backend/modules/devices/` and
 `DeviceKeyStoreChannel.kt`. See [DEVICE_REGISTRATION.md](DEVICE_REGISTRATION.md).
 It registers devices only and does not enforce device/network attendance checks.
 The facial recognition and liveness algorithms and existing completion stay unchanged.
+
+## Automatic device verification (Phase 2)
+
+`backend/modules/devices/verification_*.py` owns operation/session/device-bound
+possession checks and audit. Flutter uses `device_verification_service.dart`;
+My Device triggers checks automatically and displays status only. Phase 1
+enrollment remains in `device_registration_screen.dart`. Native Keystore aliases
+and biometric/attendance code remain unchanged. See [DEVICE_VERIFICATION.md](DEVICE_VERIFICATION.md).

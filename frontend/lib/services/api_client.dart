@@ -5,9 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiException implements Exception {
-  const ApiException(this.message, [this.status = 0]);
+  const ApiException(this.message, [this.status = 0, this.code]);
   final String message;
   final int status;
+  final String? code;
   @override
   String toString() => message;
 }
@@ -25,6 +26,8 @@ class ApiClient {
   final String baseUrl;
   final ValueNotifier<bool> authenticated = ValueNotifier(false);
   String? _token;
+  int _sessionRevision = 0;
+  int get sessionRevision => _sessionRevision;
   Map<String, dynamic>? student;
   Map<String, dynamic> config = {};
 
@@ -40,6 +43,7 @@ class ApiClient {
             })
             as Map;
     _token = data['access_token'] as String;
+    _sessionRevision++;
     student = Map<String, dynamic>.from(data['student'] as Map);
     authenticated.value = true;
   }
@@ -52,6 +56,7 @@ class ApiClient {
     // Keep the local session if revocation fails, so the student can retry signing out.
     await post('/logout', {});
     _token = null;
+    _sessionRevision++;
     student = null;
     authenticated.value = false;
   }
@@ -104,6 +109,7 @@ class ApiClient {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         if (response.statusCode == 401 && _token != null) {
           _token = null;
+          _sessionRevision++;
           student = null;
           authenticated.value = false;
         }
@@ -117,7 +123,11 @@ class ApiClient {
           final field = (data['fields'] as List).first as Map;
           message = '${field['field']}: ${field['message']}';
         }
-        throw ApiException(message, response.statusCode);
+        throw ApiException(
+          message,
+          response.statusCode,
+          data is Map ? data['code']?.toString() : null,
+        );
       }
       return data;
     } on TimeoutException {
