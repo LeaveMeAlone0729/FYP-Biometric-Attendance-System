@@ -22,6 +22,7 @@ def main():
     from database import make_engine, make_sessions
     from models import Base, Student
     from modules.devices.migration import upgrade_device_schema
+    from modules.devices.verification_migration import upgrade_verification_schema
     from migrate import upgrade_schema
     from security import hash_password
     from demo import seed_demo
@@ -41,6 +42,7 @@ def main():
     Base.metadata.create_all(engine)
     upgrade_schema(engine)
     upgrade_device_schema(engine)
+    upgrade_verification_schema(engine)
     if settings.demo_mode:
         with make_sessions(engine).begin() as db:
             seed_demo(db, local_now(settings))

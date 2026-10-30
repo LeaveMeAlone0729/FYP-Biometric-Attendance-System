@@ -247,5 +247,16 @@ The shared backend now also exposes authenticated device registration at
 `/api/v1/devices/current`. See [DEVICE_REGISTRATION.md](DEVICE_REGISTRATION.md)
 for signing bytes, contracts, migration, failure handling and USB phone testing.
 Registration is independent: it does not change any biometric endpoint or gate
-attendance. Device verification, replacement, CIDR checks and the future final
-authorization coordinator remain later phases.
+attendance. Automatic device verification is now provided by Phase 2 below.
+Replacement, CIDR checks and the final authorization coordinator remain later phases.
+
+## Automatic device verification API (Phase 2)
+
+The device router adds `/api/v1/devices/verification-challenges`,
+`/api/v1/devices/verifications` and negative-only `/api/v1/devices/verification-failures`.
+See [DEVICE_VERIFICATION.md](DEVICE_VERIFICATION.md) for full contracts, operation
+binding, replay rules, audit and the additive migration. Only `device_status` is
+currently enabled; PASS is point-in-time evidence and never attendance authority.
+Phase 5 must add server-validated attendance-attempt binding and invoke the Flutter
+service automatically, then gate the final insert. Existing biometric endpoints
+and attendance completion remain unchanged in Phase 2.

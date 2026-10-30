@@ -36,4 +36,37 @@ class DeviceApi {
             as Map;
     return Map<String, dynamic>.from(response['device'] as Map);
   }
+
+  Future<Map<String, dynamic>> beginVerification(String operation) async =>
+      Map<String, dynamic>.from(
+        await _client.post('/api/v1/devices/verification-challenges', {
+              'operation': operation,
+            })
+            as Map,
+      );
+
+  Future<Map<String, dynamic>> confirmVerification(
+    String challengeId,
+    String operation,
+    String signature,
+  ) async => Map<String, dynamic>.from(
+    await _client.post('/api/v1/devices/verifications', {
+          'challenge_id': challengeId,
+          'operation': operation,
+          'signature': signature,
+        })
+        as Map,
+  );
+
+  Future<void> reportVerificationFailure(
+    String challengeId,
+    String operation,
+    String reasonCode,
+  ) async {
+    await _client.post('/api/v1/devices/verification-failures', {
+      'challenge_id': challengeId,
+      'operation': operation,
+      'reason_code': reasonCode,
+    });
+  }
 }
