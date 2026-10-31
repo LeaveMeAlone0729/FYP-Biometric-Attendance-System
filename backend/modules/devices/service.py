@@ -57,7 +57,8 @@ class DeviceRegistrationService:
             .where(RegisteredDevice.student_id == student.student_id))
         return dict(success=True, devices=[self.info(device) for device in devices],
             active_count=len(devices), maximum_active_devices=2,
-            initial_registration_available=history == 0, additional_enrollment_enabled=False)
+            initial_registration_available=history == 0, additional_enrollment_enabled=False,
+            pending_enrollment_available=(len(devices) == 1 and devices[0].slot_number == 1 and history == 1))
 
     def current(self, db, student):
         # Legacy metadata endpoint: retain single-history behavior, never choose

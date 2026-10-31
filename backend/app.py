@@ -9,6 +9,9 @@ from api.context import AppContext
 from api.errors import register_error_handlers
 from api.system import router as system_router
 from modules.devices.router import router as devices_router
+from modules.devices.pending_router import router as pending_devices_router
+from modules.devices.biometric_router import router as device_biometrics_router
+from modules.devices.activation_router import router as activation_router
 from biometrics import Biometrics
 from config import Settings, local_now
 from database import make_engine
@@ -52,6 +55,9 @@ def create_app(settings=None, engine=None, biometrics=None, clock=None):
         attendance_router,
         biometrics_router,
         devices_router,
+        pending_devices_router,
+        device_biometrics_router,
+        activation_router,
     ):
         app.include_router(router)
     return app

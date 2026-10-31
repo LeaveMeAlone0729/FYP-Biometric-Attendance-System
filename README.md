@@ -181,3 +181,15 @@ the local public-key fingerprint. **Second-device enrollment remains blocked**
 until Stage B biometric/liveness approval; replacement remains disabled. Existing
 Samsung keys/registration and attendance are preserved. See
 [Stage A policy, migration evidence and phone testing](docs/TWO_DEVICE_STAGE_A.md).
+
+## Stage B2 — pending second-device preparation
+
+Slot 2 candidate key proof is available, but activation remains disabled. The partner
+trusted-biometric provider is not integrated; approval scaffolds fail closed. See
+[the B2 guide](docs/SECOND_DEVICE_STAGE_B2.md) for migration and safe tablet testing.
+
+## Stage B3 — device biometric tests
+
+Second-device face/liveness checks now run through separate device APIs. Results
+remain UNTRUSTED_TEST_RESULT and cannot activate Slot 2. See
+[the B3 guide](docs/SECOND_DEVICE_STAGE_B3.md) for contracts, migration and webcam testing.

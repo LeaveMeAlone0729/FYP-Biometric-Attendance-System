@@ -311,3 +311,9 @@ The schema now represents two ACTIVE slots, but the Phase 1 endpoints still perm
 only initial enrollment. Any registration history blocks additional activation
 until Stage B approval. Do not use direct SQL to enroll a real second device.
 See [TWO_DEVICE_STAGE_A.md](TWO_DEVICE_STAGE_A.md).
+
+## Stage B2 preparation only
+
+The initial enrollment rules remain unchanged. An account with ACTIVE Slot 1 can
+prepare an inactive Slot 2 candidate using separate endpoints. Existing registration
+cannot bypass approval. See [SECOND_DEVICE_STAGE_B2.md](SECOND_DEVICE_STAGE_B2.md).

@@ -2355,10 +2355,1690 @@
           }
         ]
       }
+    },
+    "/api/v1/devices/pending-registrations": {
+      "post": {
+        "tags": [
+          "Pending second-device enrollment"
+        ],
+        "summary": "Begin Pending",
+        "operationId": "begin_pending_api_v1_devices_pending_registrations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PendingRegistrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingRegistrationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/devices/pending-registrations/current": {
+      "get": {
+        "tags": [
+          "Pending second-device enrollment"
+        ],
+        "summary": "Current Pending",
+        "operationId": "current_pending_api_v1_devices_pending_registrations_current_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentPendingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/devices/pending-registrations/{pending_id}": {
+      "get": {
+        "tags": [
+          "Pending second-device enrollment"
+        ],
+        "summary": "Pending Status",
+        "operationId": "pending_status_api_v1_devices_pending_registrations__pending_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pending_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pending Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingRegistrationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/pending-registrations/{pending_id}/proof": {
+      "post": {
+        "tags": [
+          "Pending second-device enrollment"
+        ],
+        "summary": "Candidate Proof",
+        "operationId": "candidate_proof_api_v1_devices_pending_registrations__pending_id__proof_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pending_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pending Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateProof"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingRegistrationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/device-approvals": {
+      "post": {
+        "tags": [
+          "Untrusted device biometric checks"
+        ],
+        "summary": "Create",
+        "operationId": "create_api_v1_device_approvals_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceBiometricResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/device-approvals/{approval_id}": {
+      "get": {
+        "tags": [
+          "Untrusted device biometric checks"
+        ],
+        "summary": "Status",
+        "operationId": "status_api_v1_device_approvals__approval_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Approval Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceBiometricResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/device-approvals/{approval_id}/face": {
+      "post": {
+        "tags": [
+          "Untrusted device biometric checks"
+        ],
+        "summary": "Face",
+        "operationId": "face_api_v1_device_approvals__approval_id__face_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Approval Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_face_api_v1_device_approvals__approval_id__face_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceBiometricResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/device-approvals/{approval_id}/liveness/frame": {
+      "post": {
+        "tags": [
+          "Untrusted device biometric checks"
+        ],
+        "summary": "Liveness",
+        "operationId": "liveness_api_v1_device_approvals__approval_id__liveness_frame_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Approval Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_liveness_api_v1_device_approvals__approval_id__liveness_frame_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceBiometricResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/pending-registrations/{pending_id}/activation-readiness": {
+      "post": {
+        "tags": [
+          "Second device activation"
+        ],
+        "summary": "Readiness",
+        "operationId": "readiness_api_v1_devices_pending_registrations__pending_id__activation_readiness_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pending_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pending Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivationReadinessRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivationReadiness"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/pending-registrations/{pending_id}/activation-challenges": {
+      "post": {
+        "tags": [
+          "Second device activation"
+        ],
+        "summary": "Challenge",
+        "operationId": "challenge_api_v1_devices_pending_registrations__pending_id__activation_challenges_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pending_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pending Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivationChallengeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivationChallenge"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/pending-registrations/{pending_id}/activate": {
+      "post": {
+        "tags": [
+          "Second device activation"
+        ],
+        "summary": "Activate",
+        "operationId": "activate_api_v1_devices_pending_registrations__pending_id__activate_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pending_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pending Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivationConfirmation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivationAccepted"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/pending-registrations/{pending_id}/activation-status": {
+      "get": {
+        "tags": [
+          "Second device activation"
+        ],
+        "summary": "Status",
+        "operationId": "status_api_v1_devices_pending_registrations__pending_id__activation_status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pending_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pending Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivationStatus"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ActivationAccepted": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          },
+          "attendance_authorized": {
+            "type": "boolean",
+            "const": false,
+            "title": "Attendance Authorized",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "device"
+        ],
+        "title": "ActivationAccepted"
+      },
+      "ActivationChallenge": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "pending_registration_id": {
+            "type": "string",
+            "title": "Pending Registration Id"
+          },
+          "candidate_device_id": {
+            "type": "string",
+            "title": "Candidate Device Id"
+          },
+          "public_key_fingerprint": {
+            "type": "string",
+            "title": "Public Key Fingerprint"
+          },
+          "operation": {
+            "type": "string",
+            "const": "enroll_second_device",
+            "title": "Operation"
+          },
+          "slot_number": {
+            "type": "integer",
+            "const": 2,
+            "title": "Slot Number"
+          },
+          "biometric_result_id": {
+            "type": "string",
+            "title": "Biometric Result Id"
+          },
+          "challenge_id": {
+            "type": "string",
+            "title": "Challenge Id"
+          },
+          "approval_id": {
+            "type": "string",
+            "title": "Approval Id"
+          },
+          "trusted_template_revision_id": {
+            "type": "string",
+            "title": "Trusted Template Revision Id"
+          },
+          "algorithm": {
+            "type": "string",
+            "const": "ECDSA_P256_SHA256",
+            "title": "Algorithm"
+          },
+          "signature_encoding": {
+            "type": "string",
+            "const": "base64-DER",
+            "title": "Signature Encoding"
+          },
+          "signing_payload": {
+            "type": "string",
+            "title": "Signing Payload"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pending_registration_id",
+          "candidate_device_id",
+          "public_key_fingerprint",
+          "operation",
+          "slot_number",
+          "biometric_result_id",
+          "challenge_id",
+          "approval_id",
+          "trusted_template_revision_id",
+          "algorithm",
+          "signature_encoding",
+          "signing_payload",
+          "expires_at"
+        ],
+        "title": "ActivationChallenge"
+      },
+      "ActivationChallengeRequest": {
+        "properties": {
+          "approval_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Approval Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "approval_id"
+        ],
+        "title": "ActivationChallengeRequest"
+      },
+      "ActivationConfirmation": {
+        "properties": {
+          "approval_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Approval Id"
+          },
+          "challenge_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Challenge Id"
+          },
+          "signature": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Signature"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "approval_id",
+          "challenge_id",
+          "signature"
+        ],
+        "title": "ActivationConfirmation"
+      },
+      "ActivationReadiness": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "pending_registration_id": {
+            "type": "string",
+            "title": "Pending Registration Id"
+          },
+          "candidate_device_id": {
+            "type": "string",
+            "title": "Candidate Device Id"
+          },
+          "public_key_fingerprint": {
+            "type": "string",
+            "title": "Public Key Fingerprint"
+          },
+          "operation": {
+            "type": "string",
+            "const": "enroll_second_device",
+            "title": "Operation"
+          },
+          "slot_number": {
+            "type": "integer",
+            "const": 2,
+            "title": "Slot Number"
+          },
+          "status": {
+            "type": "string",
+            "const": "ELIGIBLE",
+            "title": "Status"
+          },
+          "approval_id": {
+            "type": "string",
+            "title": "Approval Id"
+          },
+          "trusted_template_revision_id": {
+            "type": "string",
+            "title": "Trusted Template Revision Id"
+          },
+          "biometric_result_id": {
+            "type": "string",
+            "title": "Biometric Result Id"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pending_registration_id",
+          "candidate_device_id",
+          "public_key_fingerprint",
+          "operation",
+          "slot_number",
+          "status",
+          "approval_id",
+          "trusted_template_revision_id",
+          "biometric_result_id",
+          "expires_at"
+        ],
+        "title": "ActivationReadiness"
+      },
+      "ActivationReadinessRequest": {
+        "properties": {},
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ActivationReadinessRequest"
+      },
+      "ActivationStatus": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "pending_registration_id": {
+            "type": "string",
+            "title": "Pending Registration Id"
+          },
+          "candidate_device_id": {
+            "type": "string",
+            "title": "Candidate Device Id"
+          },
+          "public_key_fingerprint": {
+            "type": "string",
+            "title": "Public Key Fingerprint"
+          },
+          "operation": {
+            "type": "string",
+            "const": "enroll_second_device",
+            "title": "Operation"
+          },
+          "slot_number": {
+            "type": "integer",
+            "const": 2,
+            "title": "Slot Number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "NOT_ACTIVE",
+              "EXPIRED"
+            ],
+            "title": "Status"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active_count": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Active Count"
+          },
+          "maximum_active_devices": {
+            "type": "integer",
+            "const": 2,
+            "title": "Maximum Active Devices",
+            "default": 2
+          },
+          "attendance_authorized": {
+            "type": "boolean",
+            "const": false,
+            "title": "Attendance Authorized",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "pending_registration_id",
+          "candidate_device_id",
+          "public_key_fingerprint",
+          "operation",
+          "slot_number",
+          "status",
+          "device",
+          "active_count"
+        ],
+        "title": "ActivationStatus"
+      },
       "AttendanceAccepted": {
         "properties": {
           "success": {
@@ -2425,6 +4105,34 @@
           "message"
         ],
         "title": "BiometricRemoved"
+      },
+      "Body_face_api_v1_device_approvals__approval_id__face_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_face_api_v1_device_approvals__approval_id__face_post"
+      },
+      "Body_liveness_api_v1_device_approvals__approval_id__liveness_frame_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_liveness_api_v1_device_approvals__approval_id__liveness_frame_post"
       },
       "Body_registerFace": {
         "properties": {
@@ -2512,6 +4220,22 @@
         ],
         "title": "Body_verifyFace"
       },
+      "CandidateProof": {
+        "properties": {
+          "signature": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Signature"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "signature"
+        ],
+        "title": "CandidateProof"
+      },
       "ChallengeStarted": {
         "properties": {
           "success": {
@@ -2562,6 +4286,199 @@
           "expires_in"
         ],
         "title": "ChallengeStarted"
+      },
+      "CurrentPendingResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PendingRegistrationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pending"
+        ],
+        "title": "CurrentPendingResponse"
+      },
+      "DeviceApprovalRequest": {
+        "properties": {
+          "pending_registration_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 20,
+            "title": "Pending Registration Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pending_registration_id"
+        ],
+        "title": "DeviceApprovalRequest"
+      },
+      "DeviceBiometricResult": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "approval_id": {
+            "type": "string",
+            "title": "Approval Id"
+          },
+          "pending_registration_id": {
+            "type": "string",
+            "title": "Pending Registration Id"
+          },
+          "candidate_device_id": {
+            "type": "string",
+            "title": "Candidate Device Id"
+          },
+          "public_key_fingerprint": {
+            "type": "string",
+            "title": "Public Key Fingerprint"
+          },
+          "operation": {
+            "type": "string",
+            "const": "enroll_second_device",
+            "title": "Operation",
+            "default": "enroll_second_device"
+          },
+          "slot_number": {
+            "type": "integer",
+            "const": 2,
+            "title": "Slot Number",
+            "default": 2
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "FACE",
+              "LIVENESS",
+              "COMPLETED_UNTRUSTED",
+              "FAILED",
+              "EXPIRED"
+            ],
+            "title": "Stage"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready",
+            "default": false
+          },
+          "feedback_code": {
+            "type": "string",
+            "title": "Feedback Code"
+          },
+          "face_verified": {
+            "type": "boolean",
+            "title": "Face Verified"
+          },
+          "liveness_verified": {
+            "type": "boolean",
+            "title": "Liveness Verified"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          },
+          "fingers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fingers"
+          },
+          "valid_frames": {
+            "type": "integer",
+            "title": "Valid Frames"
+          },
+          "required_frames": {
+            "type": "integer",
+            "const": 3,
+            "title": "Required Frames",
+            "default": 3
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          },
+          "result_classification": {
+            "type": "string",
+            "const": "UNTRUSTED_TEST_RESULT",
+            "title": "Result Classification",
+            "default": "UNTRUSTED_TEST_RESULT"
+          },
+          "trusted": {
+            "type": "boolean",
+            "const": false,
+            "title": "Trusted",
+            "default": false
+          },
+          "activation_eligible": {
+            "type": "boolean",
+            "const": false,
+            "title": "Activation Eligible",
+            "default": false
+          },
+          "consumable": {
+            "type": "boolean",
+            "const": false,
+            "title": "Consumable",
+            "default": false
+          },
+          "activation_enabled": {
+            "type": "boolean",
+            "const": false,
+            "title": "Activation Enabled",
+            "default": false
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "approval_id",
+          "pending_registration_id",
+          "candidate_device_id",
+          "public_key_fingerprint",
+          "stage",
+          "feedback_code",
+          "face_verified",
+          "liveness_verified",
+          "complete",
+          "fingers",
+          "valid_frames",
+          "expires_at",
+          "expires_in",
+          "message"
+        ],
+        "title": "DeviceBiometricResult"
       },
       "DeviceErrorResponse": {
         "properties": {
@@ -2682,6 +4599,11 @@
             "type": "boolean",
             "const": false,
             "title": "Additional Enrollment Enabled",
+            "default": false
+          },
+          "pending_enrollment_available": {
+            "type": "boolean",
+            "title": "Pending Enrollment Available",
             "default": false
           }
         },
@@ -2958,6 +4880,160 @@
           "password"
         ],
         "title": "Login"
+      },
+      "PendingRegistrationRequest": {
+        "properties": {
+          "public_key_spki": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 40,
+            "title": "Public Key Spki"
+          },
+          "platform": {
+            "type": "string",
+            "const": "android",
+            "title": "Platform",
+            "default": "android"
+          },
+          "device_name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Device Name"
+          },
+          "device_model": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Device Model"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "public_key_spki",
+          "device_name",
+          "device_model"
+        ],
+        "title": "PendingRegistrationRequest"
+      },
+      "PendingRegistrationResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "pending_registration_id": {
+            "type": "string",
+            "title": "Pending Registration Id"
+          },
+          "candidate_device_id": {
+            "type": "string",
+            "title": "Candidate Device Id"
+          },
+          "public_key_fingerprint": {
+            "type": "string",
+            "title": "Public Key Fingerprint"
+          },
+          "slot_number": {
+            "type": "integer",
+            "const": 2,
+            "title": "Slot Number",
+            "default": 2
+          },
+          "operation": {
+            "type": "string",
+            "const": "enroll_second_device",
+            "title": "Operation",
+            "default": "enroll_second_device"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CHALLENGE_ISSUED",
+              "KEY_PROVEN",
+              "FAILED",
+              "EXPIRED",
+              "ACTIVATED"
+            ],
+            "title": "Status"
+          },
+          "algorithm": {
+            "type": "string",
+            "const": "ECDSA_P256_SHA256",
+            "title": "Algorithm",
+            "default": "ECDSA_P256_SHA256"
+          },
+          "signature_encoding": {
+            "type": "string",
+            "const": "base64-DER",
+            "title": "Signature Encoding",
+            "default": "base64-DER"
+          },
+          "signing_payload": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signing Payload"
+          },
+          "challenge_expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Challenge Expires At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "key_proven_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Proven At"
+          },
+          "activation_enabled": {
+            "type": "boolean",
+            "const": false,
+            "title": "Activation Enabled",
+            "default": false
+          },
+          "biometric_approval_status": {
+            "type": "string",
+            "const": "UNAVAILABLE",
+            "title": "Biometric Approval Status",
+            "default": "UNAVAILABLE"
+          },
+          "attendance_authorized": {
+            "type": "boolean",
+            "const": false,
+            "title": "Attendance Authorized",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "pending_registration_id",
+          "candidate_device_id",
+          "public_key_fingerprint",
+          "status",
+          "challenge_expires_at",
+          "expires_at"
+        ],
+        "title": "PendingRegistrationResponse"
       },
       "PinEntry": {
         "properties": {

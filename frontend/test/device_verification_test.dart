@@ -434,7 +434,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('2 / 2 active trusted devices'), findsOneWidget);
+      expect(find.text('2 / 2 ACTIVE devices'), findsOneWidget);
       expect(find.text('Slot 1: Samsung'), findsOneWidget);
       expect(find.text('Slot 2: Tablet'), findsOneWidget);
       expect(find.text('This installation'), findsOneWidget);
