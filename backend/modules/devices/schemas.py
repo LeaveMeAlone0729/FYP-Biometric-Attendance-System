@@ -56,3 +56,4 @@ class DeviceListResponse(BaseModel):
     maximum_active_devices: Literal[2] = 2
     initial_registration_available: bool
     additional_enrollment_enabled: Literal[False] = False
+    pending_enrollment_available: bool = False

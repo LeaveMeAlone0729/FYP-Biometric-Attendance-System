@@ -22,6 +22,7 @@ class ApiClient {
     defaultValue: 'http://10.0.2.2:8000',
   );
   static ApiClient instance = ApiClient();
+  static int _diagnosticSequence = 0;
   final http.Client _client;
   final String baseUrl;
   final ValueNotifier<bool> authenticated = ValueNotifier(false);
@@ -93,11 +94,32 @@ class ApiClient {
   }
 
   Future<dynamic> _perform(http.BaseRequest request) async {
+    final deviceBiometric = request.url.path.startsWith(
+      '/api/v1/device-approvals',
+    );
+    final requestId = deviceBiometric
+        ? 'b3-${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}-${++_diagnosticSequence}'
+        : null;
+    final diagnosticClock = Stopwatch()..start();
+    int? diagnosticStatus;
+    if (requestId != null) {
+      request.headers['X-Request-ID'] = requestId;
+      if (kDebugMode) {
+        final safePath = request.url.path.replaceFirst(
+          RegExp(r'/device-approvals/[^/]+'),
+          '/device-approvals/:id',
+        );
+        debugPrint(
+          'B3_HTTP request_id=$requestId stage=send method=${request.method} endpoint=$safePath host=${request.url.host} port=${request.url.port}',
+        );
+      }
+    }
     try {
       final response = await (() async {
         final streamed = await _client.send(request);
         return http.Response.fromStream(streamed);
       })().timeout(const Duration(seconds: 25));
+      diagnosticStatus = response.statusCode;
       dynamic data;
       try {
         data = jsonDecode(response.body);
@@ -131,17 +153,44 @@ class ApiClient {
       }
       return data;
     } on TimeoutException {
+      if (deviceBiometric) {
+        throw const ApiException(
+          'Device biometric request timed out. Check USB reverse and restart the scan.',
+          0,
+          'REQUEST_TIMEOUT',
+        );
+      }
       throw const ApiException(
         'The server is taking too long. Check your connection and try again.',
       );
     } on SocketException {
+      if (deviceBiometric) {
+        throw const ApiException(
+          'Cannot reach the device verification server. Check USB reverse and API_BASE_URL.',
+          0,
+          'NETWORK_ERROR',
+        );
+      }
       throw const ApiException(
         'Cannot reach the attendance server. Check the server and your network.',
       );
     } on http.ClientException {
+      if (deviceBiometric) {
+        throw const ApiException(
+          'Cannot reach the device verification server. Check USB reverse and API_BASE_URL.',
+          0,
+          'NETWORK_ERROR',
+        );
+      }
       throw const ApiException(
         'Cannot reach the attendance server. Check the server and your network.',
       );
+    } finally {
+      if (deviceBiometric && kDebugMode) {
+        debugPrint(
+          'B3_HTTP request_id=$requestId stage=finished status=${diagnosticStatus ?? 'NO_RESPONSE'} elapsed_ms=${diagnosticClock.elapsedMilliseconds}',
+        );
+      }
     }
   }
 }

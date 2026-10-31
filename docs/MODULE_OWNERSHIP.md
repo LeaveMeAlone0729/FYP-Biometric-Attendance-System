@@ -72,3 +72,37 @@ verification selection. `two_device_migration.py` and `migrate_two_devices.py`
 provide the controlled upgrade. No partner biometric/attendance files or native
 Keystore aliases changed. Second enrollment awaits Stage B; replacement awaits
 Phase 3. See [TWO_DEVICE_STAGE_A.md](TWO_DEVICE_STAGE_A.md).
+
+## Stage B2 device-owned preparation
+
+`backend/modules/devices/pending_*.py`, `approval_provider.py`,
+`backend/migrate_pending_devices.py` and Flutter `pending_device_*` own candidate
+preparation and the fail-closed partner interface. No biometric inference/lifecycle
+or attendance files are changed. Partner B1 trust/recovery and an attendance-free
+approval provider remain required. See [B2](SECOND_DEVICE_STAGE_B2.md).
+
+## Stage B3 — device biometric tests
+
+Device-owned `biometric_*.py` under modules/devices and the Flutter device biometric
+screen/adapter orchestrate attendance-free untrusted tests. They reuse unchanged
+partner inference and camera-plugin patterns. No partner algorithm, lifecycle,
+attendance or native key source changed. See [B3](SECOND_DEVICE_STAGE_B3.md).
+
+## Stage B4 — disabled final activation preparation
+
+Device-owned activation_models.py, activation_service.py and activation_migration.py
+prepare fresh signed activation and per-challenge audit. The old unsigned pending
+activation sketch now rejects. migrate_device_activation.py validates only a restored
+copy; no production tables/routes are installed. Flutter device_activation_state.dart
+keeps automatic activation unavailable. Partner trust/recovery remains a dependency.
+See [B4](SECOND_DEVICE_STAGE_B4.md). No partner inference/lifecycle or attendance
+source is changed.
+
+## Completed device-owned activation integration
+
+The device module now owns activation_router.py, activation_schemas.py, the B4
+transaction core, readiness/status and automatic Flutter device_activation_service.dart.
+The migration is deployed; all actual eligibility still requires the partner's
+genuine trusted revision/result/grant adapter. No partner source was modified.
+See [integration](SECOND_DEVICE_ACTIVATION_INTEGRATION.md) and
+[exact provider contract](TRUSTED_BIOMETRIC_PROVIDER_CONTRACT.md).

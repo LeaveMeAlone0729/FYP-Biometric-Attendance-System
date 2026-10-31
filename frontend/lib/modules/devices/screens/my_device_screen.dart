@@ -3,6 +3,7 @@ import '../../../theme.dart';
 import '../services/device_api.dart';
 import '../services/device_verification_service.dart';
 import 'device_registration_screen.dart';
+import 'pending_device_screen.dart';
 
 /// Read-only registration/check status. Verification runs on entry and resume.
 class MyDeviceScreen extends StatefulWidget {
@@ -20,6 +21,7 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
       widget.verificationService ?? DeviceVerificationService();
   List<Map<String, dynamic>> _devices = [];
   bool _initialRegistrationAvailable = false;
+  bool _pendingEnrollmentAvailable = false;
   DeviceVerificationResult? _result;
   String? _error;
   bool _checking = false, _again = false, _loaded = false, _foreground = true;
@@ -57,6 +59,8 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
             .toList();
         _initialRegistrationAvailable =
             listing['initial_registration_available'] == true;
+        _pendingEnrollmentAvailable =
+            listing['pending_enrollment_available'] == true;
         _loaded = true;
       });
       final result = await _verification.verify();
@@ -91,7 +95,7 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 16),
-        Text('${_devices.length} / 2 active trusted devices'),
+        if (_loaded) Text('${_devices.length} / 2 ACTIVE devices'),
         for (final device in _devices) ...[
           const SizedBox(height: 12),
           Card(
@@ -136,8 +140,26 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
         ] else if (_loaded) ...[
           const SizedBox(height: 12),
           const InfoNotice(
-            'Additional device enrollment is locked until Stage B biometric and liveness approval. Replacement is not enabled.',
+            'Additional enrollment requires fresh trusted biometric approval and candidate-key proof. Replacement is not enabled.',
           ),
+        ],
+        if (_loaded && _pendingEnrollmentAvailable) ...[
+          const Text(
+            'Slot 2 is available for preparation. Activation is checked automatically and requires trusted server approval.',
+          ),
+          if (!_checking && _result == null)
+            TextButton(
+              onPressed: () async {
+                await Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const PendingDeviceScreen(),
+                  ),
+                );
+                if (mounted) _check();
+              },
+              child: const Text('Prepare this second device'),
+            ),
         ],
         const SizedBox(height: 24),
         if (_checking)

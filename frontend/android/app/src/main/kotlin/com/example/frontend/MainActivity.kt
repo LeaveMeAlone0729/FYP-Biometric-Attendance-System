@@ -7,5 +7,6 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         DeviceKeyStoreChannel.register(flutterEngine.dartExecutor.binaryMessenger)
+        DeviceCameraChannel.register(flutterEngine.dartExecutor.binaryMessenger)
     }
 }

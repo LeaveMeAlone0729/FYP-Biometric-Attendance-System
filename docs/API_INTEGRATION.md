@@ -268,3 +268,33 @@ verification challenges now require the local `public_key_fingerprint` selector;
 a valid signature remains mandatory. Initial registration endpoints cannot
 activate a second device. No biometric or attendance API behavior changed. See
 [TWO_DEVICE_STAGE_A.md](TWO_DEVICE_STAGE_A.md) for contracts and rollout safety.
+
+## Stage B2 preparation boundary
+
+Device-owned pending registration/proof endpoints and fail-closed device approval
+scaffolds are documented in [SECOND_DEVICE_STAGE_B2.md](SECOND_DEVICE_STAGE_B2.md).
+No activation route exists. Initial registration and biometric/attendance APIs stay
+unchanged; `additional_enrollment_enabled` remains false.
+
+## Stage B3 updates to device-approval URLs
+
+The B2 scaffolds now host attendance-free face/liveness TEST sessions; they do not
+issue trusted approvals. Every result remains untrusted, non-consumable and
+ineligible for activation. See [SECOND_DEVICE_STAGE_B3.md](SECOND_DEVICE_STAGE_B3.md).
+
+## Current second-device activation REST API
+
+The authenticated device activation API and Flutter automatic signing flow are
+implemented. The default trusted provider remains unavailable; COMPLETED_UNTRUSTED
+cannot activate a device. Under /api/v1/devices/pending-registrations/{pending_id}:
+
+- POST /activation-readiness with {} finds a genuine server approval.
+- POST /activation-challenges with {approval_id} issues a signed-proof nonce.
+- POST /activate with {approval_id, challenge_id, signature} requires fresh key proof.
+- GET /activation-status reconciles final committed registration state.
+
+See [full contracts and migration evidence](SECOND_DEVICE_ACTIVATION_INTEGRATION.md)
+and [partner adapter schema](TRUSTED_BIOMETRIC_PROVIDER_CONTRACT.md). OpenAPI includes
+all four paths. The two additive activation tables are installed in production;
+existing registrations, templates and attendance were preserved. No production
+mock or client-controlled trust path exists.
