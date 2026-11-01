@@ -10,8 +10,8 @@ class DeviceBiometricResult(BaseModel):
     pending_registration_id: str
     candidate_device_id: str
     public_key_fingerprint: str
-    operation: Literal["enroll_second_device"] = "enroll_second_device"
-    slot_number: Literal[2] = 2
+    operation: Literal["enroll_second_device", "replace_device"] = "enroll_second_device"
+    slot_number: Literal[1,2] = 2
     stage: Literal["FACE","LIVENESS","COMPLETED_UNTRUSTED","FAILED","EXPIRED"]
     ready: bool = False
     feedback_code: str

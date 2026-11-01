@@ -10,7 +10,7 @@ class DeviceBiometricSession(Base):
     __tablename__ = "device_biometric_sessions"
     __table_args__ = (
         CheckConstraint("stage IN ('FACE','LIVENESS','COMPLETED_UNTRUSTED','FAILED','EXPIRED')", name="ck_device_bio_stage"),
-        CheckConstraint("operation = 'enroll_second_device' AND slot_number = 2", name="ck_device_bio_purpose"),
+        CheckConstraint("((operation = 'enroll_second_device' AND slot_number = 2) OR (operation = 'replace_device' AND slot_number IN (1,2)))", name="ck_device_bio_purpose"),
         CheckConstraint("valid_frames >= 0 AND valid_frames <= 3 AND frame_count >= 0 AND frame_count <= 60", name="ck_device_bio_frames"),
         CheckConstraint("fingers IS NULL OR (fingers >= 1 AND fingers <= 5)", name="ck_device_bio_fingers"),
         UniqueConstraint("open_pending_id", name="uq_device_bio_open_pending"),

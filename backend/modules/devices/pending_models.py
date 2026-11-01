@@ -9,9 +9,10 @@ from .models import RegisteredDevice  # Register the Slot 1 FK target before DDL
 class PendingDeviceRegistration(Base):
     __tablename__ = "pending_device_registrations"
     __table_args__ = (
-        CheckConstraint("slot_number = 2", name="ck_pending_device_slot"),
-        CheckConstraint("operation = 'enroll_second_device'", name="ck_pending_device_operation"),
-        CheckConstraint("status IN ('CHALLENGE_ISSUED','KEY_PROVEN','FAILED','EXPIRED','ACTIVATED')", name="ck_pending_device_status"),
+        CheckConstraint("slot_number IN (1,2)", name="ck_pending_device_slot"),
+        CheckConstraint("((operation = 'enroll_second_device' AND slot_number = 2) OR operation = 'replace_device')", name="ck_pending_device_operation"),
+        CheckConstraint("status IN ('CHALLENGE_ISSUED','KEY_PROVEN','FAILED','EXPIRED','ACTIVATED','CANCELLED')", name="ck_pending_device_status"),
+        CheckConstraint("operation <> 'replace_device' OR replaced_device_fingerprint IS NOT NULL", name="ck_pending_replacement_target"),
         UniqueConstraint("student_id", "open_slot", name="uq_pending_device_student_slot"),
         Index("ix_pending_device_student_created", "student_id", "created_at"),
     )
@@ -20,6 +21,7 @@ class PendingDeviceRegistration(Base):
     student_id: Mapped[str] = mapped_column(ForeignKey("students.student_id"))
     auth_token_hash: Mapped[str] = mapped_column(ForeignKey("auth_sessions.token_hash"))
     slot_one_device_id: Mapped[str] = mapped_column(ForeignKey("registered_devices.device_id"))
+    replaced_device_fingerprint: Mapped[str | None] = mapped_column(String(64))
     slot_number: Mapped[int] = mapped_column(SmallInteger, default=2, server_default="2")
     operation: Mapped[str] = mapped_column(String(32), default="enroll_second_device")
     public_key_spki: Mapped[str] = mapped_column(Text)

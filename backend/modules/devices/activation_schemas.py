@@ -20,8 +20,8 @@ class ActivationBindingResponse(BaseModel):
     pending_registration_id: str
     candidate_device_id: str
     public_key_fingerprint: str
-    operation: Literal['enroll_second_device']
-    slot_number: Literal[2]
+    operation: Literal['enroll_second_device','replace_device']
+    slot_number: Literal[1,2]
 
 class ActivationReadiness(ActivationBindingResponse):
     status: Literal['ELIGIBLE']
@@ -49,5 +49,5 @@ class ActivationStatus(ActivationBindingResponse):
     status: Literal['ACTIVE','NOT_ACTIVE','EXPIRED']
     device: DeviceInfo | None
     active_count: int=Field(ge=0,le=2)
-    maximum_active_devices: Literal[2]=2
+    maximum_active_devices: Literal[1,2]=2
     attendance_authorized: Literal[False]=False

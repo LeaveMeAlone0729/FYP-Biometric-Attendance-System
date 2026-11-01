@@ -106,3 +106,7 @@ The migration is deployed; all actual eligibility still requires the partner's
 genuine trusted revision/result/grant adapter. No partner source was modified.
 See [integration](SECOND_DEVICE_ACTIVATION_INTEGRATION.md) and
 [exact provider contract](TRUSTED_BIOMETRIC_PROVIDER_CONTRACT.md).
+
+## Stage C1 device replacement
+
+Device-owned replacement now uses POST /api/v1/devices/replacements and the shared pending proof/status/cancellation, attendance-free biometric and trusted activation routes for either occupied slot. Existing algorithms and attendance routes are unchanged. The old device remains ACTIVE until an atomic trusted handover succeeds; the other slot is preserved. The provider methods are unchanged, with replacement target ID/fingerprint added to the exact binding. Production remains fail closed without the partner provider. See [complete replacement contract, migration and tests](DEVICE_REPLACEMENT_C1.md).

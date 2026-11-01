@@ -7,9 +7,18 @@ import 'device_key_store.dart';
 /// Automatic coordinator. B3 PASS is only a trigger; the server alone finds and
 /// validates a separate trusted grant. Never creates/rotates a key or sends PASS.
 class DeviceActivationService {
-  DeviceActivationService({ApiClient? client, DeviceKeyStore? keys})
-    : _client = client ?? ApiClient.instance,
-      _keys = keys ?? const DeviceKeyStore();
+  DeviceActivationService({
+    ApiClient? client,
+    DeviceKeyStore? keys,
+    this.operation = 'enroll_second_device',
+    this.slotNumber = 2,
+    this.replacedDeviceId,
+    this.replacedDeviceFingerprint,
+  }) : _client = client ?? ApiClient.instance,
+       _keys = keys ?? const DeviceKeyStore();
+  final String operation;
+  final int slotNumber;
+  final String? replacedDeviceId, replacedDeviceFingerprint;
   final ApiClient _client;
   final DeviceKeyStore _keys;
   final Map<String, Future<Map<String, dynamic>>> _flights = {};
@@ -113,8 +122,8 @@ class DeviceActivationService {
       if (data['success'] != true ||
           data['pending_registration_id'] != pendingId ||
           data['public_key_fingerprint'] != fingerprint ||
-          data['operation'] != 'enroll_second_device' ||
-          data['slot_number'] != 2 ||
+          data['operation'] != operation ||
+          data['slot_number'] != slotNumber ||
           data['candidate_device_id'] is! String ||
           (data['candidate_device_id'] as String).isEmpty ||
           (candidate != null && candidate != data['candidate_device_id'])) {
@@ -129,7 +138,7 @@ class DeviceActivationService {
       final data = Map<String, dynamic>.from(raw);
       if (data['device_id'] != candidate ||
           data['public_key_fingerprint'] != fingerprint ||
-          data['slot_number'] != 2 ||
+          data['slot_number'] != slotNumber ||
           data['status'] != 'ACTIVE') {
         invalid();
       }
@@ -211,6 +220,12 @@ class DeviceActivationService {
         'challenge_id',
       ]) {
         if (payload[name] != challenge[name]) invalid();
+      }
+      if (operation == 'replace_device' &&
+          (payload['replaced_device_id'] != replacedDeviceId ||
+              payload['replaced_device_fingerprint'] !=
+                  replacedDeviceFingerprint)) {
+        invalid();
       }
       if (payload['purpose'] != 'device_activation' ||
           payload['version'] != 1 ||

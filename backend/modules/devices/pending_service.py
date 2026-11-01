@@ -33,10 +33,26 @@ class PendingEnrollmentService(DeviceRegistrationService):
             self.refuse(db, student, "prepare", 409, "DEVICE_LIMIT_REACHED", "Two trusted devices are already active.")
         # Stage B2 never turns a historical slot into a replacement shortcut.
         if any(r.slot_number == 2 for r in rows):
-            self.refuse(db, student, "prepare", 409, "REPLACEMENT_REQUIRED", "Slot 2 has registration history. Approved replacement is not implemented.")
-        if len(rows) != 1 or len(active) != 1 or active[0].slot_number != 1:
+            self.refuse(db, student, "prepare", 409, "REPLACEMENT_REQUIRED", "Slot 2 has registration history. Use the approved replacement workflow for the occupied slot.")
+        if len(active) != 1 or active[0].slot_number != 1:
             self.refuse(db, student, "prepare", 409, "INITIAL_REGISTRATION_REQUIRED", "An active initial Slot 1 registration is required.")
         return active[0]
+
+    def check_target(self, db, student, pending):
+        if pending.operation == "enroll_second_device":
+            return self.capacity(db, student)
+        if pending.operation != "replace_device" or pending.slot_number not in (1,2):
+            self.refuse(db,student,"target",403,"REPLACEMENT_BINDING_MISMATCH","Invalid replacement operation.",pending)
+        signed=json.loads(pending.signing_payload)
+        if any(signed.get(k)!=v for k,v in {"operation":pending.operation,"slot_number":pending.slot_number,
+                "replaced_device_id":pending.slot_one_device_id,"replaced_device_fingerprint":pending.replaced_device_fingerprint,
+                "candidate_device_id":pending.candidate_device_id,"public_key_fingerprint":pending.public_key_fingerprint}.items()):
+            self.refuse(db,student,"target",403,"REPLACEMENT_BINDING_MISMATCH","Replacement target binding changed.",pending)
+        target=db.scalar(select(RegisteredDevice).where(RegisteredDevice.device_id==pending.slot_one_device_id).with_for_update().execution_options(populate_existing=True))
+        if (target is None or target.student_id!=student.student_id or target.status!="ACTIVE"
+                or target.slot_number!=pending.slot_number or target.public_key_fingerprint!=pending.replaced_device_fingerprint):
+            self.refuse(db,student,"target",409,"REPLACEMENT_TARGET_CHANGED","The selected device changed. Start a new replacement request.",pending)
+        return target
 
     def expire(self, db, student, pending):
         now = self.context.now()
@@ -49,7 +65,9 @@ class PendingEnrollmentService(DeviceRegistrationService):
 
     def info(self, pending, include_payload=False):
         return dict(success=True, pending_registration_id=pending.pending_registration_id,
-            candidate_device_id=pending.candidate_device_id, slot_number=2, operation=OPERATION,
+            candidate_device_id=pending.candidate_device_id, slot_number=pending.slot_number, operation=pending.operation,
+            replaced_device_id=pending.slot_one_device_id if pending.operation=="replace_device" else None,
+            replaced_device_fingerprint=pending.replaced_device_fingerprint,
             public_key_fingerprint=pending.public_key_fingerprint, status=pending.status,
             algorithm="ECDSA_P256_SHA256", signature_encoding="base64-DER",
             signing_payload=base64.b64encode(pending.signing_payload.encode()).decode() if include_payload and pending.status == "CHALLENGE_ISSUED" else None,
@@ -82,7 +100,8 @@ class PendingEnrollmentService(DeviceRegistrationService):
         for old in open_rows:
             self.expire(db, student, old)
             if old.status in OPEN:
-                if old.auth_token_hash == auth.token_hash and old.public_key_fingerprint == fingerprint:
+                if (old.auth_token_hash == auth.token_hash and old.public_key_fingerprint == fingerprint
+                        and old.operation == OPERATION and old.slot_number == 2 and old.slot_one_device_id == slot_one.device_id):
                     # Recover a lost response without issuing a new challenge or resetting expiry.
                     return self.info(old, include_payload=True)
                 self.refuse(db, student, "prepare", 409, "PENDING_EXISTS", "Another pending enrollment exists. Wait for its expiry before starting again.")
@@ -122,7 +141,7 @@ class PendingEnrollmentService(DeviceRegistrationService):
             self.refuse(db, student, "proof", 409, "CHALLENGE_CONSUMED", "This candidate challenge has already ended.", pending)
         pending.challenge_consumed_at = self.context.now()
         pending.status = "FAILED"  # Every submitted signature consumes the challenge, including failures.
-        slot_one = self.capacity(db, student)
+        slot_one = self.check_target(db, student, pending)
         if slot_one.device_id != pending.slot_one_device_id:
             self.refuse(db, student, "proof", 409, "DEVICE_STATE_CHANGED", "The initial registration has changed.", pending)
         if not verify_signature(pending.public_key_spki, pending.signing_payload, signature):

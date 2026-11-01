@@ -111,6 +111,22 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
                   Text(device['device_model'] as String),
                   Text('Status: ${device['status']}'),
                   Text('Registered: ${device['registered_at']}'),
+                  TextButton(
+                    onPressed: _checking
+                        ? null
+                        : () async {
+                            await Navigator.push<void>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PendingDeviceScreen(
+                                  replacementTarget: device,
+                                ),
+                              ),
+                            );
+                            if (mounted) _check();
+                          },
+                    child: Text('Replace Slot ${device['slot_number']} device'),
+                  ),
                   if (_result?.deviceId == device['device_id'])
                     const Text(
                       'This installation',
@@ -140,7 +156,7 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
         ] else if (_loaded) ...[
           const SizedBox(height: 12),
           const InfoNotice(
-            'Additional enrollment requires fresh trusted biometric approval and candidate-key proof. Replacement is not enabled.',
+            'Additional enrollment requires fresh trusted biometric approval and candidate-key proof. Replacement preserves the old device until genuine trusted approval succeeds.',
           ),
         ],
         if (_loaded && _pendingEnrollmentAvailable) ...[

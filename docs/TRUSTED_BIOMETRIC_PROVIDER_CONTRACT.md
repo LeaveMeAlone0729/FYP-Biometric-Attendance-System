@@ -126,3 +126,7 @@ missing grant/revision/result where specified. Normal device envelopes are
 APPROVAL_UNAVAILABLE=503; BIOMETRIC_TRUST_REQUIRED/APPROVAL_MISMATCH=403;
 APPROVAL_EXPIRED=410; APPROVAL_USED=409; APPROVAL_REVISION_CHANGED=403.
 The service adds its own nonce, candidate, capacity and signature checks.
+
+## Stage C1 replacement binding extension
+
+The same seven methods and entry point also support `operation=replace_device` in Slot 1 or 2. ApprovalBinding adds optional `replaced_device_id: str | None` and `replaced_device_fingerprint: str | None` (both None for enroll_second_device). For replacement both must exactly match the locked ACTIVE target. Persist and compare the entire binding in trusted result/grant issuance, validation, lookup and consumption; never discard these fields or substitute enrollment approval. New-key proof and final activation challenge include the target ID/fingerprint. The device service atomically revokes the target and activates its candidate only after genuine trusted approval. Missing integration still fails closed. See [replacement contract](DEVICE_REPLACEMENT_C1.md).

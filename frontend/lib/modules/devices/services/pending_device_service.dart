@@ -8,9 +8,14 @@ class PendingDeviceService {
     ApiClient? client,
     DeviceApi? api,
     DeviceKeyStore? keys,
+    this.replacementTarget,
   }) : _client = client ?? ApiClient.instance,
        _api = api ?? DeviceApi(client ?? ApiClient.instance),
        _keys = keys ?? const DeviceKeyStore();
+  final Map<String, dynamic>? replacementTarget;
+  String get operation =>
+      replacementTarget == null ? 'enroll_second_device' : 'replace_device';
+  int get slot => replacementTarget?['slot_number'] as int? ?? 2;
   final ApiClient _client;
   final DeviceApi _api;
   final DeviceKeyStore _keys;
@@ -35,11 +40,28 @@ class PendingDeviceService {
     checkSession();
     final pending = await _api.currentPending();
     checkSession();
+    final open =
+        pending != null &&
+        ['CHALLENGE_ISSUED', 'KEY_PROVEN'].contains(pending['status']);
+    if (pending != null &&
+        (pending['operation'] != operation ||
+            pending['slot_number'] != slot ||
+            (replacementTarget != null &&
+                pending['replaced_device_id'] !=
+                    replacementTarget!['device_id']))) {
+      if (!open) return null;
+      throw const ApiException(
+        'Another pending request exists. Open its target slot or wait for expiry.',
+        409,
+        'PENDING_EXISTS',
+      );
+    }
     if (pending != null) {
       final key = await _keys.getPublicKey(student!);
       checkSession();
       if (key == null ||
           key['public_key_fingerprint'] != pending['public_key_fingerprint']) {
+        if (!open) return null;
         throw const ApiException(
           'This installation cannot match the pending device key. Keep existing keys unchanged and refresh after the request expires.',
           409,
@@ -49,6 +71,16 @@ class PendingDeviceService {
     }
     return pending;
   }
+
+  Future<Map<String, dynamic>> cancel(
+    String id,
+  ) async => Map<String, dynamic>.from(
+    await _client.post(
+          '/api/v1/devices/pending-registrations/${Uri.encodeComponent(id)}/cancel',
+          {},
+        )
+        as Map,
+  );
 
   Future<void> requestApproval(String id) => _api.requestDeviceApproval(id);
 
@@ -74,9 +106,10 @@ class PendingDeviceService {
     }
     final listing = await _api.listDevices();
     checkSession();
-    if (listing['pending_enrollment_available'] != true) {
+    if (replacementTarget == null &&
+        listing['pending_enrollment_available'] != true) {
       throw const ApiException(
-        'Slot 2 preparation is unavailable. Replacement is not enabled.',
+        'Slot 2 enrollment is unavailable. Use the selected occupied slot for approved replacement.',
       );
     }
     final devices = (listing['devices'] as List).cast<Map>();
@@ -87,7 +120,7 @@ class PendingDeviceService {
           (d) => d['public_key_fingerprint'] == key!['public_key_fingerprint'],
         )) {
       throw const ApiException(
-        'This installation is already registered. Use your second Android device; keep this key unchanged.',
+        'This installation is already registered. Start replacement on the new Android device; keep existing keys unchanged.',
         409,
         'KEY_ALREADY_REGISTERED',
       );
@@ -96,16 +129,35 @@ class PendingDeviceService {
     key ??= await _keys.getOrCreateKey(student);
     checkSession();
     final fingerprint = key['public_key_fingerprint'];
-    final pending = await _api.beginPending(
-      publicKey: key['public_key_spki'] as String,
-      deviceName: deviceName.trim(),
-      deviceModel: key['device_model'] as String,
-    );
+    final Map<String, dynamic> pending;
+    if (replacementTarget != null) {
+      pending = Map<String, dynamic>.from(
+        await _client.post('/api/v1/devices/replacements', {
+              'public_key_spki': key['public_key_spki'],
+              'platform': 'android',
+              'device_name': deviceName.trim(),
+              'device_model': key['device_model'],
+              'slot_number': slot,
+              'old_device_id': replacementTarget!['device_id'],
+            })
+            as Map,
+      );
+    } else {
+      pending = await _api.beginPending(
+        publicKey: key['public_key_spki'] as String,
+        deviceName: deviceName.trim(),
+        deviceModel: key['device_model'] as String,
+      );
+    }
     checkSession();
     void validate(Map<String, dynamic> data) {
       if (data['public_key_fingerprint'] != fingerprint ||
-          data['operation'] != 'enroll_second_device' ||
-          data['slot_number'] != 2 ||
+          data['operation'] != operation ||
+          data['slot_number'] != slot ||
+          (replacementTarget != null &&
+              (data['replaced_device_id'] != replacementTarget!['device_id'] ||
+                  data['replaced_device_fingerprint'] !=
+                      replacementTarget!['public_key_fingerprint'])) ||
           data['activation_enabled'] != false ||
           data['attendance_authorized'] != false ||
           data['algorithm'] != 'ECDSA_P256_SHA256' ||

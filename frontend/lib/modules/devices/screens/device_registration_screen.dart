@@ -196,12 +196,12 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                 InfoNotice(
                   _localMatch
                       ? 'This installation holds the registered device key.'
-                      : 'The registered key is not available in this installation. Device replacement requires approval and is not available yet.',
+                      : 'The registered key is not available in this installation. Device replacement requires approval. Open My Device on the new installation to request it.',
                   warning: !_localMatch,
                 ),
               ] else if (_loaded && _initialAllowed) ...[
                 const Text(
-                  'Register your initial Android installation. Additional device enrollment requires Stage B approval and is not enabled yet.',
+                  'Register your initial Android installation. Additional enrollment and replacement use separate trusted-approval workflows in My Device.',
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -222,7 +222,7 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
               ],
               const SizedBox(height: 20),
               const InfoNotice(
-                'Your private key stays in Android Keystore. Additional enrollment and replacement are not enabled in Stage A. Attendance is unchanged.',
+                'Your private key stays in Android Keystore. Additional enrollment and replacement require genuine server-approved biometrics. Attendance is unchanged.',
               ),
               if (_error != null) ...[
                 const SizedBox(height: 16),

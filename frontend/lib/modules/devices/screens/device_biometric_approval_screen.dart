@@ -569,6 +569,7 @@ class _DeviceBiometricApprovalScreenState
   Widget build(BuildContext context) {
     if (_complete) {
       return DeviceBiometricCompletion(
+        replacement: _result!['operation'] == 'replace_device',
         activationState: DeviceActivationState.fromBiometricResult(_result!),
         activationStatus: _activationStatus,
         trustedApprovalStatus: _trustedStatus,

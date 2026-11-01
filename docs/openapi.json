@@ -3726,6 +3726,99 @@
           }
         }
       }
+    },
+    "/api/v1/devices/replacements": {
+      "post": {
+        "tags": [
+          "Device replacement"
+        ],
+        "summary": "Begin",
+        "operationId": "begin_api_v1_devices_replacements_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplacementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingRegistrationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/devices/pending-registrations/{pending_id}/cancel": {
+      "post": {
+        "tags": [
+          "Device replacement"
+        ],
+        "summary": "Cancel",
+        "operationId": "cancel_api_v1_devices_pending_registrations__pending_id__cancel_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pending_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pending Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingRegistrationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3776,12 +3869,18 @@
           },
           "operation": {
             "type": "string",
-            "const": "enroll_second_device",
+            "enum": [
+              "enroll_second_device",
+              "replace_device"
+            ],
             "title": "Operation"
           },
           "slot_number": {
             "type": "integer",
-            "const": 2,
+            "enum": [
+              1,
+              2
+            ],
             "title": "Slot Number"
           },
           "biometric_result_id": {
@@ -3906,12 +4005,18 @@
           },
           "operation": {
             "type": "string",
-            "const": "enroll_second_device",
+            "enum": [
+              "enroll_second_device",
+              "replace_device"
+            ],
             "title": "Operation"
           },
           "slot_number": {
             "type": "integer",
-            "const": 2,
+            "enum": [
+              1,
+              2
+            ],
             "title": "Slot Number"
           },
           "status": {
@@ -3980,12 +4085,18 @@
           },
           "operation": {
             "type": "string",
-            "const": "enroll_second_device",
+            "enum": [
+              "enroll_second_device",
+              "replace_device"
+            ],
             "title": "Operation"
           },
           "slot_number": {
             "type": "integer",
-            "const": 2,
+            "enum": [
+              1,
+              2
+            ],
             "title": "Slot Number"
           },
           "status": {
@@ -4015,7 +4126,10 @@
           },
           "maximum_active_devices": {
             "type": "integer",
-            "const": 2,
+            "enum": [
+              1,
+              2
+            ],
             "title": "Maximum Active Devices",
             "default": 2
           },
@@ -4354,13 +4468,19 @@
           },
           "operation": {
             "type": "string",
-            "const": "enroll_second_device",
+            "enum": [
+              "enroll_second_device",
+              "replace_device"
+            ],
             "title": "Operation",
             "default": "enroll_second_device"
           },
           "slot_number": {
             "type": "integer",
-            "const": 2,
+            "enum": [
+              1,
+              2
+            ],
             "title": "Slot Number",
             "default": 2
           },
@@ -4929,6 +5049,28 @@
             "type": "string",
             "title": "Pending Registration Id"
           },
+          "replaced_device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced Device Id"
+          },
+          "replaced_device_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced Device Fingerprint"
+          },
           "candidate_device_id": {
             "type": "string",
             "title": "Candidate Device Id"
@@ -4939,13 +5081,19 @@
           },
           "slot_number": {
             "type": "integer",
-            "const": 2,
+            "enum": [
+              1,
+              2
+            ],
             "title": "Slot Number",
             "default": 2
           },
           "operation": {
             "type": "string",
-            "const": "enroll_second_device",
+            "enum": [
+              "enroll_second_device",
+              "replace_device"
+            ],
             "title": "Operation",
             "default": "enroll_second_device"
           },
@@ -4956,7 +5104,8 @@
               "KEY_PROVEN",
               "FAILED",
               "EXPIRED",
-              "ACTIVATED"
+              "ACTIVATED",
+              "CANCELLED"
             ],
             "title": "Status"
           },
@@ -5192,6 +5341,58 @@
           "device_model"
         ],
         "title": "RegistrationRequest"
+      },
+      "ReplacementRequest": {
+        "properties": {
+          "public_key_spki": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 40,
+            "title": "Public Key Spki"
+          },
+          "platform": {
+            "type": "string",
+            "const": "android",
+            "title": "Platform",
+            "default": "android"
+          },
+          "device_name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Device Name"
+          },
+          "device_model": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Device Model"
+          },
+          "slot_number": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "title": "Slot Number"
+          },
+          "old_device_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Old Device Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "public_key_spki",
+          "device_name",
+          "device_model",
+          "slot_number",
+          "old_device_id"
+        ],
+        "title": "ReplacementRequest"
       },
       "ScanAdjustment": {
         "properties": {

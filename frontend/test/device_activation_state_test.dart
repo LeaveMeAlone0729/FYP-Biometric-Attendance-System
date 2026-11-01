@@ -28,6 +28,22 @@ void main() {
       expect(state.activationStatus, 'UNAVAILABLE');
     },
   );
+  test(
+    'Replacement completion displays genuine checks but grants no activation',
+    () {
+      for (final slot in [1, 2]) {
+        final state = DeviceActivationState.fromBiometricResult({
+          ...complete(),
+          'operation': 'replace_device',
+          'slot_number': slot,
+        });
+        expect(state.facePassed, isTrue);
+        expect(state.livenessPassed, isTrue);
+        expect(state.keyVerified, isTrue);
+        expect(state.isActive, isFalse);
+      }
+    },
+  );
   test('Client trust flags or incomplete checks cannot advance readiness', () {
     for (final change in [
       {'trusted': true},

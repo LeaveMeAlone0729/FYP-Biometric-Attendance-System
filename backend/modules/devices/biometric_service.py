@@ -12,6 +12,7 @@ from modules.biometrics.inference import BiometricError
 from modules.biometrics.templates import decrypt_encoding
 from .biometric_diagnostics import trace,adjustment_code
 from .biometric_models import DeviceBiometricSession, DeviceBiometricEvent
+from .pending_models import PendingDeviceRegistration
 from .pending_service import PendingEnrollmentService
 from .service import DeviceRegistrationError
 
@@ -28,6 +29,10 @@ class DeviceBiometricService(PendingEnrollmentService):
         if session and session.stage in OPEN:
             session.stage="EXPIRED" if status==410 else "FAILED"
             session.failure_code=code
+            pending=db.get(PendingDeviceRegistration,session.pending_registration_id)
+            if pending and pending.operation=="replace_device" and pending.status in ("KEY_PROVEN","CHALLENGE_ISSUED"):
+                pending.status="EXPIRED" if status==410 else "FAILED"
+                self.audit(db,student,"biometric_end","FAIL",code,pending)
         trace("rejected",code=code,status=status)
         self.bio_event(db,student,"biometric", "FAIL",code,session)
         raise DeviceRegistrationError(status,code,message)
@@ -49,7 +54,7 @@ class DeviceBiometricService(PendingEnrollmentService):
             self.fail(db,student,410,"PENDING_EXPIRED","Pending key preparation has expired.")
         if pending.status!="KEY_PROVEN" or pending.consumed_at is not None:
             self.fail(db,student,409,"CANDIDATE_PROOF_REQUIRED","Complete candidate-key proof before starting biometric checks.")
-        slot_one=self.capacity(db,student)
+        slot_one=self.check_target(db,student,pending)
         if slot_one.device_id!=pending.slot_one_device_id:
             self.fail(db,student,409,"DEVICE_STATE_CHANGED","The initial device registration changed.")
         return pending
@@ -57,7 +62,7 @@ class DeviceBiometricService(PendingEnrollmentService):
     def result(self,session,message=None,ready=False,feedback_code=None):
         return dict(success=True,approval_id=session.approval_id,pending_registration_id=session.pending_registration_id,
             candidate_device_id=session.candidate_device_id,public_key_fingerprint=session.public_key_fingerprint,
-            operation="enroll_second_device",slot_number=2,stage=session.stage,ready=ready,
+            operation=session.operation,slot_number=session.slot_number,stage=session.stage,ready=ready,
             feedback_code=feedback_code or ("FACE_VERIFIED" if session.stage=="LIVENESS" else session.stage),
             face_verified=session.stage in ("LIVENESS","COMPLETED_UNTRUSTED"),
             liveness_verified=session.stage=="COMPLETED_UNTRUSTED",complete=session.stage=="COMPLETED_UNTRUSTED",
@@ -84,7 +89,7 @@ class DeviceBiometricService(PendingEnrollmentService):
             elif old.stage in (*OPEN,"COMPLETED_UNTRUSTED") and old.expires_at>now:
                 if (old.student_id!=student.student_id or old.auth_token_hash!=auth.token_hash
                         or old.candidate_device_id!=pending.candidate_device_id or old.public_key_fingerprint!=pending.public_key_fingerprint
-                        or old.operation!="enroll_second_device" or old.slot_number!=2):
+                        or old.operation!=pending.operation or old.slot_number!=pending.slot_number):
                     self.fail(db,student,403,"BIOMETRIC_BINDING_MISMATCH","Biometric test binding changed.",old)
                 if old.template_binding!=binding:
                     self.fail(db,student,409,"TEMPLATE_CHANGED","The template changed. Start a new pending request.",old)
@@ -95,7 +100,7 @@ class DeviceBiometricService(PendingEnrollmentService):
         if recent>=5:self.fail(db,student,429,"BIOMETRIC_RATE_LIMITED","Too many biometric tests. Try again in five minutes.")
         session=DeviceBiometricSession(approval_id=secrets.token_urlsafe(32),pending_registration_id=identifier,
             student_id=student.student_id,auth_token_hash=auth.token_hash,candidate_device_id=pending.candidate_device_id,
-            public_key_fingerprint=pending.public_key_fingerprint,slot_number=2,operation="enroll_second_device",
+            public_key_fingerprint=pending.public_key_fingerprint,slot_number=pending.slot_number,operation=pending.operation,
             template_binding=binding,stage="FACE",valid_frames=0,frame_count=0,frame_hashes="[]",
             created_at=now,expires_at=min(now+timedelta(seconds=self.context.settings.challenge_seconds),now+timedelta(seconds=90),pending.expires_at,auth.expires_at))
         db.add(session);db.flush()
@@ -111,7 +116,7 @@ class DeviceBiometricService(PendingEnrollmentService):
             self.fail(db,student,410,"BIOMETRIC_EXPIRED","Biometric test expired. Start a new test.",session)
         pending=self.check_pending(db,student,auth,session.pending_registration_id)
         if (session.candidate_device_id!=pending.candidate_device_id or session.public_key_fingerprint!=pending.public_key_fingerprint
-                or session.slot_number!=2 or session.operation!="enroll_second_device"):
+                or session.slot_number!=pending.slot_number or session.operation!=pending.operation):
             self.fail(db,student,403,"BIOMETRIC_BINDING_MISMATCH","Biometric test does not match this candidate.",session)
         self.template(db,student,session)
         if stage and session.stage!=stage:

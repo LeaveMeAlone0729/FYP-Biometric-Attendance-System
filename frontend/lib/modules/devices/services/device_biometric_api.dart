@@ -3,8 +3,13 @@ import '../../../services/api_client.dart';
 
 /// Only device-enrollment endpoints. Every response remains an untrusted test.
 class DeviceBiometricApi {
-  DeviceBiometricApi([ApiClient? client])
-    : _client = client ?? ApiClient.instance;
+  DeviceBiometricApi([
+    ApiClient? client,
+    this.operation = 'enroll_second_device',
+    this.slotNumber = 2,
+  ]) : _client = client ?? ApiClient.instance;
+  final String operation;
+  final int slotNumber;
   final ApiClient _client;
   int? _revision;
   String? _student, _pending, _approval, _fingerprint, _candidate;
@@ -32,8 +37,8 @@ class DeviceBiometricApi {
       'EXPIRED',
     };
     if (result['pending_registration_id'] != _pending ||
-        result['operation'] != 'enroll_second_device' ||
-        result['slot_number'] != 2 ||
+        result['operation'] != operation ||
+        result['slot_number'] != slotNumber ||
         result['result_classification'] != 'UNTRUSTED_TEST_RESULT' ||
         result['trusted'] != false ||
         result['consumable'] != false ||

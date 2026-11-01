@@ -9,7 +9,7 @@ from .pending_models import PendingDeviceRegistration
 class DeviceActivationChallenge(Base):
     __tablename__ = "device_activation_challenges"
     __table_args__ = (
-        CheckConstraint("operation = 'enroll_second_device' AND slot_number = 2", name="ck_activation_purpose"),
+        CheckConstraint("((operation = 'enroll_second_device' AND slot_number = 2) OR (operation = 'replace_device' AND slot_number IN (1,2)))", name="ck_activation_purpose"),
         CheckConstraint("result IN ('PENDING','PASS','FAIL')", name="ck_activation_result"),
         CheckConstraint("(result = 'PENDING' AND consumed_at IS NULL) OR (result <> 'PENDING' AND consumed_at IS NOT NULL)", name="ck_activation_consumption"),
         UniqueConstraint("open_pending_id", name="uq_activation_open_pending"),
