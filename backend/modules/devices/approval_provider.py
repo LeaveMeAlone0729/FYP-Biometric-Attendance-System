@@ -20,6 +20,8 @@ class ApprovalBinding:
     public_key_fingerprint: str
     slot_number: int = 2
     operation: str = "enroll_second_device"
+    replaced_device_id: str | None = None
+    replaced_device_fingerprint: str | None = None
 
 
 @dataclass(frozen=True)
@@ -97,7 +99,7 @@ class UnavailableTrustedApprovalProvider:
     def validate_and_lock(self, db, approval_id, binding, now):
         if not approval_id:
             raise DeviceRegistrationError(403, "BIOMETRIC_TRUST_REQUIRED", "Trusted biometric approval is required.")
-        raise DeviceRegistrationError(503, "APPROVAL_UNAVAILABLE", "Trusted biometric approval is not integrated. Slot 2 activation is disabled.")
+        raise DeviceRegistrationError(503, "APPROVAL_UNAVAILABLE", "Trusted biometric approval is not integrated. Trusted device activation and replacement are disabled.")
 
     def consume(self, db, approval, now):
         raise DeviceRegistrationError(503, "APPROVAL_UNAVAILABLE", "No trusted approval provider is installed.")

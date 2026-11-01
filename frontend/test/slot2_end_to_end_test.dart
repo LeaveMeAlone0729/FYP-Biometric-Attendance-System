@@ -22,10 +22,17 @@ class RealLoopbackHttp extends HttpOverrides {}
 void main() {
   final manifestPath = Platform.environment['SLOT2_E2E_MANIFEST'];
   testWidgets(
-    'Real HTTP and MariaDB Slot 2 registration refreshes My Device to 2/2',
+    'Real HTTP and MariaDB registration or replacement refreshes My Device to 2/2',
     (tester) async {
       final manifest =
           jsonDecode(File(manifestPath!).readAsStringSync()) as Map;
+      final replacementTarget = manifest['replacement_target'] == null
+          ? null
+          : Map<String, dynamic>.from(manifest['replacement_target'] as Map);
+      final operation = replacementTarget == null
+          ? 'enroll_second_device'
+          : 'replace_device';
+      final slot = replacementTarget?['slot_number'] as int? ?? 2;
       final uri = Uri.parse(manifest['base_url'] as String);
       if (uri.host != '127.0.0.1' || uri.port == 8000) {
         throw StateError('Integration must not contact production');
@@ -97,8 +104,9 @@ void main() {
           initial = await DeviceApi(client).listDevices();
           pending = await PendingDeviceService(
             client: client,
+            replacementTarget: replacementTarget,
           ).prepare('Integration tablet');
-          final bio = DeviceBiometricApi(client);
+          final bio = DeviceBiometricApi(client, operation, slot);
           await bio.begin(pending['pending_registration_id'] as String);
           biometric = await bio.frame(
             Uint8List.fromList(utf8.encode('e2e-fresh-face')),
@@ -113,18 +121,27 @@ void main() {
               liveness: true,
             );
           }
-          active = await DeviceActivationService(client: client).activate(
-            pending['pending_registration_id'] as String,
-            expectedCandidateId: pending['candidate_device_id'] as String,
-            expectedFingerprint: pending['public_key_fingerprint'] as String,
-          );
+          active =
+              await DeviceActivationService(
+                client: client,
+                operation: operation,
+                slotNumber: slot,
+                replacedDeviceId: replacementTarget?['device_id'] as String?,
+                replacedDeviceFingerprint:
+                    replacementTarget?['public_key_fingerprint'] as String?,
+              ).activate(
+                pending['pending_registration_id'] as String,
+                expectedCandidateId: pending['candidate_device_id'] as String,
+                expectedFingerprint:
+                    pending['public_key_fingerprint'] as String,
+              );
         });
-        expect(initial['active_count'], 1);
+        expect(initial['active_count'], replacementTarget == null ? 1 : 2);
         expect(pending['status'], 'KEY_PROVEN');
         expect(biometric['stage'], 'COMPLETED_UNTRUSTED');
         expect(biometric['trusted'], isFalse);
         expect(active['status'], 'ACTIVE');
-        expect(active['slot_number'], 2);
+        expect(active['slot_number'], slot);
         // This is the actual production screen and automatic verification service,
         // reading the real HTTP API AFTER its committed MariaDB insertion.
         await tester.runAsync(() async {
@@ -157,8 +174,15 @@ void main() {
           }
         }
         expect(find.text('2 / 2 ACTIVE devices'), findsOneWidget);
-        expect(find.text('Slot 1: Samsung fixture'), findsOneWidget);
-        expect(find.text('Slot 2: Integration tablet'), findsOneWidget);
+        expect(find.text('Slot $slot: Integration tablet'), findsOneWidget);
+        expect(
+          find.text(
+            slot == 1
+                ? 'Slot 2: Existing tablet fixture'
+                : 'Slot 1: Samsung fixture',
+          ),
+          findsOneWidget,
+        );
         expect(
           find.textContaining('Automatic device verification: PASS'),
           findsOneWidget,
@@ -166,7 +190,7 @@ void main() {
         expect(find.text('This installation'), findsOneWidget);
         expect(keyCreations, 0);
         expect(signatures.where((p) => p == 'device_activation').length, 1);
-        expect(signatures, contains('enroll_second_device'));
+        expect(signatures, contains(operation));
         expect(signatures, contains('device_verification'));
         expect(tester.takeException(), isNull);
         await tester.runAsync(() async {

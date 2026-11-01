@@ -11,6 +11,7 @@ class DeviceBiometricCompletion extends StatelessWidget {
     this.trustedApprovalStatus,
     this.activationBusy = false,
     this.activationError,
+    this.replacement = false,
     this.activationState = const DeviceActivationState.unavailable(
       keyVerified: true,
       facePassed: true,
@@ -19,7 +20,7 @@ class DeviceBiometricCompletion extends StatelessWidget {
   });
   final VoidCallback onBack;
   final String? activationStatus, trustedApprovalStatus, activationError;
-  final bool activationBusy;
+  final bool activationBusy, replacement;
   final DeviceActivationState activationState;
 
   @override
@@ -91,11 +92,13 @@ class DeviceBiometricCompletion extends StatelessWidget {
                     key: const ValueKey('activation-error'),
                   ),
                 const SizedBox(height: 20),
-                const Text(
-                  'Your face, live gesture and candidate device key checks succeeded. '
-                  'The result is COMPLETED_UNTRUSTED. Slot 2 remains inactive until '
-                  'the backend confirms a genuine trusted approval and fresh activation-key proof. '
-                  'The biometric test result alone does not authorize registration.',
+                Text(
+                  replacement
+                      ? 'Your face, live gesture and candidate device key checks succeeded. The result is COMPLETED_UNTRUSTED. The old device remains ACTIVE until genuine trusted replacement approval and fresh key proof succeed. The other slot is unchanged.'
+                      : 'Your face, live gesture and candidate device key checks succeeded. '
+                            'The result is COMPLETED_UNTRUSTED. Slot 2 remains inactive until '
+                            'the backend confirms a genuine trusted approval and fresh activation-key proof. '
+                            'The biometric test result alone does not authorize registration.',
                 ),
                 const SizedBox(height: 24),
                 FilledButton(

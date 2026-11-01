@@ -17,8 +17,10 @@ class DeviceActivationState {
         result['complete'] == true &&
         result['face_verified'] == true &&
         result['liveness_verified'] == true &&
-        result['operation'] == 'enroll_second_device' &&
-        result['slot_number'] == 2 &&
+        ((result['operation'] == 'enroll_second_device' &&
+                result['slot_number'] == 2) ||
+            (result['operation'] == 'replace_device' &&
+                [1, 2].contains(result['slot_number']))) &&
         result['result_classification'] == 'UNTRUSTED_TEST_RESULT' &&
         result['trusted'] == false &&
         result['consumable'] == false &&

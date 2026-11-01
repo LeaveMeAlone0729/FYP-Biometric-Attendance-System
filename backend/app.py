@@ -12,6 +12,7 @@ from modules.devices.router import router as devices_router
 from modules.devices.pending_router import router as pending_devices_router
 from modules.devices.biometric_router import router as device_biometrics_router
 from modules.devices.activation_router import router as activation_router
+from modules.devices.replacement_router import router as replacement_router
 from biometrics import Biometrics
 from config import Settings, local_now
 from database import make_engine
@@ -58,6 +59,7 @@ def create_app(settings=None, engine=None, biometrics=None, clock=None):
         pending_devices_router,
         device_biometrics_router,
         activation_router,
+        replacement_router,
     ):
         app.include_router(router)
     return app

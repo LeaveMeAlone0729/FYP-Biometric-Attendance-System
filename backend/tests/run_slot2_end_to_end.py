@@ -2,6 +2,7 @@
 Run this script explicitly. Only a new disposable DB and loopback ephemeral port
 are accepted. Actual production endpoints are used without adding test routes.
 """
+import argparse
 import os,sys,json,secrets,re,socket,threading,subprocess,time,hashlib
 from pathlib import Path
 from dataclasses import replace
@@ -26,6 +27,8 @@ from datetime import timedelta
 
 root=Path(__file__).resolve().parents[2]
 os.chdir(root)
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--replacement-slot',type=int,choices=(1,2));args=parser.parse_args()
+replacement_slot=args.replacement_slot
 settings=Settings();schema='attendance_slot2_e2e_'+secrets.token_hex(6)
 if not re.fullmatch('attendance_slot2_e2e_[0-9a-f]{12}',schema) or schema==settings.db_name:raise RuntimeError('Unsafe isolated DB')
 folder=root/'.work'/('slot2-e2e-'+secrets.token_hex(6));folder.mkdir(parents=True)
@@ -50,6 +53,19 @@ try:
   with h.sessions() as db:
    row=db.get(RegisteredDevice,h.device_id)
    return {col.name:getattr(row,col.name) for col in RegisteredDevice.__table__.columns}
+ if replacement_slot:
+  old_key=ec.generate_private_key(ec.SECP256R1())
+  old_public=old_key.public_key().public_bytes(serialization.Encoding.DER,serialization.PublicFormat.SubjectPublicKeyInfo)
+  old_public,old_fingerprint=canonical_public_key(__import__('base64').b64encode(old_public).decode())
+  with h.sessions.begin() as db:
+   db.add(RegisteredDevice(device_id='old-slot-two-fixture',student_id='DEVICE001',slot_number=2,public_key_spki=old_public,
+    public_key_fingerprint=old_fingerprint,device_name='Existing tablet fixture',device_model='Fixture',platform='android',status='ACTIVE',registered_at=h.fixture.now))
+ with h.sessions() as db:
+  originals={d.device_id:{col.name:getattr(d,col.name) for col in RegisteredDevice.__table__.columns} for d in db.scalars(select(RegisteredDevice))}
+ replacement_target=None
+ if replacement_slot:
+  old=next(d for d in originals.values() if d['slot_number']==replacement_slot)
+  replacement_target={name:old[name] for name in ('device_id','slot_number','device_name','public_key_fingerprint')}
  original=slot_one_state()
  key=ec.generate_private_key(ec.SECP256R1());key_path=folder/'candidate.pem'
  key_path.write_bytes(key.private_bytes(serialization.Encoding.PEM,serialization.PrivateFormat.PKCS8,serialization.NoEncryption()))
@@ -84,7 +100,7 @@ try:
  manifest={'base_url':f'http://127.0.0.1:{port}','student':'DEVICE001','password':'test-password',
   'python':str(root/'backend/venv/Scripts/python.exe'),'signer':str(Path(__file__).with_name('slot2_fixture_signer.py')),
   'key_path':str(key_path),'public_key_spki':public,'public_key_fingerprint':fingerprint,
-  'output_dir':str(folder)}
+  'output_dir':str(folder),'replacement_target':replacement_target}
  manifest_path=folder/'manifest.json';manifest_path.write_text(json.dumps(manifest),encoding='utf-8')
  with patch('modules.devices.activation_service.trusted_approval_provider',return_value=EndToEndFixtureProvider()),patch('modules.devices.biometric_service.secrets.randbelow',return_value=2):
   thread=threading.Thread(target=server.run,kwargs={'sockets':[sock]},daemon=True);thread.start()
@@ -99,20 +115,27 @@ try:
   if result.returncode:print(result.stdout[-8000:]);raise RuntimeError('Flutter real-HTTP integration failed')
  with h.sessions() as db:
   devices=db.scalars(select(RegisteredDevice).where(RegisteredDevice.student_id=='DEVICE001',RegisteredDevice.status=='ACTIVE').order_by(RegisteredDevice.slot_number)).all()
-  assert len(devices)==2 and devices[1].public_key_fingerprint==fingerprint
+  assert len(devices)==2 and devices[(replacement_slot or 2)-1].public_key_fingerprint==fingerprint
   registered_rows=[{name:getattr(device,name) for name in ('device_id','student_id','slot_number','device_name','status','public_key_fingerprint')} for device in devices]
   assert db.scalar(select(__import__('sqlalchemy').func.count()).select_from(Attendance))==0
   assert db.scalar(select(__import__('sqlalchemy').func.count()).select_from(FixtureGrant).where(FixtureGrant.consumed_at!=None))==1
   assert db.scalar(select(__import__('sqlalchemy').func.count()).select_from(DeviceActivationChallenge).where(DeviceActivationChallenge.result=='PASS'))==1
- assert slot_one_state()==original
+ if replacement_slot:
+  with h.sessions() as db:
+   for identifier,old in originals.items():
+    current=db.get(RegisteredDevice,identifier)
+    if identifier==replacement_target['device_id']:
+     assert current.status=='REVOKED' and current.revoked_at is not None
+    else:assert {col.name:getattr(current,col.name) for col in RegisteredDevice.__table__.columns}==old
+ else:assert slot_one_state()==original
  assert not any('/attendance' in row['path'] or row['path']=='/liveness/frame' for row in requests)
  evidence={'isolated_database':schema,'registered_device_rows':registered_rows,'http_requests':requests,'active_slots':[1,2],
-  'slot_one_preserved':True,'attendance_inserts':0,'single_use_grant_consumed':True,
+  'slot_one_preserved':replacement_slot!=1,'replacement_slot':replacement_slot,'unaffected_slot_preserved':True,'old_target_revoked':bool(replacement_slot),'attendance_inserts':0,'single_use_grant_consumed':True,
   'real_p256_signature_verified':True,'flutter_my_device':'2 / 2 ACTIVE devices',
   'production_routes_or_configuration_modified_for_fixture':False}
  (folder/'result.json').write_text(json.dumps(evidence,indent=2),encoding='utf-8')
  print(json.dumps({'result':'PASS','evidence':str(folder/'result.json'),'ui':str(folder/'my-device-two-active.png'),
-  'active_slots':[1,2],'slot_one_preserved':True,'attendance_inserts':0}))
+  'active_slots':[1,2],'replacement_slot':replacement_slot,'unaffected_slot_preserved':True,'attendance_inserts':0}))
 finally:
  if server:server.should_exit=True
  if thread:thread.join(timeout=15)

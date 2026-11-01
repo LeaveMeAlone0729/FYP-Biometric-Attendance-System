@@ -298,3 +298,7 @@ and [partner adapter schema](TRUSTED_BIOMETRIC_PROVIDER_CONTRACT.md). OpenAPI in
 all four paths. The two additive activation tables are installed in production;
 existing registrations, templates and attendance were preserved. No production
 mock or client-controlled trust path exists.
+
+## Stage C1 device replacement
+
+Device-owned replacement now uses POST /api/v1/devices/replacements and the shared pending proof/status/cancellation, attendance-free biometric and trusted activation routes for either occupied slot. Existing algorithms and attendance routes are unchanged. The old device remains ACTIVE until an atomic trusted handover succeeds; the other slot is preserved. The provider methods are unchanged, with replacement target ID/fingerprint added to the exact binding. Production remains fail closed without the partner provider. See [complete replacement contract, migration and tests](DEVICE_REPLACEMENT_C1.md).

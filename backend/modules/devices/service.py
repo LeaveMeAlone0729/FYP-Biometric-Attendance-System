@@ -58,7 +58,7 @@ class DeviceRegistrationService:
         return dict(success=True, devices=[self.info(device) for device in devices],
             active_count=len(devices), maximum_active_devices=2,
             initial_registration_available=history == 0, additional_enrollment_enabled=False,
-            pending_enrollment_available=(len(devices) == 1 and devices[0].slot_number == 1 and history == 1))
+            pending_enrollment_available=(len(devices) == 1 and devices[0].slot_number == 1 and not any(r.slot_number==2 for r in db.scalars(select(RegisteredDevice).where(RegisteredDevice.student_id==student.student_id)))))
 
     def current(self, db, student):
         # Legacy metadata endpoint: retain single-history behavior, never choose
@@ -81,7 +81,7 @@ class DeviceRegistrationService:
         student = self.lock_identity(db, student, auth, "challenge")
         if db.scalar(select(RegisteredDevice).where(RegisteredDevice.student_id == student.student_id)):
             self.deny(db, student, "challenge", 409, "DEVICE_ALREADY_REGISTERED",
-                      "A device is already registered. Additional enrollment requires Stage B biometric approval; replacement is not enabled.")
+                      "A device is already registered. Additional enrollment requires Stage B biometric approval; replacement requires its separate approved workflow.")
         recent = db.scalar(select(func.count()).select_from(DeviceRegistrationEvent).where(
             DeviceRegistrationEvent.student_id == student.student_id,
             DeviceRegistrationEvent.action == "challenge",
@@ -138,7 +138,7 @@ class DeviceRegistrationService:
                       "Registration timed out. Start registration again.", identifier)
         if db.scalar(select(RegisteredDevice).where(RegisteredDevice.student_id == student.student_id)):
             self.deny(db, student, "confirm", 409, "DEVICE_ALREADY_REGISTERED",
-                      "Additional enrollment requires Stage B biometric approval; replacement is not enabled.", identifier)
+                      "Additional enrollment requires Stage B biometric approval; replacement requires its separate approved workflow.", identifier)
         if not verify_signature(challenge.public_key_spki, challenge.signing_payload, data.signature):
             self.deny(db, student, "confirm", 403, "INVALID_SIGNATURE",
                       "The device signature could not be verified. Start registration again.", identifier)

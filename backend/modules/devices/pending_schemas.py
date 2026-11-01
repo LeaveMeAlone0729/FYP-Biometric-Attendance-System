@@ -17,11 +17,13 @@ class CandidateProof(BaseModel):
 class PendingRegistrationResponse(BaseModel):
     success: Literal[True] = True
     pending_registration_id: str
+    replaced_device_id: str | None = None
+    replaced_device_fingerprint: str | None = None
     candidate_device_id: str
     public_key_fingerprint: str
-    slot_number: Literal[2] = 2
-    operation: Literal["enroll_second_device"] = "enroll_second_device"
-    status: Literal["CHALLENGE_ISSUED", "KEY_PROVEN", "FAILED", "EXPIRED", "ACTIVATED"]
+    slot_number: Literal[1,2] = 2
+    operation: Literal["enroll_second_device", "replace_device"] = "enroll_second_device"
+    status: Literal["CHALLENGE_ISSUED", "KEY_PROVEN", "FAILED", "EXPIRED", "ACTIVATED", "CANCELLED"]
     algorithm: Literal["ECDSA_P256_SHA256"] = "ECDSA_P256_SHA256"
     signature_encoding: Literal["base64-DER"] = "base64-DER"
     signing_payload: str | None = None

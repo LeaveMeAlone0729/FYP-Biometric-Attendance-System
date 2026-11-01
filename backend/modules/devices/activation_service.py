@@ -43,7 +43,7 @@ class DeviceActivationService(PendingEnrollmentService):
             self._event(db,student,'readiness','ISSUED','TRUSTED_APPROVAL_ELIGIBLE',state)
             return dict(success=True,status='ELIGIBLE',pending_registration_id=pending_id,
                 candidate_device_id=pending.candidate_device_id,public_key_fingerprint=pending.public_key_fingerprint,
-                operation='enroll_second_device',slot_number=2,approval_id=approval.approval_id,
+                operation=pending.operation,slot_number=pending.slot_number,approval_id=approval.approval_id,
                 trusted_template_revision_id=approval.trusted_template_revision_id,
                 biometric_result_id=approval.biometric_result_id,expires_at=iso_time(approval.expires_at,self.context.settings))
         return self._attempt(db,student,'readiness',operation)
@@ -56,10 +56,10 @@ class DeviceActivationService(PendingEnrollmentService):
             device=db.scalar(select(RegisteredDevice).where(RegisteredDevice.device_id==pending.candidate_device_id,
                 RegisteredDevice.student_id==student.student_id).with_for_update())
             active=(pending.status=='ACTIVATED' and pending.consumed_at is not None and device is not None
-                and device.status=='ACTIVE' and device.slot_number==2 and device.public_key_fingerprint==pending.public_key_fingerprint)
+                and device.status=='ACTIVE' and device.slot_number==pending.slot_number and device.public_key_fingerprint==pending.public_key_fingerprint)
             return dict(success=True,status='ACTIVE' if active else ('EXPIRED' if pending.status=='EXPIRED' else 'NOT_ACTIVE'),
                 pending_registration_id=pending_id,candidate_device_id=pending.candidate_device_id,
-                public_key_fingerprint=pending.public_key_fingerprint,operation='enroll_second_device',slot_number=2,
+                public_key_fingerprint=pending.public_key_fingerprint,operation=pending.operation,slot_number=pending.slot_number,
                 device=self.info_device(device) if active else None,
                 active_count=len(self.active_devices(db,student)),maximum_active_devices=2,attendance_authorized=False)
         return self._attempt(db,student,'status',operation)
@@ -102,9 +102,9 @@ class DeviceActivationService(PendingEnrollmentService):
             self._reject(410,"PENDING_EXPIRED","Candidate preparation expired.")
         if pending.status!="KEY_PROVEN" or pending.consumed_at is not None or pending.key_proven_at is None:
             self._reject(409,"CANDIDATE_PROOF_REQUIRED","A current KEY_PROVEN candidate is required.")
-        if pending.operation!="enroll_second_device" or pending.slot_number!=2:
+        if pending.operation not in ("enroll_second_device","replace_device") or pending.slot_number not in (1,2):
             self._reject(403,"ACTIVATION_BINDING_MISMATCH","Candidate operation or slot changed.")
-        slot_one=self.capacity(db,student)
+        slot_one=self.check_target(db,student,pending)
         if slot_one.device_id!=pending.slot_one_device_id:
             self._reject(409,"DEVICE_STATE_CHANGED","The initial registration changed.")
         try: _,fingerprint=canonical_public_key(pending.public_key_spki)
@@ -118,7 +118,8 @@ class DeviceActivationService(PendingEnrollmentService):
     @staticmethod
     def _binding(student,auth,pending):
         return ApprovalBinding(student.student_id,auth.token_hash,pending.pending_registration_id,
-            pending.candidate_device_id,pending.public_key_fingerprint)
+            pending.candidate_device_id,pending.public_key_fingerprint,pending.slot_number,pending.operation,
+            pending.slot_one_device_id if pending.operation=="replace_device" else None,pending.replaced_device_fingerprint)
 
     def _approval(self,provider,db,student,auth,pending,approval_id,expected_revision=None):
         binding=self._binding(student,auth,pending);now=self.context.now()
@@ -169,7 +170,7 @@ class DeviceActivationService(PendingEnrollmentService):
                         and challenge.student_id==student.student_id and challenge.auth_token_hash==auth.token_hash
                         and challenge.candidate_device_id==pending.candidate_device_id
                         and challenge.public_key_fingerprint==pending.public_key_fingerprint
-                        and challenge.operation=="enroll_second_device" and challenge.slot_number==2):
+                        and challenge.operation==pending.operation and challenge.slot_number==pending.slot_number):
                     return self._challenge_info(challenge)
                 else:self._reject(409,"ACTIVATION_PENDING","Another activation challenge is still pending.")
             db.flush()
@@ -180,16 +181,17 @@ class DeviceActivationService(PendingEnrollmentService):
             identifier=secrets.token_urlsafe(32)
             expires=min(now+timedelta(seconds=60),pending.expires_at,auth.expires_at,approval.expires_at).replace(microsecond=0)
             if expires<=now:self._reject(410,"ACTIVATION_EXPIRED","Activation prerequisites expired.")
-            payload=json.dumps(dict(version=1,purpose="device_activation",operation="enroll_second_device",slot_number=2,
+            payload=json.dumps(dict(version=1,purpose="device_activation",operation=pending.operation,slot_number=pending.slot_number,
                 challenge_id=identifier,student_id=student.student_id,auth_session_hash=auth.token_hash,
                 pending_registration_id=pending_id,candidate_device_id=pending.candidate_device_id,
                 public_key_fingerprint=pending.public_key_fingerprint,approval_id=approval_id,
                 trusted_template_revision_id=approval.trusted_template_revision_id,biometric_result_id=approval.biometric_result_id,
+                replaced_device_id=approval.binding.replaced_device_id,replaced_device_fingerprint=approval.binding.replaced_device_fingerprint,
                 nonce=secrets.token_urlsafe(32),expires_at=iso_time(expires,self.context.settings)),sort_keys=True,separators=(",",":"))
             challenge=DeviceActivationChallenge(challenge_id=identifier,student_id=student.student_id,
                 auth_token_hash=auth.token_hash,pending_registration_id=pending_id,candidate_device_id=pending.candidate_device_id,
                 public_key_fingerprint=pending.public_key_fingerprint,approval_id=approval_id,
-                trusted_template_revision_id=approval.trusted_template_revision_id,operation="enroll_second_device",slot_number=2,
+                trusted_template_revision_id=approval.trusted_template_revision_id,operation=pending.operation,slot_number=pending.slot_number,
                 signing_payload=payload,created_at=now,expires_at=expires,result="PENDING")
             db.add(challenge);db.flush();state["challenge_id"]=identifier
             self._event(db,student,"challenge","ISSUED","ACTIVATION_CHALLENGE_ISSUED",state)
@@ -200,7 +202,7 @@ class DeviceActivationService(PendingEnrollmentService):
         return dict(success=True,challenge_id=challenge.challenge_id,
             pending_registration_id=challenge.pending_registration_id,
             candidate_device_id=challenge.candidate_device_id,public_key_fingerprint=challenge.public_key_fingerprint,
-            operation=challenge.operation,slot_number=2,approval_id=challenge.approval_id,
+            operation=challenge.operation,slot_number=challenge.slot_number,approval_id=challenge.approval_id,
             trusted_template_revision_id=challenge.trusted_template_revision_id,
             biometric_result_id=json.loads(challenge.signing_payload)["biometric_result_id"],
             algorithm="ECDSA_P256_SHA256",signature_encoding="base64-DER",
@@ -222,7 +224,7 @@ class DeviceActivationService(PendingEnrollmentService):
             if challenge.expires_at<=self.context.now():self._reject(410,"ACTIVATION_EXPIRED","Activation challenge expired.")
             self._candidate(db,student,pending)
             if (challenge.candidate_device_id!=pending.candidate_device_id or challenge.public_key_fingerprint!=pending.public_key_fingerprint
-                    or challenge.operation!="enroll_second_device" or challenge.slot_number!=2 or challenge.approval_id!=approval_id):
+                    or challenge.operation!=pending.operation or challenge.slot_number!=pending.slot_number or challenge.approval_id!=approval_id):
                 self._reject(403,"ACTIVATION_BINDING_MISMATCH","Activation binding changed.")
             # Every owned submitted attempt consumes its nonce, including failures.
             state["submitted"]=True
@@ -245,12 +247,17 @@ class DeviceActivationService(PendingEnrollmentService):
                     # Provider MUST lock current revision + grant and consume in this same DB transaction.
                     provider.consume(db,approval,self.context.now())
                     fresh()
+                    if pending.operation=="replace_device":
+                        target=self.check_target(db,student,pending)
+                        target.status="REVOKED";target.revoked_at=self.context.now()
+                        target.revocation_reason="Approved replacement " + pending.pending_registration_id
+                        db.flush()  # Release only the target ACTIVE slot inside the savepoint.
                     device=RegisteredDevice(device_id=pending.candidate_device_id,student_id=student.student_id,
-                        slot_number=2,public_key_spki=pending.public_key_spki,public_key_fingerprint=pending.public_key_fingerprint,
+                        slot_number=pending.slot_number,public_key_spki=pending.public_key_spki,public_key_fingerprint=pending.public_key_fingerprint,
                         device_name=pending.device_name,device_model=pending.device_model,platform="android",status="ACTIVE",registered_at=self.context.now())
                     db.add(device);pending.status="ACTIVATED";pending.consumed_at=self.context.now()
-                    self.audit(db,student,"activation","PASS","SECOND_DEVICE_ACTIVATED",pending)
-                    self._event(db,student,"activate","PASS","SECOND_DEVICE_ACTIVATED",state)
+                    self.audit(db,student,"activation","PASS",("DEVICE_REPLACED" if pending.operation=="replace_device" else "SECOND_DEVICE_ACTIVATED"),pending)
+                    self._event(db,student,"activate","PASS",("DEVICE_REPLACED" if pending.operation=="replace_device" else "SECOND_DEVICE_ACTIVATED"),state)
                     db.flush();fresh()
             except IntegrityError:
                 self._reject(409,"ACTIVATION_CONFLICT","Slot or candidate registration changed concurrently.")
