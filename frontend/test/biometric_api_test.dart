@@ -59,14 +59,12 @@ void main() {
       await api.submitLivenessFrame('challenge-id', image);
       await api.getResult('challenge-id');
       await api.cancel('challenge-id');
-      await api.removeRegistration();
       expect(calls, [
         'POST /register-face',
         'POST /verify-face',
         'POST /liveness/frame',
         'GET /verification/challenge-id',
         'POST /attendance/cancel/challenge-id',
-        'DELETE /biometrics',
       ]);
     },
   );

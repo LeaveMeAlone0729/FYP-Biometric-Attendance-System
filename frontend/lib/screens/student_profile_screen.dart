@@ -3,7 +3,6 @@ import '../services/api_client.dart';
 import '../theme.dart';
 import '../modules/devices/screens/my_device_screen.dart';
 import '../modules/biometrics/screens/camera_screen.dart';
-import '../modules/biometrics/services/biometric_api.dart';
 
 class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
@@ -13,8 +12,6 @@ class StudentProfileScreen extends StatefulWidget {
 
 class _StudentProfileScreenState extends State<StudentProfileScreen> {
   final _api = ApiClient.instance;
-  // Chew Zhexuan: the profile's face enrollment actions use the biometric module.
-  final _biometrics = BiometricApi();
   bool _busy = false;
   String? _error;
   @override
@@ -29,41 +26,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       if (mounted) setState(() => _error = null);
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
-    }
-  }
-
-  Future<void> _remove() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Remove face registration?'),
-        content: const Text(
-          'Your encrypted face template will be deleted. You will need to register again to take attendance. Your attendance history is kept.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep registration'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove template'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await _biometrics.removeRegistration();
-      await _refresh();
-    } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -85,6 +47,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   Widget build(BuildContext context) {
     final student = _api.student ?? {};
     final enrolled = student['biometric_status'] == 'active';
+    final canEnroll = student['biometric_status'] == 'not_registered';
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: _refresh,
@@ -155,6 +118,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               ),
             ),
             const SizedBox(height: 24),
+            // Chew Zhexuan: facial registration and department support guidance.
             Text(
               'Facial biometrics',
               style: Theme.of(context).textTheme.titleLarge,
@@ -179,7 +143,9 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                           child: Text(
                             enrolled
                                 ? 'Face registered'
-                                : 'Face registration needed',
+                                : canEnroll
+                                ? 'Face registration needed'
+                                : 'Contact your department',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ),
@@ -188,35 +154,36 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                     const SizedBox(height: 12),
                     Text(
                       enrolled
-                          ? 'Your encrypted facial template is ready for attendance verification.'
-                          : 'Register your face once. Your face will be checked before each gesture challenge.',
+                          ? 'Your encrypted facial template is ready for attendance verification. Registration is locked to prevent changes by students.'
+                          : canEnroll
+                          ? 'Register your own face once. Registration is locked after enrollment. Your face will be checked before each gesture challenge.'
+                          : 'Your facial registration needs attention. Visit your department for assistance.',
                     ),
+                    if (canEnroll) ...[
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _busy
+                              ? null
+                              : () async {
+                                  await Navigator.push<bool>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const CameraScreen(enrollment: true),
+                                    ),
+                                  );
+                                  await _refresh();
+                                },
+                          icon: const Icon(Icons.face_retouching_natural),
+                          label: const Text('Register my face'),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      child: enrolled
-                          ? OutlinedButton.icon(
-                              onPressed: _busy ? null : _remove,
-                              icon: const Icon(Icons.delete_outline),
-                              label: const Text('Remove face registration'),
-                            )
-                          : FilledButton.icon(
-                              onPressed: _busy
-                                  ? null
-                                  : () async {
-                                      await Navigator.push<bool>(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => const CameraScreen(
-                                            enrollment: true,
-                                          ),
-                                        ),
-                                      );
-                                      await _refresh();
-                                    },
-                              icon: const Icon(Icons.face_retouching_natural),
-                              label: const Text('Register my face'),
-                            ),
+                    const Text(
+                      'If face verification repeatedly fails, ask your lecturer to record attendance manually. Visit your department for identity verification and supervised re-registration.',
                     ),
                   ],
                 ),
@@ -224,7 +191,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             ),
             const SizedBox(height: 22),
             const InfoNotice(
-              'Biometric privacy\nYour camera photos are processed for verification. The server stores an encrypted face template and verification outcomes. You can remove your template at any time.',
+              'Biometric privacy\nYour camera photos are processed for verification. The server stores an encrypted face template and verification outcomes. Contact your department for facial data removal requests.',
               icon: Icons.lock_outline,
             ),
             const SizedBox(height: 22),
