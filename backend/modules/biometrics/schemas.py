@@ -73,10 +73,6 @@ class SuccessResponse(BaseModel):
     success: Literal[True]
 
 
-class BiometricRemoved(SuccessResponse):
-    message: str
-
-
 class VerificationResult(BaseModel):
     success: Literal[True]
     challenge_id: str
