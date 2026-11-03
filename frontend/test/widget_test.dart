@@ -31,7 +31,9 @@ void main() {
       );
       expect(find.text('Capture & register face'), findsNothing);
       expect(
-        find.text('Give consent below to start your automatic face scan.'),
+        find.text(
+          'Tick the consent box above to start your automatic face scan.',
+        ),
         findsOneWidget,
       );
     },

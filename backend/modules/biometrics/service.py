@@ -29,6 +29,8 @@ class BiometricService:
         if not student.face_encoding or student.biometric_status != "active":
             raise BiometricError(
                 "Register your face in Profile before taking attendance."
+                if student.biometric_status == "not_registered" and not student.face_encoding
+                else "Your facial registration needs attention. Visit your department for supervised re-registration. Ask your lecturer to record attendance manually while this is resolved."
             )
         try:
             return decrypt_encoding(
@@ -36,7 +38,7 @@ class BiometricService:
             )
         except (InvalidToken, ValueError) as exc:
             raise BiometricError(
-                "Your biometric registration needs to be renewed. Contact the project administrator."
+                "Your facial registration needs attention. Visit your department for supervised re-registration. Ask your lecturer to record attendance manually while this is resolved."
             ) from exc
 
     def register_face(
@@ -52,10 +54,10 @@ class BiometricService:
             raise HTTPException(
                 400, "Your consent is required before registering facial biometrics."
             )
-        if student.face_encoding:
+        if student.face_encoding or student.biometric_status != "not_registered":
             raise HTTPException(
                 409,
-                "Your face is already registered. Remove the existing registration first.",
+                "Facial registration is locked. Visit your department if re-registration is needed. Ask your lecturer to record attendance manually while this is resolved.",
             )
         try:
             image = self.read_image(file)
@@ -92,30 +94,6 @@ class BiometricService:
             "ready": True,
             "registered": True,
             "message": "Face registered successfully",
-        }
-
-    def remove_biometrics(self, student, db):
-        student = db.scalar(
-            select(Student)
-            .where(Student.student_id == student.student_id)
-            .with_for_update()
-        )
-        student.face_encoding = None
-        student.biometric_status = "not_registered"
-        student.consent_at = None
-        student.updated_at = self.context.now()
-        for c in db.scalars(
-            select(Challenge).where(
-                Challenge.student_id == student.student_id, Challenge.consumed == False
-            )
-        ):
-            c.consumed = True
-            root = db.get(VerificationAttempt, c.verification_id)
-            root.verification_result = "cancelled"
-            root.failure_reason = "Biometric registration was removed."
-        return {
-            "success": True,
-            "message": "Biometric registration removed. Attendance records have been retained.",
         }
 
     def verify_face(
