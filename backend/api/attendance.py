@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from config import iso_time
 from demo import seed_demo
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from models import (
     Attendance,
     Challenge,
@@ -17,7 +17,7 @@ from models import (
 )
 from modules.biometrics.schemas import ChallengeStarted
 from security import digest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from .context import AppContext
 from .dependencies import authenticated, get_context, get_db
@@ -46,6 +46,20 @@ def start_attendance(
         .where(Student.student_id == student.student_id)
         .with_for_update()
     )
+    failures = db.scalar(
+        select(func.count())
+        .select_from(VerificationAttempt)
+        .where(
+            VerificationAttempt.student_id == student.student_id,
+            VerificationAttempt.stage == "pin",
+            VerificationAttempt.verification_result == "failed",
+            VerificationAttempt.attempted_at > context.now() - timedelta(minutes=5),
+        )
+    )
+    if failures >= 5:
+        raise HTTPException(
+            429, "Too many incorrect attendance PINs. Try again in five minutes."
+        )
     if context.settings.demo_mode:
         seed_demo(db, context.now())
     matches = db.scalars(

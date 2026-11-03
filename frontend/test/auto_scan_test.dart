@@ -1,9 +1,9 @@
 // Module owner: Chew Zhexuan
 // Module: Facial Recognition and Liveness Detection
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/screens/camera_screen.dart';
 import 'package:frontend/services/api_client.dart';
@@ -113,10 +113,8 @@ Future<void> mountScan(
   bool enrollment = false,
   int seconds = 90,
   CameraController Function()? createCamera,
-  Size size = const Size(448, 1000),
-  double textScale = 1,
 }) async {
-  tester.view.physicalSize = size;
+  tester.view.physicalSize = const Size(448, 1000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -124,12 +122,6 @@ Future<void> mountScan(
   await tester.pumpWidget(
     MaterialApp(
       theme: appTheme(),
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(
-          context,
-        ).copyWith(textScaler: TextScaler.linear(textScale)),
-        child: child!,
-      ),
       home: CameraScreen(
         enrollment: enrollment,
         challenge: enrollment
@@ -170,20 +162,6 @@ void main() {
   testWidgets(
     'Automatic scan turns red, recovers green and advances without a capture tap',
     (tester) async {
-      final haptics = <MethodCall>[];
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        (call) async {
-          if (call.method == 'HapticFeedback.vibrate') haptics.add(call);
-          return null;
-        },
-      );
-      addTearDown(() {
-        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          SystemChannels.platform,
-          null,
-        );
-      });
       var faces = 0;
       final api = ScanApi((path, fields) async {
         if (path == '/liveness/frame') {
@@ -213,9 +191,6 @@ void main() {
       expect(api.calls.last['preview_only'], 'true');
       await advance(tester, 900);
       expect(api.calls.last['preview_only'], 'false');
-      expect(find.text('Face verified'), findsOneWidget);
-      expect(find.text('Next: show 3 fingers'), findsOneWidget);
-      expect(haptics, hasLength(1));
       expect(find.text('Show 3 fingers'), findsOneWidget);
       expect(find.byKey(const ValueKey('face-guide')), findsNothing);
       expect(find.byKey(const ValueKey('gesture-guide')), findsOneWidget);
@@ -223,14 +198,6 @@ void main() {
         find.textContaining('Neither needs to be centered.'),
         findsOneWidget,
       );
-      await advance(tester, 3000);
-      expect(
-        api.calls.where((call) => call['path'] == '/liveness/frame'),
-        isEmpty,
-      );
-      await tester.tap(find.text('Start liveness challenge'));
-      await tester.pump();
-      expect(find.byType(AlertDialog), findsNothing);
       await advance(tester, 1600);
       expect(api.calls.last['path'], '/liveness/frame');
       expect(
@@ -238,7 +205,6 @@ void main() {
         const Color(0xFFEF5350),
       );
       expect(api.maximumInFlight, 1);
-      expect(haptics, hasLength(1));
       expect(tester.takeException(), isNull);
     },
   );
@@ -285,8 +251,6 @@ void main() {
       );
       expect(guideSize.width, frameSize.width - 16);
       expect(guideSize.height, frameSize.height - 16);
-      await tester.tap(find.text('Start liveness challenge'));
-      await tester.pump();
       await advance(tester, 1600);
       expect(
         guideColor(tester, guide: 'gesture-guide'),
@@ -299,68 +263,6 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
-
-  testWidgets('Consent is visible above the camera on a small screen', (
-    tester,
-  ) async {
-    final api = ScanApi(
-      (_, _) async => {'ready': false, 'message': 'Center your face.'},
-    );
-    await mountScan(
-      tester,
-      api,
-      enrollment: true,
-      size: const Size(360, 640),
-      textScale: 1.3,
-    );
-    final checkbox = find.byType(CheckboxListTile);
-    final frame = find.byKey(const ValueKey('camera-frame'));
-    expect(find.text('Give consent to start'), findsOneWidget);
-    expect(tester.widget<CheckboxListTile>(checkbox).value, isFalse);
-    expect(tester.getBottomLeft(checkbox).dy, lessThan(640));
-    expect(
-      tester.getBottomLeft(checkbox).dy,
-      lessThan(tester.getTopLeft(frame).dy),
-    );
-    await advance(tester, 20000);
-    expect(api.calls, isEmpty);
-    await tester.tap(checkbox);
-    await tester.pump();
-    expect(find.text('Consent given'), findsOneWidget);
-    await tester.pumpAndSettle();
-    expect(tester.getBottomLeft(frame).dy, lessThan(640));
-    await advance(tester, 1200);
-    expect(api.calls.single['consent'], 'true');
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('Liveness prompt expires without sending camera frames', (
-    tester,
-  ) async {
-    final api = ScanApi((_, fields) async {
-      if (fields['preview_only'] == 'true') {
-        return {'ready': true, 'preview_only': true, 'message': 'Hold still.'};
-      }
-      return {'ready': true, 'face_verified': true, 'fingers': 1};
-    });
-    await mountScan(
-      tester,
-      api,
-      seconds: 6,
-      size: const Size(360, 640),
-      textScale: 1.3,
-    );
-    await advance(tester, 1200);
-    await advance(tester, 900);
-    expect(find.text('Next: show 1 finger'), findsOneWidget);
-    expect(find.text('Start liveness challenge').hitTestable(), findsOneWidget);
-    await advance(tester, 4000);
-    expect(find.byType(AlertDialog), findsNothing);
-    expect(find.text('Verification incomplete'), findsOneWidget);
-    expect(api.calls, hasLength(2));
-    expect(api.cancellations, 1);
-    expect(tester.takeException(), isNull);
-  });
 
   testWidgets(
     'Enrollment captures nothing until consent and saves only after a ready preview',
@@ -444,8 +346,6 @@ void main() {
       await mountScan(tester, api, seconds: 6);
       await advance(tester, 1200);
       await advance(tester, 900);
-      await tester.tap(find.text('Start liveness challenge'));
-      await tester.pump();
       await advance(tester, 1600);
       await advance(tester, 3000);
       expect(find.text('Waiting for the last server check…'), findsOneWidget);

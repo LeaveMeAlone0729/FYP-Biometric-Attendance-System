@@ -12,11 +12,6 @@ from app import app
 
 
 class BiometricContractTests(unittest.TestCase):
-    def test_student_template_deletion_is_not_exposed(self):
-        specification = app.openapi()
-        self.assertNotIn("/biometrics", specification["paths"])
-        self.assertNotIn("BiometricRemoved", specification["components"]["schemas"])
-
     def test_exported_openapi_matches_the_application(self):
         path = Path(__file__).resolve().parents[2] / "docs/openapi.json"
         self.assertEqual(

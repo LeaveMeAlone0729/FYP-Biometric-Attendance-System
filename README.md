@@ -98,7 +98,7 @@ For this computer's Pixel 10 Pro XL AVD, the front camera uses `webcam0` (HD Web
 | FR-10 unsuccessful attempts | Failed PIN, face and gesture checks recorded; own activity visible in History |
 | Attendance history | Real course records and computed percentages; no hardcoded percentages |
 | Account protection | PBKDF2 password hashes, revocable expiring bearer sessions, server-side ownership checks |
-| Privacy | Encrypted facial encodings, no permanent raw capture storage; removal requests handled by the department |
+| Privacy | Encrypted facial encodings, no permanent raw capture storage, explicit biometric-template deletion |
 
 The eight main entities are `programmes`, `student_groups`, `students`, `courses`, `class_schedules`, `class_sessions`, `attendance`, and `verification_attempts`. `auth_sessions` and `verification_challenges` support secure workflow state. The database uses `student_groups` to avoid the SQL keyword `GROUP`.
 
@@ -109,7 +109,7 @@ The eight main entities are `programmes`, `student_groups`, `students`, `courses
 - `DB_NAME=attendance_proposal_xampp` is the active schema. Obsolete prototype databases were archived and removed during the 29 October 2026 cleanup; see [CLEANUP.md](CLEANUP.md).
 - `DEMO_MODE=true` enables demo fixtures, demo labels and self-registration. In production mode, student accounts and groups must be provisioned by an operator; clients cannot choose their own academic group.
 - `APP_TIMEZONE=Asia/Kuala_Lumpur` controls all academic dates and class windows. `tzdata` is required on Windows. The camera timer uses elapsed time rather than the emulator's wall clock.
-- `CHALLENGE_SECONDS=90` limits the complete verification flow. Logout, cancellation and successful completion invalidate pending challenges.
+- `CHALLENGE_SECONDS=90` limits the complete verification flow. Logout, cancellation, successful completion and template deletion invalidate pending challenges.
 - `FACE_DISTANCE_THRESHOLD=0.45` preserves the original project's matching threshold. Calibrate it using consented research participants rather than treating it as an evaluated accuracy guarantee.
 - Login accepts `student_id` and `password` only. `/me` reports the student and biometric status. Neither login nor biometric/attendance responses include device or network verification flags. Challenge ownership remains bound to the authenticated login, with expiry and single-use enforcement.
 - The example uses local HTTP for emulator development. Use HTTPS and a restricted database account before handling real students over a shared network. Keep the database reachable only by the backend.
@@ -117,26 +117,6 @@ The eight main entities are `programmes`, `student_groups`, `students`, `courses
 - Biometric registration verifies the signed-in student's account ownership but does not independently prove the first enrolled face belongs to an institutionally verified person. Real deployment needs supervised identity enrollment and account recovery.
 
 Camera captures are temporarily produced by the device camera plugin, read for upload and removed immediately. The backend processes the received image in memory and stores only encrypted encodings and verification outcomes. Multipart upload buffering may use OS temporary storage; there is no application-level photo archive.
-
-## Facial registration and recovery
-
-Students register their own face once with consent. After enrollment the template
-is locked: the student app has no delete or replacement action, and the former
-`DELETE /biometrics` endpoint is removed. A repeat `POST /register-face` returns
-409 without changing the template. An inactive registration or an active
-registration with missing template data also requires department assistance.
-
-For repeated recognition failures, students ask the lecturer to record attendance
-manually through the lecturer's attendance service, then visit the department for
-identity verification and supervised re-registration. Facial data removal requests
-are also handled by the department. Department authorization/reset and manual
-attendance belong to the teammate's services; this change does not implement
-those workflows or expose a student reset API. Their authenticated API contracts
-must be supplied before connecting recovery. Existing templates and attendance
-records are preserved; no database migration is needed.
-
-The first enrollment still requires institutional supervision for verified identity;
-locking later changes does not establish whose face was initially enrolled.
 
 ## Local operator tools
 

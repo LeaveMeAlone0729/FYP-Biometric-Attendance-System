@@ -62,40 +62,18 @@ image-upload request.
 
 | Step | Request | Input | Result |
 | --- | --- | --- | --- |
-| Register face once | `POST /register-face` | Multipart: `file`, `consent`; optional `auto_capture`, `preview_only` | Retry feedback, ready preview, or encrypted template saved; 409 if already registered or inactive |
+| Register face | `POST /register-face` | Multipart: `file`, `consent`; optional `auto_capture`, `preview_only` | Retry feedback, ready preview, or encrypted template saved |
 | Start demo verification | `POST /attendance/start` | JSON: `{"pin":"123456"}` | `challenge_id`, `session_id`, expiry and stage `face` |
 | Match face | `POST /verify-face` | Multipart: `challenge_id`, `file`; optional `auto_capture`, `preview_only` | Retry feedback, ready preview, or random `fingers` and stage `liveness` |
 | Check gesture | `POST /liveness/frame` | Multipart: `challenge_id`, fresh `file` | Progress, or completed demo attendance |
 | Read result | `GET /verification/{challenge_id}` | Original bearer token | Stored verification state; no mutation |
 | Cancel | `POST /attendance/cancel/{challenge_id}` | Original bearer token | Cancels pending verification |
+| Remove template | `DELETE /biometrics` | Bearer token | Removes template/consent and cancels pending challenges; retains attendance |
 | Read activity | `GET /verification-attempts` | Bearer token | Own verification activity; pending expired attempts are finalized |
 
 The demo start endpoint validates the student's class PIN, group and attendance
 window. Its response includes `expires_in` (currently 90 seconds). Enrollment
 does not require a class PIN. `GET /me` reports `biometric_status`.
-
-### Locked registration and department recovery
-
-The student deletion function has been removed, including `DELETE /biometrics`.
-Only a student with no template and `biometric_status=not_registered` can enroll.
-Repeat enrollment, including preview requests, returns 409 before processing the
-image. Students cannot overwrite an existing template or self-recover an inactive
-registration. The profile and enrollment consent explain the locked registration.
-
-On repeated recognition failure, the student asks the lecturer for manual
-attendance and visits the department for identity verification and supervised
-re-registration. Removal requests are referred to the department as well.
-Manual attendance, staff identity/authorization and department case handling are
-owned by the teammate's services. No staff API contract exists here yet, so this
-module displays instructions rather than sending requests to invented endpoints.
-An eventual recovery integration must authorize staff on the server, bind approval
-to the supervised replacement capture, audit the change and invalidate pending
-biometric challenges. It must not unlock unrestricted enrollment for the student.
-Do not clear the template or change its status through student requests.
-
-Existing templates and attendance are unchanged. This restriction does not prove
-the identity of the first enrolled person; supervised initial enrollment remains
-an institutional integration requirement.
 
 Uploads use the exact field name `file`. Let the HTTP library create the
 multipart boundary. Images are limited to 6 MB, decoded in memory, corrected for
@@ -207,13 +185,6 @@ database state. Unknown challenges and challenges owned by another login return
 404; missing authentication returns 401.
 
 ## Combining with the teammate's module
-
-Scope boundary: Chew Zhexuan owns facial recognition and liveness detection only.
-Changes to accounts, devices, network checks, department administration and
-lecturer/manual attendance must remain in the teammate's modules. Consume those
-services through their agreed authenticated APIs; do not implement their business
-rules inside the biometric module. The legacy demo integration below documents
-current behavior and is not authorization to change teammate-owned code.
 
 The simplest integration is to add the teammate's router/service to the same
 FastAPI backend and register it in `backend/app.py`. Reuse the authenticated

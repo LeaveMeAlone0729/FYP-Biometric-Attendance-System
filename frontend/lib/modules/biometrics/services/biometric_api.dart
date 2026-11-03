@@ -56,4 +56,8 @@ class BiometricApi {
       {},
     );
   }
+
+  Future<void> removeRegistration() async {
+    await _client.delete('/biometrics');
+  }
 }

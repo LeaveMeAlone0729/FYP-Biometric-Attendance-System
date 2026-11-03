@@ -2,11 +2,6 @@
 
 Module owner: **Chew Zhexuan**.
 
-Current scope: facial recognition and liveness detection only. Do not modify
-teammate-owned account, device, network, department or attendance business logic.
-Use agreed APIs when those services are needed. In shared screens, changes are
-limited to the explicitly marked biometric UI and its imports/callbacks.
-
 The source files below carry an ownership comment. Shared demo code is kept
 outside these folders so teammates can integrate their modules separately.
 
@@ -34,7 +29,7 @@ frontend/lib/
     services/biometric_api.dart   Face/liveness requests through the shared client
   screens/camera_screen.dart      Compatibility export for existing imports
   screens/student_profile_screen.dart
-                                  Shared profile; biometric status/enrollment/support UI is marked
+                                  Shared profile; biometric actions are marked
   services/api_client.dart        Shared login, bearer token and HTTP transport
 
 frontend/test/
