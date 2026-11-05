@@ -20,7 +20,7 @@ def main():
     from modules.devices.migration import upgrade_device_schema
     from modules.devices.verification_migration import upgrade_verification_schema
     from migrate import upgrade_schema
-    from modules.biometrics.migration import upgrade_liveness_schema
+    from modules.biometrics.migration import retire_liveness_column
     from modules.biometrics.model_assets import download_models
     from security import hash_password
     from demo import seed_demo
@@ -39,7 +39,7 @@ def main():
     engine = make_engine(settings)
     Base.metadata.create_all(engine)
     upgrade_schema(engine)
-    upgrade_liveness_schema(engine)
+    retire_liveness_column(engine)
     upgrade_device_schema(engine)
     upgrade_verification_schema(engine)
     if settings.demo_mode:

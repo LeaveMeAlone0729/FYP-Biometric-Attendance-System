@@ -9,7 +9,6 @@ from modules.devices.models import RegisteredDevice
 from modules.devices.service import DeviceRegistrationError
 from modules.networks.service import NetworkVerificationService
 from modules.biometrics.constants import REQUIRED_LIVENESS_FRAMES
-from modules.biometrics.passive_liveness import read_state
 from .models import AttendanceDeviceChallenge,AttendanceAuthorizationEvent
 
 class AttendanceAuthorizationService:
@@ -32,6 +31,7 @@ class AttendanceAuthorizationService:
         if nonce is not None and nonce.result!='PASS':
             nonce.consumed_at=nonce.consumed_at or self.context.now();nonce.result='FAIL';nonce.failure_code=code
         if final and attempt is not None and not attempt.consumed:
+            self.context.runtime_liveness.discard(attempt)
             attempt.consumed=True
             root=db.get(VerificationAttempt,attempt.verification_id)
             root.verification_result='failed';root.stage='authorization';root.failure_reason=message
@@ -144,7 +144,7 @@ class AttendanceAuthorizationService:
         student,auth=self.identity(db,student,auth);attempt,session=self.attempt(db,student,auth,attempt.challenge_id)
         root=db.scalar(select(VerificationAttempt).where(VerificationAttempt.verification_id==attempt.verification_id).with_for_update())
         def deny(status,code,message,nonce=None,network_id=None):self.reject(db,student,auth,status,code,message,attempt=attempt,nonce=nonce,network_id=network_id,final=True)
-        state = read_state(attempt.face_liveness_state)
+        state = self.context.runtime_liveness.read(attempt)
         if (attempt.stage!='liveness' or root.verification_result!='pending' or root.stage!='liveness'
                 or state is None or len(state['frames'])!=REQUIRED_LIVENESS_FRAMES
                 or attempt.valid_frames!=REQUIRED_LIVENESS_FRAMES or root.face_distance is None

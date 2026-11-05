@@ -6,13 +6,15 @@ Flutter Android app, FastAPI biometric services and MySQL for the **facial recog
 
 Attendance is inserted only after all checks pass. Face verification alone cannot record attendance.
 
+Passive anti-spoofing runs during face matching and on every counted finger frame. Its temporary scores and frame evidence stay in server memory, bound to the student, login and challenge; they are cleared on completion, cancellation or expiry. No `face_liveness_state` database column is required. Use one backend worker. A backend restart or reload requires a fresh PIN challenge for any unfinished verification; saved attendance remains available.
+
 Module owner: **Chew Zhexuan**. See the [module/file map](docs/MODULE_OWNERSHIP.md)
 and [API integration guide](docs/API_INTEGRATION.md) for the organized code,
 request contracts, teammate integration points and importable OpenAPI file.
 
 Device registration is now available as the teammate's separate Phase 1 module in the shared backend and Android app; see [the registration guide](docs/DEVICE_REGISTRATION.md). Installation binding for attendance, device replacement, Wi-Fi/campus verification and IP allowlists are not enforced yet. The phone still needs an ordinary connection to the backend API.
 
-For an existing database, run `backend\venv\Scripts\python.exe backend\migrate.py` from the project root before restarting the updated backend. This removes only the retired `device_hash` columns from `students` and `auth_sessions`, preserving accounts, encrypted face templates, consent, login sessions and attendance history. `setup.py` also applies this idempotent migration; fresh databases already use the current schema.
+For an existing database, run `backend\venv\Scripts\python.exe backend\migrate.py` from the project root before restarting the updated backend. This removes the retired `device_hash` columns from `students` and `auth_sessions` and the obsolete `face_liveness_state` column from `verification_challenges`, preserving accounts, encrypted face templates, consent, login sessions and attendance history. `setup.py` also applies this idempotent migration; fresh databases already use the current schema.
 
 ## Start on this Windows computer
 
