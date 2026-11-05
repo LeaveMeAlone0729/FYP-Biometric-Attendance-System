@@ -1,6 +1,7 @@
 """Contract tests use synthetic biometric results; they do not claim camera accuracy."""
 
 import sys
+import base64
 import unittest
 from dataclasses import replace
 from datetime import datetime, timedelta
@@ -27,6 +28,11 @@ from models import (
     Student,
     VerificationAttempt,
 )
+from cryptography.hazmat.primitives import hashes,serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from modules.devices.models import RegisteredDevice
+from modules.devices.crypto import canonical_public_key
+from modules.networks.models import NetworkPolicy
 from security import (
     decrypt_encoding,
     encrypt_encoding,
@@ -213,11 +219,18 @@ class WorkflowTests(unittest.TestCase):
                     created_at=self.current,
                 )
             )
+        self.device_key=ec.generate_private_key(ec.SECP256R1())
+        public=base64.b64encode(self.device_key.public_key().public_bytes(serialization.Encoding.DER,serialization.PublicFormat.SubjectPublicKeyInfo)).decode()
+        public,self.device_fingerprint=canonical_public_key(public)
+        with self.sessions.begin() as db:
+            db.add(RegisteredDevice(device_id='workflow-fixture-device',student_id='TEST001',slot_number=1,public_key_spki=public,
+                public_key_fingerprint=self.device_fingerprint,device_name='Isolated regression key',device_model='Software P256 fixture',platform='android',status='ACTIVE',registered_at=self.current))
+            db.add(NetworkPolicy(network_id='workflow-sim',network_name='Isolated regression network',network_cidr='192.0.2.0/24',enabled=True,created_at=self.current,updated_at=self.current))
         self.bio = SyntheticBiometrics()
         self.app = create_app(
             self.settings, self.engine, self.bio, lambda: self.current
         )
-        self.client = TestClient(self.app, client=("127.0.0.1", 50000))
+        self.client = TestClient(self.app, client=("192.0.2.10", 50000))
         response = self.client.post(
             "/login", json={"student_id": "TEST001", "password": "test-password"}
         )
@@ -236,9 +249,18 @@ class WorkflowTests(unittest.TestCase):
         return response.json()["challenge_id"]
 
     def image(self, endpoint, identifier, data=b"neutral"):
+        fields={"challenge_id":identifier}
+        if endpoint=="/liveness/frame":
+            with self.sessions() as db:
+                attempt=db.get(Challenge,identifier)
+                eligible=attempt is not None and not attempt.consumed and attempt.stage=='liveness' and attempt.expires_at>self.current
+            if eligible:
+                issued=self.client.post('/api/v1/attendance/device-challenges',headers=self.headers,json={'attendance_challenge_id':identifier,'public_key_fingerprint':self.device_fingerprint})
+                if issued.status_code==201:
+                    proof=issued.json();fields.update(device_challenge_id=proof['challenge_id'],device_signature=base64.b64encode(self.device_key.sign(base64.b64decode(proof['signing_payload']),ec.ECDSA(hashes.SHA256()))).decode())
         return self.client.post(
             endpoint,
-            data={"challenge_id": identifier},
+            data=fields,
             files={"file": ("capture.jpg", data, "image/jpeg")},
             headers=self.headers,
         )
@@ -381,7 +403,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("device_verified", result.json())
         self.assertNotIn("network_verified", result.json())
 
-    def test_face_registration_and_attendance_work_from_any_client_address(self):
+    def test_face_registration_is_independent_but_attendance_requires_authorized_source(self):
         # Set up a first enrollment directly; students cannot delete an existing one.
         with self.sessions.begin() as db:
             student = db.get(Student, "TEST001")
@@ -397,8 +419,11 @@ class WorkflowTests(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 200, response.text)
             with patch.object(self, "client", remote):
-                self.complete()
-            self.assertEqual(self.count_attendance(), 1)
+                identifier=self.start();self.face(identifier)
+                for i in range(3):result=self.image('/liveness/frame',identifier,('remote-'+str(i)).encode())
+                self.assertEqual(result.status_code,403,result.text)
+                self.assertEqual(result.json()['code'],'NETWORK_NOT_AUTHORIZED')
+            self.assertEqual(self.count_attendance(), 0)
 
     def test_challenge_stays_bound_to_the_login_that_started_it(self):
         identifier = self.start()
@@ -767,7 +792,7 @@ class WorkflowTests(unittest.TestCase):
             self.bio,
             lambda: self.current,
         )
-        with TestClient(prod, client=("127.0.0.1", 50000)) as client:
+        with TestClient(prod, client=("192.0.2.10", 50000)) as client:
             self.assertEqual(client.get("/groups").json(), [])
             self.assertEqual(
                 client.post(

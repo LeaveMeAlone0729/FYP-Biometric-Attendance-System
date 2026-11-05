@@ -239,7 +239,7 @@ class BiometricService:
             "message": f"Face and anti-spoof checks passed. Show {challenge.fingers} finger(s) beside your face, palm toward the camera.",
         }
 
-    def liveness_frame(self, student, auth, db, challenge_id, file):
+    def liveness_frame(self, student, auth, db, challenge_id, file, *, request_scope=None, device_challenge_id=None, device_signature=None):
         challenge, session = self.context.get_challenge(
             challenge_id, "liveness", db, student, auth
         )
@@ -311,7 +311,7 @@ class BiometricService:
         challenge.face_liveness_state = json.dumps(state)
         if challenge.valid_frames < REQUIRED_LIVENESS_FRAMES:
             return self.liveness_progress(challenge, ready=True, message="Correct gesture. Hold steady; your face and hand do not need to be centered.")
-        return record_verified_attendance(self.context, db, student, challenge, session)
+        return record_verified_attendance(self.context, db, student, challenge, session, auth=auth, request_scope=request_scope, device_challenge_id=device_challenge_id, device_signature=device_signature)
 
     def cancel(self, student, auth, db, challenge_id):
         challenge = db.scalar(

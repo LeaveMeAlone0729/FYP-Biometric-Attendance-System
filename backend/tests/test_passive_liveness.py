@@ -7,13 +7,14 @@ import unittest
 from pathlib import Path
 
 import numpy as np
-from fastapi import HTTPException
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from modules.biometrics.inference import BiometricError
 from modules.biometrics.passive_liveness import new_state, read_state
 from modules.biometrics.presentation import face_crop, real_probability, validate_scores
-from models import Challenge, Student, ClassSession
+from models import AuthSession, Challenge, Student, ClassSession
+from modules.devices.service import DeviceRegistrationError
+from security import digest
 from services.attendance import record_verified_attendance
 import test_workflow as workflow
 
@@ -157,9 +158,9 @@ class PresentationWorkflowTests(unittest.TestCase):
 
     def test_legacy_missing_or_incomplete_evidence_cannot_write_attendance(self):
         f = self.fixture
-        identifier = f.start()
-        f.face(identifier)
         for state in (None, '{"version":1,"complete":true}', json.dumps(new_state([0.99, 0.99]))):
+            identifier = f.start()
+            f.face(identifier)
             with f.sessions.begin() as db:
                 challenge = db.get(Challenge, identifier)
                 challenge.face_liveness_state = state
@@ -169,7 +170,9 @@ class PresentationWorkflowTests(unittest.TestCase):
                 challenge = db.get(Challenge, identifier)
                 student = db.get(Student, 'TEST001')
                 session = db.get(ClassSession, challenge.session_id)
-                with self.assertRaises(HTTPException) as error:
-                    record_verified_attendance(f.app.state.context, db, student, challenge, session)
-                self.assertEqual(error.exception.status_code, 409)
+                auth = db.get(AuthSession, digest(f.headers['Authorization'].split()[1]))
+                with self.assertRaises(DeviceRegistrationError) as error:
+                    record_verified_attendance(f.app.state.context, db, student, challenge, session,
+                        auth=auth, request_scope={'client': ('192.0.2.10', 50000)})
+                self.assertEqual(error.exception.code, 'ATTENDANCE_BIOMETRICS_REQUIRED')
         self.assertEqual(f.count_attendance(), 0)

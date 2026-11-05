@@ -3,7 +3,7 @@
 import secrets
 from datetime import timedelta
 
-from config import iso_time
+from app_time import iso_time
 from fastapi import APIRouter, Depends, HTTPException
 from models import (
     AuthSession,

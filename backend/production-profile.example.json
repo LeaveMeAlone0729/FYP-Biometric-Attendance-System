@@ -1,0 +1,17 @@
+{
+  "db_host": "127.0.0.1",
+  "db_port": 3308,
+  "db_name": "fyprecoveredproduction",
+  "db_user": "fyp_prod_runtime",
+  "db_password": "REPLACE_WITH_A_PRIVATE_UNIQUE_RUNTIME_SECRET",
+  "expected_datadir": "C:/FYP/MariaDB-Recovery/releases/APPROVED_RELEASE/data",
+  "expected_basedir": "C:/FYP/MariaDB-Recovery/releases/APPROVED_RELEASE/runtime",
+  "expected_version": "10.4.27-MariaDB",
+  "biometric_key": "PRESERVE_EXACT_EXISTING_KEY_OFFLINE",
+  "biometric_key_sha256": "PIN_THE_EXISTING_KEY_DIGEST_FROM_PROTECTED_BACKUP_EVIDENCE",
+  "timezone": "Asia/Kuala_Lumpur",
+  "session_hours": 8,
+  "challenge_seconds": 90,
+  "face_threshold": 0.45,
+  "demo_mode": false
+}

@@ -162,6 +162,8 @@ class ApiClient {
       }
       throw const ApiException(
         'The server is taking too long. Check your connection and try again.',
+        0,
+        'REQUEST_TIMEOUT',
       );
     } on SocketException {
       if (deviceBiometric) {
@@ -173,6 +175,8 @@ class ApiClient {
       }
       throw const ApiException(
         'Cannot reach the attendance server. Check the server and your network.',
+        0,
+        'NETWORK_ERROR',
       );
     } on http.ClientException {
       if (deviceBiometric) {
@@ -184,6 +188,8 @@ class ApiClient {
       }
       throw const ApiException(
         'Cannot reach the attendance server. Check the server and your network.',
+        0,
+        'NETWORK_ERROR',
       );
     } finally {
       if (deviceBiometric && kDebugMode) {
