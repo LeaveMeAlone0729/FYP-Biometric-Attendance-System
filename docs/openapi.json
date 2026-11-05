@@ -402,7 +402,7 @@
         "tags": [
           "Face registration"
         ],
-        "summary": "Register the signed-in student\u2019s face with consent",
+        "summary": "Register the signed-in student\u2019s face once with consent",
         "operationId": "registerFace",
         "requestBody": {
           "content": {
@@ -432,132 +432,6 @@
                     }
                   ],
                   "title": "Response Registerface"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid capture, identity mismatch, or invalid input.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, invalid, or expired bearer login.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Account or verification ownership is not valid.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Verification request was not found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Wrong verification stage, duplicate attendance, or closed class.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "410": {
-            "description": "Verification or attendance window expired.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request fields failed validation.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many attempts or camera frames.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Verification is temporarily unavailable.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Database is unavailable.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/biometrics": {
-      "delete": {
-        "tags": [
-          "Face registration"
-        ],
-        "summary": "Remove the face template and cancel pending challenges",
-        "operationId": "removeFaceRegistration",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BiometricRemoved"
                 }
               }
             }
@@ -4721,25 +4595,6 @@
           "network_verification_id"
         ],
         "title": "AttendancePreflightResponse"
-      },
-      "BiometricRemoved": {
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "const": true,
-            "title": "Success"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message"
-          }
-        },
-        "type": "object",
-        "required": [
-          "success",
-          "message"
-        ],
-        "title": "BiometricRemoved"
       },
       "Body_face_api_v1_device_approvals__approval_id__face_post": {
         "properties": {

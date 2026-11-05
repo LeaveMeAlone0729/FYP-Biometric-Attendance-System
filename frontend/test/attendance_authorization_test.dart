@@ -318,6 +318,15 @@ void main() {
         for (var i = 0; i < 18; i++) {
           await tester.pump(const Duration(seconds: 1));
           await tester.pump();
+          final startLiveness = find.text('Start liveness challenge');
+          if (startLiveness.evaluate().isNotEmpty) {
+            // Preserve the partner's face-confirmation prompt. Device proof is
+            // still automatic when actual liveness frames are submitted.
+            expect(f.keys.signs, 0);
+            expect(f.frames, 0);
+            await tester.tap(startLiveness);
+            await tester.pump();
+          }
         }
         expect(f.keys.signs, 1);
         expect(f.keys.creates, 0);

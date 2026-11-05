@@ -36,4 +36,3 @@ def pending_status(pending_id: str, identity=Depends(authenticated), db=Depends(
 def candidate_proof(pending_id: str, data: CandidateProof, identity=Depends(authenticated), db=Depends(get_db, scope="function"), enrollment=Depends(service)):
     student, auth = identity
     return registration_response(lambda: enrollment.proof(db, student, auth, pending_id, data.signature))
-

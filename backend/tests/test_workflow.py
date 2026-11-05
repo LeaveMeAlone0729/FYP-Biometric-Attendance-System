@@ -313,20 +313,31 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(attempts[0]["stage"], "pin")
         self.assertEqual(attempts[0]["result"], "failed")
 
-    def test_pin_rate_limit(self):
-        for _ in range(5):
+    def test_failed_pins_are_logged_without_blocking_a_valid_pin(self):
+        for _ in range(7):
             self.assertEqual(
                 self.client.post(
                     "/attendance/start", json={"pin": "999999"}, headers=self.headers
                 ).status_code,
                 400,
             )
-        self.assertEqual(
-            self.client.post(
-                "/attendance/start", json={"pin": "123456"}, headers=self.headers
-            ).status_code,
-            429,
+        with self.sessions() as db:
+            failures = db.scalar(
+                select(func.count())
+                .select_from(VerificationAttempt)
+                .where(
+                    VerificationAttempt.student_id == "TEST001",
+                    VerificationAttempt.stage == "pin",
+                    VerificationAttempt.verification_result == "failed",
+                )
+            )
+            self.assertEqual(failures, 7)
+        response = self.client.post(
+            "/attendance/start", json={"pin": "123456"}, headers=self.headers
         )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["stage"], "face")
+        self.assertEqual(self.count_attendance(), 0)
 
     def test_malformed_pin_is_rejected(self):
         self.assertEqual(
@@ -384,10 +395,13 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("network_verified", result.json())
 
     def test_face_registration_is_independent_but_attendance_requires_authorized_source(self):
+        # Set up a first enrollment directly; students cannot delete an existing one.
+        with self.sessions.begin() as db:
+            student = db.get(Student, "TEST001")
+            student.face_encoding = None
+            student.biometric_status = "not_registered"
+            student.consent_at = None
         with TestClient(self.app, client=("203.0.113.5", 50000)) as remote:
-            self.assertEqual(
-                remote.delete("/biometrics", headers=self.headers).status_code, 200
-            )
             response = remote.post(
                 "/register-face",
                 data={"consent": "true"},
@@ -668,16 +682,49 @@ class WorkflowTests(unittest.TestCase):
             409,
         )
 
-    def test_remove_template_cancels_pending_verification_and_keeps_history(self):
+    def test_removed_deletion_endpoint_cannot_unlock_registration_or_change_records(self):
         self.complete()
         identifier = self.start("654321")
-        self.assertEqual(
-            self.client.delete("/biometrics", headers=self.headers).status_code, 200
-        )
         with self.sessions() as db:
-            self.assertIsNone(db.get(Student, "TEST001").face_encoding)
-            self.assertTrue(db.get(Challenge, identifier).consumed)
+            student = db.get(Student, "TEST001")
+            original = (student.face_encoding, student.biometric_status, student.consent_at)
+        self.assertEqual(
+            self.client.delete("/biometrics", headers=self.headers).status_code, 404
+        )
+        for preview in ("false", "true"):
+            response = self.client.post(
+                "/register-face",
+                data={"consent": "true", "preview_only": preview},
+                files={"file": ("face.jpg", b"other-face", "image/jpeg")},
+                headers=self.headers,
+            )
+            self.assertEqual(response.status_code, 409, response.text)
+            self.assertIn("department", response.json()["message"])
+        with self.sessions() as db:
+            student = db.get(Student, "TEST001")
+            self.assertEqual(
+                (student.face_encoding, student.biometric_status, student.consent_at),
+                original,
+            )
+            self.assertFalse(db.get(Challenge, identifier).consumed)
+        self.face(identifier)
         self.assertEqual(self.count_attendance(), 1)
+
+    def test_missing_or_inactive_template_does_not_allow_student_reenrollment(self):
+        for status in ("active", "inactive"):
+            with self.subTest(status=status):
+                with self.sessions.begin() as db:
+                    student = db.get(Student, "TEST001")
+                    student.face_encoding = None
+                    student.biometric_status = status
+                response = self.client.post(
+                    "/register-face",
+                    data={"consent": "true"},
+                    files={"file": ("face.jpg", b"other-face", "image/jpeg")},
+                    headers=self.headers,
+                )
+                self.assertEqual(response.status_code, 409, response.text)
+                self.assertIn("department", response.json()["message"])
 
     def test_live_course_history_and_percentage_are_scoped_to_student(self):
         self.complete()

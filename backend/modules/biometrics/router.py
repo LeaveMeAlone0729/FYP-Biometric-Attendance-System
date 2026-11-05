@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile, Request
 
 from .schemas import (
     AttendanceAccepted,
-    BiometricRemoved,
     FacePreview,
     FaceRegistered,
     FaceVerified,
@@ -35,7 +34,7 @@ def get_biometric_service(context: AppContext = Depends(get_context)):
     tags=["Face registration"],
     operation_id="registerFace",
     response_model=ScanAdjustment | FacePreview | FaceRegistered,
-    summary="Register the signed-in student’s face with consent",
+    summary="Register the signed-in student’s face once with consent",
 )
 def register_face(
     consent: bool = Form(
@@ -57,22 +56,6 @@ def register_face(
     return service.register_face(
         student, db, file, consent, auto_capture=auto_capture, preview_only=preview_only
     )
-
-
-@router.delete(
-    "/biometrics",
-    tags=["Face registration"],
-    operation_id="removeFaceRegistration",
-    response_model=BiometricRemoved,
-    summary="Remove the face template and cancel pending challenges",
-)
-def remove_biometrics(
-    identity=Depends(authenticated),
-    db=Depends(get_db, scope="function"),
-    service: BiometricService = Depends(get_biometric_service),
-):
-    student, _ = identity
-    return service.remove_biometrics(student, db)
 
 
 @router.post(
