@@ -287,7 +287,7 @@ void main() {
     fixture.unreachable = true;
     await expectLater(
       fixture.service.verify(),
-      throwsA(failureCode('API_FAILURE')),
+      throwsA(failureCode('NETWORK_ERROR')),
     );
     expect(fixture.confirmed, 0);
     expect(fixture.keys.signed, 0);

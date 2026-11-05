@@ -3819,6 +3819,280 @@
           }
         }
       }
+    },
+    "/api/v1/networks/verifications": {
+      "post": {
+        "tags": [
+          "Network verification"
+        ],
+        "summary": "Verify Network",
+        "operationId": "verify_network_api_v1_networks_verifications_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NetworkCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkCheckResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid capture, identity mismatch, or invalid input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer login.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Account or verification ownership is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Verification request was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Wrong verification stage, duplicate attendance, or closed class.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Verification or attendance window expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fields failed validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts or camera frames.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Verification is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/attendance/device-challenges": {
+      "post": {
+        "tags": [
+          "Final attendance authorization"
+        ],
+        "summary": "Challenge",
+        "operationId": "challenge_api_v1_attendance_device_challenges_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendanceDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceDeviceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/attendance/preflight-challenges": {
+      "post": {
+        "tags": [
+          "Final attendance authorization"
+        ],
+        "summary": "Preflight Challenge",
+        "operationId": "preflight_challenge_api_v1_attendance_preflight_challenges_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendanceDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendancePreflightChallengeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/attendance/preflight": {
+      "post": {
+        "tags": [
+          "Final attendance authorization"
+        ],
+        "summary": "Preflight",
+        "operationId": "preflight_api_v1_attendance_preflight_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendancePreflightProof"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendancePreflightResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -4201,6 +4475,253 @@
         ],
         "title": "AttendanceAccepted"
       },
+      "AttendanceDeviceRequest": {
+        "properties": {
+          "attendance_challenge_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Attendance Challenge Id"
+          },
+          "public_key_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Public Key Fingerprint"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "attendance_challenge_id",
+          "public_key_fingerprint"
+        ],
+        "title": "AttendanceDeviceRequest"
+      },
+      "AttendanceDeviceResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "challenge_id": {
+            "type": "string",
+            "title": "Challenge Id"
+          },
+          "attendance_challenge_id": {
+            "type": "string",
+            "title": "Attendance Challenge Id"
+          },
+          "attendance_session_id": {
+            "type": "integer",
+            "title": "Attendance Session Id"
+          },
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "slot_number": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "title": "Slot Number"
+          },
+          "public_key_fingerprint": {
+            "type": "string",
+            "title": "Public Key Fingerprint"
+          },
+          "operation": {
+            "type": "string",
+            "const": "attendance_authorization",
+            "title": "Operation"
+          },
+          "algorithm": {
+            "type": "string",
+            "const": "ECDSA_P256_SHA256",
+            "title": "Algorithm"
+          },
+          "signature_encoding": {
+            "type": "string",
+            "const": "base64-DER",
+            "title": "Signature Encoding"
+          },
+          "signing_payload": {
+            "type": "string",
+            "title": "Signing Payload"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "challenge_id",
+          "attendance_challenge_id",
+          "attendance_session_id",
+          "device_id",
+          "slot_number",
+          "public_key_fingerprint",
+          "operation",
+          "algorithm",
+          "signature_encoding",
+          "signing_payload",
+          "expires_at"
+        ],
+        "title": "AttendanceDeviceResponse"
+      },
+      "AttendancePreflightChallengeResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "challenge_id": {
+            "type": "string",
+            "title": "Challenge Id"
+          },
+          "attendance_challenge_id": {
+            "type": "string",
+            "title": "Attendance Challenge Id"
+          },
+          "attendance_session_id": {
+            "type": "integer",
+            "title": "Attendance Session Id"
+          },
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "slot_number": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "title": "Slot Number"
+          },
+          "public_key_fingerprint": {
+            "type": "string",
+            "title": "Public Key Fingerprint"
+          },
+          "operation": {
+            "type": "string",
+            "const": "attendance_preflight",
+            "title": "Operation"
+          },
+          "algorithm": {
+            "type": "string",
+            "const": "ECDSA_P256_SHA256",
+            "title": "Algorithm"
+          },
+          "signature_encoding": {
+            "type": "string",
+            "const": "base64-DER",
+            "title": "Signature Encoding"
+          },
+          "signing_payload": {
+            "type": "string",
+            "title": "Signing Payload"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "challenge_id",
+          "attendance_challenge_id",
+          "attendance_session_id",
+          "device_id",
+          "slot_number",
+          "public_key_fingerprint",
+          "operation",
+          "algorithm",
+          "signature_encoding",
+          "signing_payload",
+          "expires_at"
+        ],
+        "title": "AttendancePreflightChallengeResponse"
+      },
+      "AttendancePreflightProof": {
+        "properties": {
+          "attendance_challenge_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Attendance Challenge Id"
+          },
+          "challenge_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Challenge Id"
+          },
+          "signature": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Signature"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "attendance_challenge_id",
+          "challenge_id",
+          "signature"
+        ],
+        "title": "AttendancePreflightProof"
+      },
+      "AttendancePreflightResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success"
+          },
+          "result": {
+            "type": "string",
+            "const": "PASS",
+            "title": "Result"
+          },
+          "attendance_authorized": {
+            "type": "boolean",
+            "const": false,
+            "title": "Attendance Authorized"
+          },
+          "attendance_challenge_id": {
+            "type": "string",
+            "title": "Attendance Challenge Id"
+          },
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "network_verification_id": {
+            "type": "integer",
+            "title": "Network Verification Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "result",
+          "attendance_authorized",
+          "attendance_challenge_id",
+          "device_id",
+          "network_verification_id"
+        ],
+        "title": "AttendancePreflightResponse"
+      },
       "BiometricRemoved": {
         "properties": {
           "success": {
@@ -4283,6 +4804,30 @@
       },
       "Body_submitLivenessFrame": {
         "properties": {
+          "device_challenge_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Challenge Id"
+          },
+          "device_signature": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Signature"
+          },
           "challenge_id": {
             "type": "string",
             "title": "Challenge Id"
@@ -5000,6 +5545,104 @@
           "password"
         ],
         "title": "Login"
+      },
+      "NetworkCheckRequest": {
+        "properties": {},
+        "additionalProperties": false,
+        "type": "object",
+        "title": "NetworkCheckRequest"
+      },
+      "NetworkCheckResult": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success",
+            "default": true
+          },
+          "verification_id": {
+            "type": "integer",
+            "title": "Verification Id"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "FAIL"
+            ],
+            "title": "Result"
+          },
+          "reason_code": {
+            "type": "string",
+            "title": "Reason Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "source_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ip"
+          },
+          "matched_policy_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matched Policy Id"
+          },
+          "matched_policy_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matched Policy Name"
+          },
+          "verified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Verified At"
+          },
+          "operation": {
+            "type": "string",
+            "const": "network_diagnostic",
+            "title": "Operation",
+            "default": "network_diagnostic"
+          },
+          "attendance_authorized": {
+            "type": "boolean",
+            "const": false,
+            "title": "Attendance Authorized",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "verification_id",
+          "result",
+          "reason_code",
+          "message",
+          "source_ip",
+          "matched_policy_id",
+          "matched_policy_name",
+          "verified_at"
+        ],
+        "title": "NetworkCheckResult"
       },
       "PendingRegistrationRequest": {
         "properties": {

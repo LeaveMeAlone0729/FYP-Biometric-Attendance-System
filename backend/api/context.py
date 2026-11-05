@@ -3,7 +3,7 @@
 import secrets
 import threading
 
-from config import iso_time
+from app_time import iso_time
 from database import make_sessions
 from fastapi import HTTPException
 from models import (

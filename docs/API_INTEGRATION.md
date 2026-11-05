@@ -302,3 +302,16 @@ mock or client-controlled trust path exists.
 ## Stage C1 device replacement
 
 Device-owned replacement now uses POST /api/v1/devices/replacements and the shared pending proof/status/cancellation, attendance-free biometric and trusted activation routes for either occupied slot. Existing algorithms and attendance routes are unchanged. The old device remains ACTIVE until an atomic trusted handover succeeds; the other slot is preserved. The provider methods are unchanged, with replacement target ID/fingerprint added to the exact binding. Production remains fail closed without the partner provider. See [complete replacement contract, migration and tests](DEVICE_REPLACEMENT_C1.md).
+
+## Phase 4 network verification FR-06
+
+The independent backend/modules/networks and frontend/lib/modules/networks modules own connection-source CIDR checks, policies, audit and student diagnostics. POST /api/v1/networks/verifications accepts only {} and the existing bearer login. Policies are managed only through the trusted local operator CLI; no range is seeded and localhost never implies campus trust. Uvicorn must run with --no-proxy-headers. The existing attendance writer and all partner biometric algorithms remain unchanged; Phase 5 must perform the fresh final-request check before the attendance insert. See [network contract, migration evidence and testing](NETWORK_VERIFICATION_PHASE4.md).
+
+## Phase 5 mandatory final attendance authorization
+
+POST /liveness/frame still owns runtime attendance completion, through the same shared writer. It now requires an attendance-specific signed device nonce and fresh final-request network verification before insertion. The partner router/service only forward request scope and proof fields; camera adds API injection. Inference, enrollment/deletion, gesture/threshold and orientation logic are unchanged. The shared attendance UI injects the device-owned automatic signing adapter. Existing standalone device/network PASS results cannot authorize attendance. Production policies remain empty and localhost is denied. See [complete authorization contract, changed files, restored-database evidence and safe later phone tests](ATTENDANCE_AUTHORIZATION_PHASE5.md).
+
+
+### Attendance readiness before capture
+
+After `/attendance/start` validates the PIN, Flutter now signs a server-issued `/api/v1/attendance/preflight-challenges` nonce and submits it to `/api/v1/attendance/preflight`. Both use the existing bearer login and exact attendance attempt; both check the actual ASGI source network, and confirmation requires the current ACTIVE installation's ECDSA signature. On any failure/unavailability the existing verification-result view opens without initializing the camera. A successful response explicitly sets `attendance_authorized:false`; a separate fresh final nonce and fresh network verification remain mandatory at `/liveness/frame`. See [contracts, lifecycle, audit semantics and tests](ATTENDANCE_AUTHORIZATION_PHASE5.md#early-preflight-before-biometric-capture-november-2026-refinement). No client IP/PASS field or cached Profile verification is accepted.

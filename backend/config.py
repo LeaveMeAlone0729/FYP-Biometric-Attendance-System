@@ -1,8 +1,7 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from zoneinfo import ZoneInfo
-from datetime import datetime
+from app_time import local_now, iso_time
 
 ROOT = Path(__file__).resolve().parent
 
@@ -29,9 +28,3 @@ class Settings:
     challenge_seconds: int = int(os.getenv('CHALLENGE_SECONDS', '90'))
     face_threshold: float = float(os.getenv('FACE_DISTANCE_THRESHOLD', '0.45'))
     biometric_key: str = os.getenv('BIOMETRIC_KEY', '')
-
-def local_now(settings):
-    return datetime.now(ZoneInfo(settings.timezone)).replace(tzinfo=None)
-
-def iso_time(value, settings):
-    return value.replace(tzinfo=ZoneInfo(settings.timezone)).isoformat() if value else None

@@ -1,6 +1,6 @@
 """Public demo health and camera configuration."""
 
-from config import iso_time
+from app_time import iso_time
 from fastapi import APIRouter, Depends
 from modules.biometrics.constants import REQUIRED_LIVENESS_FRAMES
 

@@ -19,9 +19,15 @@ class CameraScreen extends StatefulWidget {
     this.cameraLoader,
     this.cameraFactory,
     this.stopwatchFactory,
+    this.api,
+    this.initialFailure,
   });
   final Map<String, dynamic>? challenge;
   final bool enrollment;
+
+  /// Result-only entry: never initializes camera or starts a biometric timer.
+  final String? initialFailure;
+  final BiometricApi? api;
   final Future<List<CameraDescription>> Function()? cameraLoader;
   final CameraController Function(CameraDescription)? cameraFactory;
   final Stopwatch Function()? stopwatchFactory;
@@ -47,7 +53,7 @@ class _CameraScreenState extends State<CameraScreen>
   late final Stopwatch _elapsed, _faceElapsed;
   late int _allowedSeconds;
   final _api = ApiClient.instance;
-  final _biometrics = BiometricApi();
+  late final _biometrics = widget.api ?? BiometricApi();
 
   @override
   void initState() {
@@ -55,6 +61,12 @@ class _CameraScreenState extends State<CameraScreen>
     WidgetsBinding.instance.addObserver(this);
     _elapsed = (widget.stopwatchFactory ?? Stopwatch.new)();
     _faceElapsed = (widget.stopwatchFactory ?? Stopwatch.new)();
+    if (widget.initialFailure != null) {
+      _finished = true;
+      _message = widget.initialFailure!;
+      return;
+    }
+
     _allowedSeconds =
         (widget.challenge?['expires_in'] ??
                 _api.config['verification_seconds'] ??

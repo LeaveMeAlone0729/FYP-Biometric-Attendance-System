@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../theme.dart';
 import '../modules/devices/screens/my_device_screen.dart';
+import '../modules/networks/screens/network_verification_screen.dart';
 import '../modules/biometrics/screens/camera_screen.dart';
 import '../modules/biometrics/services/biometric_api.dart';
 
@@ -151,6 +152,21 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                 onTap: () => Navigator.push<void>(
                   context,
                   MaterialPageRoute(builder: (_) => const MyDeviceScreen()),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.network_check),
+                title: const Text('Network Verification'),
+                subtitle: const Text('View the backend connection diagnostic'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NetworkVerificationScreen(),
+                  ),
                 ),
               ),
             ),

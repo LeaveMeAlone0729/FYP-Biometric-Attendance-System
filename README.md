@@ -193,3 +193,11 @@ trusted-biometric provider is not integrated; approval scaffolds fail closed. Se
 Second-device face/liveness checks now run through separate device APIs. Results
 remain UNTRUSTED_TEST_RESULT and cannot activate Slot 2. See
 [the B3 guide](docs/SECOND_DEVICE_STAGE_B3.md) for contracts, migration and webcam testing.
+
+## Phase 4 network verification
+
+Profile now provides an independent Network Verification diagnostic. The backend reads the actual ASGI peer IP and enabled database CIDRs; it does not trust IP fields/forwarded headers or automatically allow ADB localhost. Run the backend with the existing start-backend.ps1 (--no-proxy-headers). No policy is seeded. This phase does not enforce network checks in existing attendance recording. See [full contract, operator CLI and local test instructions](docs/NETWORK_VERIFICATION_PHASE4.md).
+
+## Phase 5 mandatory attendance authorization
+
+Attendance now requires server-confirmed face/liveness, a fresh attempt-bound Keystore signature from an ACTIVE registration and a matching enabled CIDR policy on the final request. The existing /liveness/frame writer is guarded; old APKs without the new proof cannot record attendance. No production policy was seeded, and USB localhost is denied. Use an isolated restored database for later home/Samsung tests. See [implementation report and exact testing instructions](docs/ATTENDANCE_AUTHORIZATION_PHASE5.md).
