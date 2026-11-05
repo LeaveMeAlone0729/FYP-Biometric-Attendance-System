@@ -29,6 +29,10 @@ if __name__ == '__main__':
     engine = make_engine(Settings())
     try:
         removed = upgrade_schema(engine)
+        from modules.biometrics.migration import upgrade_liveness_schema
+        added = upgrade_liveness_schema(engine)
         print('Schema updated: ' + ', '.join(removed) if removed else 'Schema is already current.')
+        if added:
+            print('Liveness columns added: ' + ', '.join(added))
     finally:
         engine.dispose()

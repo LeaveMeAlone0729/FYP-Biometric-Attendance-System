@@ -1,10 +1,14 @@
 # Local workspace
 .work/
+.ruff_cache/
+.vscode/
+outputs/
 
 # Backend secrets and generated files
 backend/.env
 backend/venv/
 backend/models/*.task
+backend/models/*.onnx
 backend/*.db
 backend/.pytest_cache/
 **/__pycache__/

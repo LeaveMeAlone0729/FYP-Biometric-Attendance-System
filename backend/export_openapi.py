@@ -12,7 +12,8 @@ def main():
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(__file__).resolve().parents[1] / "docs" / "openapi.json",
+        required=True,
+        help="Destination for the generated API specification outside the source repository.",
     )
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)

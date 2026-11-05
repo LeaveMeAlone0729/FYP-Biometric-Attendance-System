@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
-from .models import RegisteredDevice  # Register the Phase 1 FK target.
+from .models import RegisteredDevice  # noqa: F401 -- Register the Phase 1 foreign-key target before DDL.
 
 
 class DeviceVerificationChallenge(Base):

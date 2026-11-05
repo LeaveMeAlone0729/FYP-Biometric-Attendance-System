@@ -19,7 +19,6 @@ from models import Student,Attendance
 from security import hash_password,encrypt_encoding
 from modules.devices.models import RegisteredDevice
 from modules.devices.activation_models import DeviceActivationChallenge
-from modules.devices.pending_models import PendingDeviceRegistration
 from modules.devices.crypto import canonical_public_key
 import test_device_verification as verification
 from test_device_activation import FixtureProvider,FixtureRevision,FixtureResult,FixtureGrant

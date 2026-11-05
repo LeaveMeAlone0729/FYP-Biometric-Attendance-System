@@ -1,0 +1,18 @@
+Face presentation-check model provenance
+
+MiniFASNetV2 and MiniFASNetV1SE weights originate from:
+https://github.com/minivision-ai/Silent-Face-Anti-Spoofing
+License: Apache-2.0; see Silent-Face-LICENSE.txt.
+
+ONNX exports and the BGR/context-crop preprocessing contract:
+https://github.com/yakhyo/face-anti-spoofing
+License: Apache-2.0; see MiniFASNet-ONNX-LICENSE.txt.
+
+MediaPipe Hand Landmarker:
+https://github.com/google-ai-edge/mediapipe
+https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker
+Model URLs and SHA-256 digests are pinned in model_assets.py.
+
+These models are additional classifier evidence. Their scores do not establish
+universal protection against screen replay, deepfakes, or presentation attacks.
+Validation on the target cameras and attack media is required.

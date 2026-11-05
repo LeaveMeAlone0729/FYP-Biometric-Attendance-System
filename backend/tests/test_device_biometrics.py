@@ -1,5 +1,4 @@
 """Real API/security state machine with deterministic partner inference fixtures."""
-import json
 import os
 import re
 import secrets

@@ -3,10 +3,16 @@
 from config import iso_time
 from models import Attendance, VerificationAttempt
 from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException
+from modules.biometrics.constants import REQUIRED_LIVENESS_FRAMES
+from modules.biometrics.passive_liveness import read_state
 
 
 def record_verified_attendance(context, db, student, challenge, session):
     """Complete the demo; the combined backend can coordinate teammate checks here."""
+    state = read_state(challenge.face_liveness_state)
+    if not state or len(state["frames"]) != REQUIRED_LIVENESS_FRAMES or challenge.valid_frames != REQUIRED_LIVENESS_FRAMES:
+        raise HTTPException(409, "Complete the face, anti-spoof and hand checks before recording attendance.")
     # Called inside the same transaction only after face and liveness checks pass.
     challenge.consumed = True
     challenge.stage = "complete"

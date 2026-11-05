@@ -17,21 +17,23 @@ class BiometricError(ValueError):
     pass
 
 
-def finger_count(points):
+def finger_count(points, *, image_aspect_ratio=1.0):
     """Count extended fingers using joint angles and distance from the wrist.
 
-    Students hold an upright open palm toward the camera. Geometry avoids
-    assumptions about handedness and selfie-preview mirroring.
+    Correct normalized landmark geometry for the image's width/height ratio.
+    A naturally bent open finger should not require a rigid, perfectly flat hand.
     """
 
+    # MediaPipe normalizes x/z by image width and y by image height. Bring all
+    # axes into the same units before measuring angles, including portrait photos.
+    points = [np.array([p.x, p.y / image_aspect_ratio, p.z]) for p in points]
+
     def distance(a, b):
-        return math.sqrt(
-            sum((getattr(a, axis) - getattr(b, axis)) ** 2 for axis in ("x", "y", "z"))
-        )
+        return float(np.linalg.norm(a - b))
 
     def angle(a, b, c):
-        v = np.array([a.x - b.x, a.y - b.y, a.z - b.z])
-        w = np.array([c.x - b.x, c.y - b.y, c.z - b.z])
+        v = a - b
+        w = c - b
         denom = float(np.linalg.norm(v) * np.linalg.norm(w))
         return math.degrees(
             math.acos(float(np.clip(np.dot(v, w) / max(denom, 1e-9), -1, 1)))
@@ -40,14 +42,14 @@ def finger_count(points):
     count = 0
     for base, joint, tip in ((5, 6, 8), (9, 10, 12), (13, 14, 16), (17, 18, 20)):
         if (
-            angle(points[base], points[joint], points[tip]) > 155
+            angle(points[base], points[joint], points[tip]) > 145
             and distance(points[tip], points[0])
             > distance(points[joint], points[0]) * 1.12
         ):
             count += 1
-    # Thumb must be straight and spread away from the index knuckle.
+    # Thumb must be extended and spread away from the index knuckle.
     if (
-        angle(points[1], points[2], points[4]) > 150
+        angle(points[1], points[2], points[4]) > 140
         and distance(points[4], points[5]) > distance(points[3], points[5]) * 1.2
     ):
         count += 1
@@ -61,6 +63,7 @@ class Biometrics:
             or Path(__file__).resolve().parents[2] / "models" / "hand_landmarker.task"
         )
         self._hand_detector = None
+        self._presentation_checker = None
         self._lock = threading.Lock()
 
     def decode(self, data):
@@ -131,8 +134,8 @@ class Biometrics:
                     HandLandmarkerOptions(
                         base_options=BaseOptions(model_asset_path=str(self.model_path)),
                         num_hands=2,
-                        min_hand_detection_confidence=0.65,
-                        min_hand_presence_confidence=0.65,
+                        min_hand_detection_confidence=0.5,
+                        min_hand_presence_confidence=0.5,
                     )
                 )
             result = self._hand_detector.detect(
@@ -140,12 +143,31 @@ class Biometrics:
                     image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(image)
                 )
             )
-        if len(result.hand_landmarks) != 1:
+        if not result.hand_landmarks:
             raise BiometricError(
-                "Show exactly one full hand anywhere in the frame, palm toward the camera. Keep all fingertips visible without covering your face."
+                "Move your whole hand into view, palm toward the camera. Keep it beside your face with the fingertips visible."
             )
-        return finger_count(result.hand_landmarks[0])
+        if len(result.hand_landmarks) != 1:
+            raise BiometricError("Use only one hand. Keep your other hand out of view.")
+        return finger_count(
+            result.hand_landmarks[0],
+            image_aspect_ratio=image.shape[1] / image.shape[0],
+        )
 
     def close(self):
         if self._hand_detector is not None:
             self._hand_detector.close()
+        if self._presentation_checker is not None:
+            self._presentation_checker.close()
+
+    def face_evidence(self, image):
+        import face_recognition
+        from .presentation import PresentationChecker
+
+        locations = face_recognition.face_locations(image, model="hog")
+        if len(locations) != 1:
+            raise BiometricError("Keep exactly one clear face visible.")
+        with self._lock:
+            if self._presentation_checker is None:
+                self._presentation_checker = PresentationChecker()
+        return self._presentation_checker.observe(image, locations[0])
