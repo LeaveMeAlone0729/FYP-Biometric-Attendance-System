@@ -5,7 +5,7 @@
 from api.context import AppContext
 from api.dependencies import authenticated, get_context, get_db
 from api.schemas import ERROR_RESPONSES
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile, Request
 
 from .schemas import (
     AttendanceAccepted,
@@ -19,6 +19,8 @@ from .schemas import (
     VerificationResult,
 )
 from .service import BiometricService
+from modules.authorization.service import AttendanceAuthorizationService
+from modules.devices.router import registration_response
 
 router = APIRouter(responses=ERROR_RESPONSES)
 
@@ -99,6 +101,9 @@ def verify_face(
     summary="Check one fresh face/hand frame; complete after three consecutive matches",
 )
 def liveness_frame(
+    request: Request,
+    device_challenge_id: str | None = Form(None, max_length=64),
+    device_signature: str | None = Form(None, max_length=256),
     challenge_id: str = Form(...),
     file: UploadFile = File(
         ...,
@@ -109,7 +114,12 @@ def liveness_frame(
     service: BiometricService = Depends(get_biometric_service),
 ):
     student, auth = identity
-    return service.liveness_frame(student, auth, db, challenge_id, file)
+    def operation():
+        # Student/auth first, before the biometric challenge lock; algorithms unchanged.
+        AttendanceAuthorizationService(service.context).identity(db,student,auth)
+        return service.liveness_frame(student, auth, db, challenge_id, file,
+            request_scope=request.scope,device_challenge_id=device_challenge_id,device_signature=device_signature)
+    return registration_response(operation)
 
 
 @router.get(

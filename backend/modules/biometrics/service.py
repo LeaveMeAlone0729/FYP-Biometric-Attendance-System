@@ -208,7 +208,7 @@ class BiometricService:
             "message": f"Show {challenge.fingers} finger(s), palm toward the camera. Keep your face and hand fully visible anywhere in the frame; neither needs to be centered.",
         }
 
-    def liveness_frame(self, student, auth, db, challenge_id, file):
+    def liveness_frame(self, student, auth, db, challenge_id, file, *, request_scope=None, device_challenge_id=None, device_signature=None):
         challenge, session = self.context.get_challenge(
             challenge_id, "liveness", db, student, auth
         )
@@ -283,7 +283,7 @@ class BiometricService:
                 "required_frames": REQUIRED_LIVENESS_FRAMES,
                 "message": "Correct gesture. Hold steady; your face and hand do not need to be centered.",
             }
-        return record_verified_attendance(self.context, db, student, challenge, session)
+        return record_verified_attendance(self.context, db, student, challenge, session, auth=auth, request_scope=request_scope, device_challenge_id=device_challenge_id, device_signature=device_signature)
 
     def cancel(self, student, auth, db, challenge_id):
         challenge = db.scalar(

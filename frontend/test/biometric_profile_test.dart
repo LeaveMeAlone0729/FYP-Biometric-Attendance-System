@@ -29,6 +29,14 @@ void main() {
       const MaterialApp(home: Scaffold(body: StudentProfileScreen())),
     );
     await tester.pumpAndSettle();
+    // Device and network cards precede biometrics in the integrated Profile.
+    final target = status == 'active'
+        ? 'Face registered'
+        : status == 'not_registered'
+        ? 'Register my face'
+        : 'Contact your department';
+    await tester.scrollUntilVisible(find.text(target), 150);
+    await tester.pumpAndSettle();
   }
 
   testWidgets(

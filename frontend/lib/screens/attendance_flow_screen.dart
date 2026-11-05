@@ -2,10 +2,22 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../theme.dart';
+import '../modules/networks/services/network_verification_failure.dart';
 import '../modules/biometrics/screens/camera_screen.dart';
+import '../modules/devices/services/authorized_attendance_biometric_api.dart';
+import '../modules/devices/services/attendance_device_authorization.dart';
 
 class AttendanceFlowScreen extends StatefulWidget {
-  const AttendanceFlowScreen({super.key, this.onRecorded});
+  const AttendanceFlowScreen({
+    super.key,
+    this.onRecorded,
+    this.client,
+    this.authorization,
+    this.cameraBuilder,
+  });
+  final ApiClient? client;
+  final AttendanceDeviceAuthorization? authorization;
+  final Widget Function(Map<String, dynamic>)? cameraBuilder;
   final VoidCallback? onRecorded;
   @override
   State<AttendanceFlowScreen> createState() => _AttendanceFlowScreenState();
@@ -36,18 +48,45 @@ class _AttendanceFlowScreenState extends State<AttendanceFlowScreen> {
     });
     try {
       final challenge = Map<String, dynamic>.from(
-        await ApiClient.instance.post('/attendance/start', {'pin': _pin})
+        await (widget.client ?? ApiClient.instance).post('/attendance/start', {
+              'pin': _pin,
+            })
             as Map,
       );
       if (!mounted) return;
+      String? preflightFailure;
+      try {
+        await (widget.authorization ??
+                AttendanceDeviceAuthorization(client: widget.client))
+            .preflight(challenge['challenge_id'] as String)
+            .timeout(const Duration(seconds: 40));
+      } catch (error) {
+        preflightFailure = NetworkVerificationFailure.from(
+          error,
+        ).attendanceMessage;
+      }
+      if (!mounted) return;
       final result = await Navigator.push<bool>(
         context,
-        MaterialPageRoute(builder: (_) => CameraScreen(challenge: challenge)),
+        MaterialPageRoute(
+          builder: (_) =>
+              preflightFailure == null && widget.cameraBuilder != null
+              ? widget.cameraBuilder!(challenge)
+              : CameraScreen(
+                  initialFailure: preflightFailure,
+                  challenge: challenge,
+                  api: AuthorizedAttendanceBiometricApi(),
+                ),
+        ),
       );
       if (mounted) setState(() => _pin = '');
       if (result == true) widget.onRecorded?.call();
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(
+          () => _error = NetworkVerificationFailure.from(e).attendanceMessage,
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

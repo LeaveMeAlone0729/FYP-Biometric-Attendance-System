@@ -115,3 +115,14 @@ See [integration](SECOND_DEVICE_ACTIVATION_INTEGRATION.md) and
 ## Stage C1 device replacement
 
 Device-owned replacement now uses POST /api/v1/devices/replacements and the shared pending proof/status/cancellation, attendance-free biometric and trusted activation routes for either occupied slot. Existing algorithms and attendance routes are unchanged. The old device remains ACTIVE until an atomic trusted handover succeeds; the other slot is preserved. The provider methods are unchanged, with replacement target ID/fingerprint added to the exact binding. Production remains fail closed without the partner provider. See [complete replacement contract, migration and tests](DEVICE_REPLACEMENT_C1.md).
+
+## Phase 4 network verification FR-06
+
+The independent backend/modules/networks and frontend/lib/modules/networks modules own connection-source CIDR checks, policies, audit and student diagnostics. POST /api/v1/networks/verifications accepts only {} and the existing bearer login. Policies are managed only through the trusted local operator CLI; no range is seeded and localhost never implies campus trust. Uvicorn must run with --no-proxy-headers. The existing attendance writer and all partner biometric algorithms remain unchanged; Phase 5 must perform the fresh final-request check before the attendance insert. See [network contract, migration evidence and testing](NETWORK_VERIFICATION_PHASE4.md).
+
+## Phase 5 mandatory final attendance authorization
+
+POST /liveness/frame still owns runtime attendance completion, through the same shared writer. It now requires an attendance-specific signed device nonce and fresh final-request network verification before insertion. The partner router/service only forward request scope and proof fields; camera adds API injection. Inference, enrollment/deletion, gesture/threshold and orientation logic are unchanged. The shared attendance UI injects the device-owned automatic signing adapter. Existing standalone device/network PASS results cannot authorize attendance. Production policies remain empty and localhost is denied. See [complete authorization contract, changed files, restored-database evidence and safe later phone tests](ATTENDANCE_AUTHORIZATION_PHASE5.md).
+
+
+Phase 5 readiness refinement: device-owned authorization service/router now expose signed attendance-attempt preflight before camera navigation. The only additional partner-owned change is CameraScreen's presentation-only `initialFailure` result entry, which skips camera initialization/timers. No partner inference, thresholds, templates, gesture state machine, orientation logic or final attendance writer changes. Preflight PASS is never a final attendance grant; the existing final proof/network guard is preserved.
