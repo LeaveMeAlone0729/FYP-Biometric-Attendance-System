@@ -10,21 +10,32 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from database import make_sessions
 from demo import seed_demo
 from migrate import upgrade_schema
-from modules.biometrics.migration import upgrade_liveness_schema
+from modules.biometrics.migration import retire_liveness_column
 from models import Attendance, AuthSession, Base, ClassSession, Student, VerificationAttempt
 
 
 class MigrationTests(unittest.TestCase):
-    def test_liveness_column_is_additive_and_idempotent_for_existing_challenges(self):
+    def test_retiring_pad_column_preserves_existing_challenges(self):
         engine = create_engine('sqlite://')
         try:
             with engine.begin() as connection:
-                connection.execute(text('CREATE TABLE verification_challenges (challenge_id TEXT PRIMARY KEY, consumed BOOLEAN)'))
-                connection.execute(text("INSERT INTO verification_challenges VALUES ('existing', 0)"))
-            self.assertEqual(upgrade_liveness_schema(engine), ['verification_challenges.face_liveness_state'])
-            self.assertEqual(upgrade_liveness_schema(engine), [])
+                connection.execute(text('CREATE TABLE verification_challenges (challenge_id TEXT PRIMARY KEY, consumed BOOLEAN, face_liveness_state TEXT)'))
+                connection.execute(text("INSERT INTO verification_challenges VALUES ('existing', 0, 'obsolete runtime scores')"))
+            self.assertEqual(retire_liveness_column(engine), ['verification_challenges.face_liveness_state'])
+            self.assertEqual(retire_liveness_column(engine), [])
             with engine.connect() as connection:
-                self.assertEqual(tuple(connection.execute(text('SELECT * FROM verification_challenges')).one()), ('existing', 0, None))
+                self.assertEqual(tuple(connection.execute(text('SELECT * FROM verification_challenges')).one()), ('existing', 0))
+            self.assertNotIn('face_liveness_state', {c['name'] for c in inspect(engine).get_columns('verification_challenges')})
+        finally:
+            engine.dispose()
+
+    def test_fresh_schema_and_empty_database_need_no_pad_column(self):
+        engine = create_engine('sqlite://')
+        try:
+            self.assertEqual(retire_liveness_column(engine), [])
+            Base.metadata.create_all(engine)
+            self.assertNotIn('face_liveness_state', {c['name'] for c in inspect(engine).get_columns('verification_challenges')})
+            self.assertEqual(retire_liveness_column(engine), [])
         finally:
             engine.dispose()
 

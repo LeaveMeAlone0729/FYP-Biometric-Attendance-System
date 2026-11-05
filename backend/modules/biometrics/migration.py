@@ -1,18 +1,18 @@
-"""Add persisted passive anti-spoof evidence without changing existing biometric data."""
+"""Retire the extra PAD column; temporary evidence now stays in server memory."""
 
 from sqlalchemy import inspect, text
 
 
-def upgrade_liveness_schema(engine):
+def retire_liveness_column(engine):
     with engine.begin() as connection:
         inspector = inspect(connection)
         if not inspector.has_table("verification_challenges"):
             return []
         columns = {column["name"] for column in inspector.get_columns("verification_challenges")}
-        if "face_liveness_state" in columns:
+        if "face_liveness_state" not in columns:
             return []
         connection.execute(text(
-            "ALTER TABLE verification_challenges ADD COLUMN face_liveness_state TEXT NULL"
+            "ALTER TABLE verification_challenges DROP COLUMN face_liveness_state"
         ))
         return ["verification_challenges.face_liveness_state"]
 
@@ -23,6 +23,6 @@ if __name__ == "__main__":
 
     engine = make_engine(Settings())
     try:
-        print("Liveness schema:", upgrade_liveness_schema(engine) or "already current")
+        print("Retired PAD columns:", retire_liveness_column(engine) or "none; runtime checks need no extra column")
     finally:
         engine.dispose()

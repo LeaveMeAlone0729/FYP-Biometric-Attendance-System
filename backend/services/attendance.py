@@ -24,6 +24,7 @@ def record_verified_attendance(context,db,student,challenge,session,*,auth=None,
             nonce.result='PASS';nonce.failure_code=None
             authorization.event(db,student,auth,'authorize','PASS','ATTENDANCE_AUTHORIZED',challenge,nonce,network_id)
             db.flush()
+        context.runtime_liveness.discard(challenge)
     except (IntegrityError,DeviceRegistrationError) as exc:
         if isinstance(exc,IntegrityError):status,code,message=409,'ATTENDANCE_ALREADY_RECORDED','Attendance has already been recorded or the attendance state changed concurrently.'
         else:status,code,message=exc.status,exc.code,exc.message

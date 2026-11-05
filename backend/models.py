@@ -103,6 +103,5 @@ class Challenge(Base):
     fingers: Mapped[int | None] = mapped_column(Integer)
     valid_frames: Mapped[int] = mapped_column(Integer, default=0)
     frame_hashes: Mapped[str] = mapped_column(Text, default='[]')
-    face_liveness_state: Mapped[str | None] = mapped_column(Text)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     consumed: Mapped[bool] = mapped_column(Boolean, default=False)

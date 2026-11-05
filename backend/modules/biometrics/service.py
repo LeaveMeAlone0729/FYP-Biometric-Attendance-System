@@ -16,7 +16,6 @@ from sqlalchemy import select
 
 from .constants import MAX_IMAGE_BYTES, MAX_LIVENESS_FRAMES, REQUIRED_LIVENESS_FRAMES
 from .inference import BiometricError
-from .passive_liveness import new_state, read_state
 from .presentation import validate_scores
 from .templates import decrypt_encoding, encrypt_encoding
 
@@ -35,9 +34,9 @@ class BiometricService:
             raise HTTPException(503, "Face anti-spoof verification is unavailable. Check the backend models before retrying.") from exc
 
     def liveness_progress(self, challenge, *, message=None, ready=False):
-        state = read_state(challenge.face_liveness_state)
+        state = self.context.runtime_liveness.read(challenge)
         if state is None:
-            raise HTTPException(409, "Start a new verification to use the updated anti-spoof check.")
+            raise HTTPException(409, "Verification progress was reset. Enter the attendance PIN again.")
         return {
             "success": True, "complete": False, "ready": ready,
             "valid_frames": challenge.valid_frames,
@@ -217,8 +216,9 @@ class BiometricService:
             }
         challenge.stage = "liveness"
         challenge.fingers = secrets.randbelow(5) + 1
-        state = new_state(face_scores)
-        challenge.face_liveness_state = json.dumps(state)
+        if not self.context.runtime_liveness.start(challenge, face_scores):
+            self.check_deadline(student, db, challenge, session)
+            raise HTTPException(409, "Verification progress was reset. Enter the attendance PIN again.")
         # An enrollment/face frame can never count as a liveness response.
         challenge.frame_hashes = json.dumps(
             [hashlib.sha256(image.tobytes()).hexdigest()]
@@ -243,9 +243,9 @@ class BiometricService:
         challenge, session = self.context.get_challenge(
             challenge_id, "liveness", db, student, auth
         )
-        state = read_state(challenge.face_liveness_state)
+        state = self.context.runtime_liveness.read(challenge)
         if state is None or len(state["frames"]) != challenge.valid_frames:
-            raise HTTPException(409, "Start a new verification to use the updated anti-spoof check.")
+            raise HTTPException(409, "Verification progress was reset. Enter the attendance PIN again.")
         if len(json.loads(challenge.frame_hashes)) >= MAX_LIVENESS_FRAMES:
             self.context.reject(
                 db,
@@ -288,7 +288,8 @@ class BiometricService:
         except BiometricError as exc:
             challenge.valid_frames = 0
             state["frames"] = []
-            challenge.face_liveness_state = json.dumps(state)
+            if not self.context.runtime_liveness.save(challenge, state):
+                raise HTTPException(409, "Verification progress was reset. Enter the attendance PIN again.")
             self.context.audit(
                 db, student.student_id, "liveness", str(exc), session.session_id
             )
@@ -308,7 +309,8 @@ class BiometricService:
             )
         challenge.valid_frames += 1
         state["frames"].append({"hash": frame_hash, "scores": frame_scores})
-        challenge.face_liveness_state = json.dumps(state)
+        if not self.context.runtime_liveness.save(challenge, state):
+            raise HTTPException(409, "Verification progress was reset. Enter the attendance PIN again.")
         if challenge.valid_frames < REQUIRED_LIVENESS_FRAMES:
             return self.liveness_progress(challenge, ready=True, message="Correct gesture. Hold steady; your face and hand do not need to be centered.")
         return record_verified_attendance(self.context, db, student, challenge, session, auth=auth, request_scope=request_scope, device_challenge_id=device_challenge_id, device_signature=device_signature)
@@ -326,6 +328,7 @@ class BiometricService:
         ):
             raise HTTPException(404, "Verification request not found.")
         if not challenge.consumed:
+            self.context.runtime_liveness.discard(challenge)
             challenge.consumed = True
             root = db.get(VerificationAttempt, challenge.verification_id)
             root.verification_result = "cancelled"
@@ -363,7 +366,9 @@ class BiometricService:
             "face_verified": root.face_distance is not None
             and root.face_distance < self.context.settings.face_threshold,
             "liveness_verified": status == "success" and challenge.stage == "complete",
-            "face_liveness_verified": status == "success" and len((read_state(challenge.face_liveness_state) or {}).get("frames", [])) == REQUIRED_LIVENESS_FRAMES,
+            # Report the committed outcome after runtime evidence is discarded.
+            "face_liveness_verified": status == "success" and challenge.stage == "complete"
+            and challenge.valid_frames == REQUIRED_LIVENESS_FRAMES and attendance_id is not None,
             "valid_frames": challenge.valid_frames,
             "required_frames": REQUIRED_LIVENESS_FRAMES,
             "expires_at": iso_time(challenge.expires_at, self.context.settings),

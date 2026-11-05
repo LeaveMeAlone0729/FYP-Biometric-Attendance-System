@@ -4,13 +4,15 @@ import copy
 import json
 import sys
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from modules.biometrics.inference import BiometricError
-from modules.biometrics.passive_liveness import new_state, read_state
+from modules.biometrics.passive_liveness import RuntimeLiveness, new_state, read_state
 from modules.biometrics.presentation import face_crop, real_probability, validate_scores
 from models import AuthSession, Challenge, Student, ClassSession
 from modules.devices.service import DeviceRegistrationError
@@ -99,8 +101,8 @@ class PresentationWorkflowTests(unittest.TestCase):
             result = f.client.get(f'/verification/{identifier}', headers=f.headers).json()
             self.assertEqual(result['face_liveness_verified'], index == 2)
         with f.sessions() as db:
-            state = read_state(db.get(Challenge, identifier).face_liveness_state)
-            self.assertEqual(len(state['frames']), 3)
+            # Success discards temporary scores; the committed outcome survives.
+            self.assertIsNone(f.app.state.context.runtime_liveness.read(db.get(Challenge, identifier)))
 
     def test_photo_and_video_fail_face_preview_and_final_matching(self):
         f = self.fixture
@@ -126,7 +128,7 @@ class PresentationWorkflowTests(unittest.TestCase):
         self.assertEqual(response.json()['valid_frames'], 0)
         self.assertFalse(response.json()['complete'])
         with f.sessions() as db:
-            self.assertEqual(read_state(db.get(Challenge, identifier).face_liveness_state)['frames'], [])
+            self.assertEqual(f.app.state.context.runtime_liveness.read(db.get(Challenge, identifier))['frames'], [])
         self.assertEqual(f.count_attendance(), 0)
         for index in range(3):
             response = f.image('/liveness/frame', identifier, f'recovered-{index}'.encode())
@@ -156,14 +158,15 @@ class PresentationWorkflowTests(unittest.TestCase):
             self.assertFalse(response.json()['complete'])
         self.assertEqual(f.count_attendance(), 0)
 
-    def test_legacy_missing_or_incomplete_evidence_cannot_write_attendance(self):
+    def test_missing_or_incomplete_runtime_evidence_cannot_write_attendance(self):
         f = self.fixture
-        for state in (None, '{"version":1,"complete":true}', json.dumps(new_state([0.99, 0.99]))):
+        for clear_runtime in (True, False):
             identifier = f.start()
             f.face(identifier)
             with f.sessions.begin() as db:
                 challenge = db.get(Challenge, identifier)
-                challenge.face_liveness_state = state
+                if clear_runtime:
+                    f.app.state.context.runtime_liveness.discard(challenge)
                 challenge.valid_frames = 3
             self.assertEqual(f.image('/liveness/frame', identifier, b'legacy-bypass').status_code, 409)
             with f.sessions.begin() as db:
@@ -176,3 +179,73 @@ class PresentationWorkflowTests(unittest.TestCase):
                         auth=auth, request_scope={'client': ('192.0.2.10', 50000)})
                 self.assertEqual(error.exception.code, 'ATTENDANCE_BIOMETRICS_REQUIRED')
         self.assertEqual(f.count_attendance(), 0)
+
+    def test_restart_requires_a_new_challenge_without_bypassing_checks(self):
+        f = self.fixture
+        identifier = f.start()
+        f.face(identifier)
+        for index in range(2):
+            f.image('/liveness/frame', identifier, f'before-restart-{index}'.encode())
+        f.app.state.context.runtime_liveness = RuntimeLiveness(lambda: f.current)
+        response = f.image('/liveness/frame', identifier, b'after-restart')
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(f.count_attendance(), 0)
+        _, response = f.complete()
+        self.assertTrue(response.json()['complete'])
+
+    def test_completed_result_survives_runtime_cleanup(self):
+        f = self.fixture
+        identifier, _ = f.complete()
+        f.app.state.context.runtime_liveness.clear()
+        result = f.client.get(f'/verification/{identifier}', headers=f.headers).json()
+        self.assertEqual(result['status'], 'success')
+        self.assertTrue(result['face_liveness_verified'])
+
+    def test_cancel_discards_runtime_scores(self):
+        f = self.fixture
+        identifier = f.start()
+        f.face(identifier)
+        response = f.client.post(f'/attendance/cancel/{identifier}', headers=f.headers)
+        self.assertEqual(response.status_code, 200)
+        with f.sessions() as db:
+            self.assertIsNone(f.app.state.context.runtime_liveness.read(db.get(Challenge, identifier)))
+
+
+class RuntimeLivenessTests(unittest.TestCase):
+    def setUp(self):
+        self.now = datetime(2026, 11, 6, 10)
+        self.challenge = SimpleNamespace(challenge_id='challenge', student_id='student',
+            auth_token_hash='login', session_id=1, verification_id=2, fingers=3,
+            expires_at=self.now + timedelta(seconds=90))
+        self.store = RuntimeLiveness(lambda: self.now, capacity=2)
+        self.assertTrue(self.store.start(self.challenge, [0.99, 0.99]))
+
+    def test_runtime_data_is_copied_and_bound_to_student_login_and_challenge(self):
+        state = self.store.read(self.challenge)
+        state['frames'].append({'hash': 'a' * 64, 'scores': [0.99, 0.99]})
+        self.assertEqual(self.store.read(self.challenge)['frames'], [])
+        self.assertTrue(self.store.save(self.challenge, state))
+        for field, value in [('student_id', 'other'), ('auth_token_hash', 'other'),
+                             ('session_id', 8), ('verification_id', 8), ('fingers', 5),
+                             ('challenge_id', 'other')]:
+            altered = copy.copy(self.challenge)
+            setattr(altered, field, value)
+            self.assertIsNone(self.store.read(altered), field)
+            self.assertFalse(self.store.save(altered, state), field)
+
+    def test_expiry_and_capacity_are_bounded(self):
+        for identifier in ('second', 'third'):
+            other = copy.copy(self.challenge)
+            other.challenge_id = identifier
+            self.store.start(other, [0.99, 0.99])
+        self.assertIsNone(self.store.read(self.challenge))
+        self.now += timedelta(seconds=90)
+        self.assertIsNone(self.store.read(other))
+        self.assertFalse(self.store.start(self.challenge, [0.99, 0.99]))
+
+    def test_failed_scores_cannot_be_saved_and_restart_loses_evidence(self):
+        bad = new_state([0.99, 0.99])
+        bad['frames'].append({'hash': 'a' * 64, 'scores': [0.1, 0.99]})
+        with self.assertRaises(ValueError):
+            self.store.save(self.challenge, bad)
+        self.assertIsNone(RuntimeLiveness(lambda: self.now).read(self.challenge))

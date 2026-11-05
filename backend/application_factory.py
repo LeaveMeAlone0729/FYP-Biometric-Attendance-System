@@ -41,6 +41,7 @@ def create_app(settings=None, engine=None, biometrics=None, clock=None, startup_
                 startup_validator(engine, settings)
             yield
         finally:
+            context.runtime_liveness.clear()
             context.bio.close()
             engine.dispose()
 
