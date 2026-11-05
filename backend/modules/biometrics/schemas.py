@@ -37,6 +37,8 @@ class FaceVerified(BaseModel):
     fingers: int = Field(ge=1, le=5)
     required_frames: int = Field(ge=1)
     expires_at: datetime
+    liveness_step: Literal["hand"]
+    anti_spoof_verified: Literal[True]
     message: str
 
 
@@ -45,6 +47,8 @@ class LivenessProgress(BaseModel):
     complete: Literal[False]
     valid_frames: int = Field(ge=0)
     required_frames: int = Field(ge=1)
+    ready: bool = False
+    liveness_step: Literal["hand"]
     message: str
 
 
@@ -83,6 +87,7 @@ class VerificationResult(BaseModel):
     stage: Literal["face", "liveness", "complete"]
     face_verified: bool
     liveness_verified: bool
+    face_liveness_verified: bool
     valid_frames: int
     required_frames: int
     expires_at: datetime

@@ -4,26 +4,39 @@
 
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app import app
+from export_openapi import main as export_openapi
 
 
 class BiometricContractTests(unittest.TestCase):
+    def test_passive_face_check_goes_directly_to_hand_challenge(self):
+        schemas = app.openapi()["components"]["schemas"]
+        face = schemas["FaceVerified"]
+        self.assertIn("anti_spoof_verified", face["required"])
+        self.assertEqual(face["properties"]["anti_spoof_verified"]["const"], True)
+        for name in ("FaceVerified", "LivenessProgress"):
+            properties = schemas[name]["properties"]
+            self.assertEqual(properties["liveness_step"]["const"], "hand")
+            self.assertNotIn("face_action", properties)
+            self.assertNotIn("face_actions_completed", properties)
+
     def test_student_template_deletion_is_not_exposed(self):
         specification = app.openapi()
         self.assertNotIn("/biometrics", specification["paths"])
         self.assertNotIn("BiometricRemoved", specification["components"]["schemas"])
 
     def test_exported_openapi_matches_the_application(self):
-        path = Path(__file__).resolve().parents[2] / "docs/openapi.json"
-        self.assertEqual(
-            json.loads(path.read_text(encoding="utf-8")),
-            app.openapi(),
-            "Regenerate the handoff specification with backend/export_openapi.py.",
-        )
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "openapi.json"
+            with patch.object(sys, "argv", ["export_openapi.py", "--output", str(path)]):
+                export_openapi()
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), app.openapi())
 
     def test_camera_contract_uses_authenticated_multipart_requests(self):
         specification = app.openapi()
@@ -71,6 +84,7 @@ class BiometricContractTests(unittest.TestCase):
                 "verification_id",
                 "face_verified",
                 "liveness_verified",
+                "face_liveness_verified",
                 "status",
                 "attendance_id",
             }

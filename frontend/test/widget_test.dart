@@ -8,7 +8,7 @@ import 'package:frontend/screens/attendance_flow_screen.dart';
 import 'package:frontend/screens/history_screen.dart';
 import 'package:frontend/services/api_client.dart';
 import 'package:frontend/theme.dart';
-import 'package:frontend/screens/camera_screen.dart';
+import 'package:frontend/modules/biometrics/screens/camera_screen.dart';
 
 void main() {
   testWidgets(

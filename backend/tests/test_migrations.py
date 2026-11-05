@@ -10,10 +10,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from database import make_sessions
 from demo import seed_demo
 from migrate import upgrade_schema
+from modules.biometrics.migration import upgrade_liveness_schema
 from models import Attendance, AuthSession, Base, ClassSession, Student, VerificationAttempt
 
 
 class MigrationTests(unittest.TestCase):
+    def test_liveness_column_is_additive_and_idempotent_for_existing_challenges(self):
+        engine = create_engine('sqlite://')
+        try:
+            with engine.begin() as connection:
+                connection.execute(text('CREATE TABLE verification_challenges (challenge_id TEXT PRIMARY KEY, consumed BOOLEAN)'))
+                connection.execute(text("INSERT INTO verification_challenges VALUES ('existing', 0)"))
+            self.assertEqual(upgrade_liveness_schema(engine), ['verification_challenges.face_liveness_state'])
+            self.assertEqual(upgrade_liveness_schema(engine), [])
+            with engine.connect() as connection:
+                self.assertEqual(tuple(connection.execute(text('SELECT * FROM verification_challenges')).one()), ('existing', 0, None))
+        finally:
+            engine.dispose()
+
     def test_retiring_device_columns_preserves_biometrics_sessions_and_attendance(self):
         engine = create_engine('sqlite://')
         current = datetime(2026, 10, 29, 12)

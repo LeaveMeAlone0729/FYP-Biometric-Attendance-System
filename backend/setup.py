@@ -1,14 +1,10 @@
 """Initialize configuration, a separate MySQL schema, and the official MediaPipe model."""
 import argparse
-import hashlib
 import re
 from pathlib import Path
-from urllib.request import urlopen
 from cryptography.fernet import Fernet
 
 ROOT = Path(__file__).resolve().parent
-MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
-MODEL_SHA256 = 'fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1'
 
 def main():
     parser = argparse.ArgumentParser()
@@ -24,6 +20,8 @@ def main():
     from modules.devices.migration import upgrade_device_schema
     from modules.devices.verification_migration import upgrade_verification_schema
     from migrate import upgrade_schema
+    from modules.biometrics.migration import upgrade_liveness_schema
+    from modules.biometrics.model_assets import download_models
     from security import hash_password
     from demo import seed_demo
     import mysql.connector
@@ -41,6 +39,7 @@ def main():
     engine = make_engine(settings)
     Base.metadata.create_all(engine)
     upgrade_schema(engine)
+    upgrade_liveness_schema(engine)
     upgrade_device_schema(engine)
     upgrade_verification_schema(engine)
     if settings.demo_mode:
@@ -50,16 +49,8 @@ def main():
                 db.add(Student(student_id='DEMO001', group_id=1, name='Demo Student', email='demo001@example.test',
                     password_hash=hash_password('DemoAttend2026!'), created_at=local_now(settings)))
     engine.dispose()
-    target = ROOT / 'models' / 'hand_landmarker.task'
-    if not args.skip_model and not target.exists():
-        target.parent.mkdir(exist_ok=True)
-        with urlopen(MODEL_URL, timeout=60) as response:
-            data = response.read(20 * 1024 * 1024)
-        if len(data) < 1_000_000:
-            raise SystemExit('Unexpected hand model download; model was not saved.')
-        if hashlib.sha256(data).hexdigest() != MODEL_SHA256:
-            raise SystemExit('Hand model checksum did not match; model was not saved.')
-        target.write_bytes(data)
+    if not args.skip_model:
+        download_models(ROOT / "models")
     print(f'Database ready: {settings.db_name}.')
     if settings.demo_mode:
         print('Demo group: DEMO-A. Today\'s attendance PINs: 123456 and 654321.')

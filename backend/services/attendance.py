@@ -5,7 +5,9 @@ from sqlalchemy.exc import IntegrityError
 from modules.authorization.service import AttendanceAuthorizationService
 from modules.devices.service import DeviceRegistrationError
 
+
 def record_verified_attendance(context,db,student,challenge,session,*,auth=None,request_scope=None,device_challenge_id=None,device_signature=None):
+    """Require passive anti-spoof evidence and fresh device/network authorization."""
     authorization=AttendanceAuthorizationService(context)
     result=authorization.authorize(db,student,auth,challenge,session,request_scope,device_challenge_id,device_signature)
     student,auth,challenge,session,nonce,network_id=result

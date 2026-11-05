@@ -1,5 +1,5 @@
 """Explicit demo fixtures, never generated when DEMO_MODE is false."""
-from datetime import datetime, time, timedelta
+from datetime import time, timedelta
 from sqlalchemy import select
 from models import Programme, StudentGroup, Course, ClassSchedule, ClassSession
 from security import digest

@@ -63,7 +63,7 @@ def register_face(
     tags=["Facial verification"],
     operation_id="verifyFace",
     response_model=ScanAdjustment | FacePreview | FaceVerified,
-    summary="Match the registered face and issue a random finger challenge",
+    summary="Match the enrolled face and pass passive anti-spoof checks before the finger challenge",
 )
 def verify_face(
     challenge_id: str = Form(
@@ -98,7 +98,7 @@ def verify_face(
     tags=["Liveness"],
     operation_id="submitLivenessFrame",
     response_model=LivenessProgress | AttendanceAccepted,
-    summary="Check one fresh face/hand frame; complete after three consecutive matches",
+    summary="Complete three fresh frames with matching face, passive anti-spoof and correct fingers",
 )
 def liveness_frame(
     request: Request,
@@ -107,7 +107,7 @@ def liveness_frame(
     challenge_id: str = Form(...),
     file: UploadFile = File(
         ...,
-        description="Fresh camera image with one visible face and one hand, at most 6 MB.",
+        description="Fresh camera image with one visible face and one hand for identity, passive anti-spoofing and finger-count checks. At most 6 MB.",
     ),
     identity=Depends(authenticated),
     db=Depends(get_db, scope="function"),

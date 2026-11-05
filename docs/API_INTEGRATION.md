@@ -17,7 +17,7 @@ class PINs and attendance storage currently supply the demo context.
 - Regenerate the handoff specification after changing a public contract:
 
   ```powershell
-  .\backend\venv\Scripts\python.exe backend\export_openapi.py
+  .\backend\venv\Scripts\python.exe backend\export_openapi.py --output docs\openapi.json
   ```
 
 For a physical phone, use the PC's reachable address as the API base URL. The

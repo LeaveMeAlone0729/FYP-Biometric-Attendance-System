@@ -3,6 +3,7 @@
 """Inference geometry and real-model rejection tests; no accuracy claims."""
 
 import io
+import math
 import sys
 import unittest
 from pathlib import Path
@@ -13,7 +14,28 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from biometrics import BiometricError, Biometrics, finger_count
+from modules.biometrics.inference import BiometricError, Biometrics, finger_count
+
+
+def hand_points(count):
+    points = [SimpleNamespace(x=0.0, y=0.0, z=0.0) for _ in range(21)]
+    for index, (base, joint, tip) in enumerate(
+        ((5, 6, 8), (9, 10, 12), (13, 14, 16), (17, 18, 20))
+    ):
+        x = (index + 1) * 0.2
+        points[base] = SimpleNamespace(x=x, y=1.0, z=0.0)
+        points[joint] = SimpleNamespace(x=x, y=2.0, z=0.0)
+        points[tip] = SimpleNamespace(
+            x=x, y=3.0 if index < min(count, 4) else 1.2, z=0.0
+        )
+    for index, x, y in ((1, -0.2, 0.2), (2, -0.4, 0.4), (3, -0.6, 0.6)):
+        points[index] = SimpleNamespace(x=x, y=y, z=0.0)
+    points[4] = (
+        SimpleNamespace(x=-1.0, y=1.0, z=0.0)
+        if count == 5
+        else SimpleNamespace(x=0.1, y=1.0, z=0.0)
+    )
+    return points
 
 
 class ImageProcessingTests(unittest.TestCase):
@@ -54,28 +76,56 @@ class ImageProcessingTests(unittest.TestCase):
 
     def test_finger_geometry_is_mirror_invariant(self):
         # Synthetic landmarks exercise handedness independence without collecting biometrics.
-        for count in range(1, 6):
-            points = [SimpleNamespace(x=0.0, y=0.0, z=0.0) for _ in range(21)]
-            for index, (base, joint, tip) in enumerate(
-                ((5, 6, 8), (9, 10, 12), (13, 14, 16), (17, 18, 20))
-            ):
-                x = (index + 1) * 0.2
-                points[base] = SimpleNamespace(x=x, y=1.0, z=0.0)
-                points[joint] = SimpleNamespace(x=x, y=2.0, z=0.0)
-                points[tip] = SimpleNamespace(
-                    x=x, y=3.0 if index < min(count, 4) else 1.2, z=0.0
-                )
-            points[1] = SimpleNamespace(x=-0.2, y=0.2, z=0.0)
-            points[2] = SimpleNamespace(x=-0.4, y=0.4, z=0.0)
-            points[3] = SimpleNamespace(x=-0.6, y=0.6, z=0.0)
-            points[4] = (
-                SimpleNamespace(x=-1.0, y=1.0, z=0.0)
-                if count == 5
-                else SimpleNamespace(x=0.1, y=1.0, z=0.0)
-            )
+        for count in range(6):
+            points = hand_points(count)
             self.assertEqual(finger_count(points), count)
             mirrored = [SimpleNamespace(x=-p.x, y=p.y, z=p.z) for p in points]
             self.assertEqual(finger_count(mirrored), count)
+
+    def test_naturally_bent_fingers_keep_their_count_across_camera_aspect_ratios(self):
+        for count in range(1, 6):
+            points = hand_points(count)
+            # An open finger with a natural 32-degree bend, rather than perfectly straight.
+            points[8] = SimpleNamespace(
+                x=0.2 + math.sin(math.radians(32)),
+                y=2 + math.cos(math.radians(32)),
+                z=0.0,
+            )
+            if count == 5:
+                points[4] = SimpleNamespace(
+                    x=-0.4 + math.cos(math.radians(170)),
+                    y=0.4 + math.sin(math.radians(170)),
+                    z=0.0,
+                )
+            for aspect in (9 / 16, 3 / 4, 1, 4 / 3, 16 / 9):
+                for mirror in (1, -1):
+                    with self.subTest(count=count, aspect=aspect, mirror=mirror):
+                        normalized = [
+                            SimpleNamespace(x=mirror * p.x, y=p.y * aspect, z=p.z)
+                            for p in points
+                        ]
+                        self.assertEqual(
+                            finger_count(normalized, image_aspect_ratio=aspect), count
+                        )
+
+    def test_folded_fingers_are_not_treated_as_naturally_bent_open_fingers(self):
+        points = hand_points(0)
+        points[8] = SimpleNamespace(
+            x=0.2 + math.sin(math.radians(65)),
+            y=2 + math.cos(math.radians(65)),
+            z=0.0,
+        )
+        self.assertEqual(finger_count(points), 0)
+
+    def test_hand_detection_distinguishes_missing_and_multiple_hands(self):
+        bio = Biometrics()
+        image = np.zeros((640, 480, 3), dtype=np.uint8)
+        for hands, message in (([], "Move your whole hand"), ([[], []], "only one hand")):
+            bio._hand_detector = SimpleNamespace(
+                detect=lambda image, hands=hands: SimpleNamespace(hand_landmarks=hands)
+            )
+            with self.subTest(hands=len(hands)), self.assertRaisesRegex(BiometricError, message):
+                bio.hand(image)
 
     def test_invalid_and_oversized_images_rejected(self):
         bio = Biometrics()

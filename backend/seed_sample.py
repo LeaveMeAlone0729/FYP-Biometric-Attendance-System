@@ -240,7 +240,7 @@ def main():
     parser.add_argument('--as-of', type=date.fromisoformat,
                         help='Generate historical records strictly before this date (default: local today).')
     parser.add_argument('--accounts-file', type=Path,
-                        default=Path(__file__).resolve().parents[1] / '.work' / 'testing-accounts.txt')
+                        default=Path.home() / 'Downloads' / 'FYP_Biometric_Test_Accounts.txt')
     args = parser.parse_args()
     settings = Settings()
     if not settings.demo_mode:

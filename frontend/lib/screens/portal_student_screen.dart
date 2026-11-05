@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../theme.dart';
-import 'camera_screen.dart';
+import '../modules/biometrics/screens/camera_screen.dart';
 import 'history_screen.dart';
 import 'portal_attendance_screen.dart';
 import 'portal_services.dart';

@@ -278,7 +278,9 @@ class _CameraScreenState extends State<CameraScreen>
     if (!_canScan || _busy) return;
     final generation = _cameraGeneration;
     final isFace = _stage == 'face';
-    var nextDelay = const Duration(milliseconds: 900);
+    var nextDelay = isFace
+        ? const Duration(milliseconds: 900)
+        : const Duration(milliseconds: 500);
     setState(() {
       _busy = true;
       if (_feedback == _ScanFeedback.waiting) {
@@ -343,7 +345,8 @@ class _CameraScreenState extends State<CameraScreen>
           _feedback = _ScanFeedback.ready;
           _fingers = response['fingers'] as int;
           _message =
-              'Face verified. Show $_fingers finger${_fingers == 1 ? '' : 's'} with your palm toward the camera. Your face and hand can be anywhere in the frame; keep them separate and fully visible.';
+              response['message'] as String? ??
+              'Face verified. Show $_fingers finger${_fingers == 1 ? '' : 's'} beside your face, with your palm toward the camera. Keep looking at the camera and hold your hand comfortably.';
         });
         // Haptics are optional: an unsupported device must not fail verification.
         unawaited(HapticFeedback.vibrate().catchError((Object _) {}));
@@ -357,7 +360,9 @@ class _CameraScreenState extends State<CameraScreen>
       } else if (!isFace) {
         setState(() {
           _valid = response['valid_frames'] as int;
-          _feedback = _valid > 0 ? _ScanFeedback.ready : _ScanFeedback.adjust;
+          _feedback = response['ready'] == true || _valid > 0
+              ? _ScanFeedback.ready
+              : _ScanFeedback.adjust;
           _message = response['message'] as String;
         });
       } else {
@@ -539,7 +544,7 @@ class _CameraScreenState extends State<CameraScreen>
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'Use one hand with your palm facing the camera. Keep your face and full hand visible and separate, then hold steady for three checks.',
+                    'Raise one hand beside your face, palm toward the camera. Keep your eyes open and hold the requested count comfortably. Photo and screen checks run automatically during each camera check.',
                   ),
                   const SizedBox(height: 12),
                   const Text('Your verification timer is still running.'),
@@ -613,7 +618,8 @@ class _CameraScreenState extends State<CameraScreen>
                             const SizedBox(height: 10),
                             _check('Class attendance code', true),
                             _check('Facial identity', _stage == 'liveness'),
-                            _check('Live gesture challenge', _success),
+                            _check('Photo and screen check', _success),
+                            _check('Hand gesture challenge', _success),
                             if (_recordedAt != null)
                               Text('Recorded ${friendlyTime(_recordedAt)}'),
                           ],

@@ -12,7 +12,8 @@ outside these folders so teammates can integrate their modules separately.
 
 ```text
 backend/
-  app.py                          Application setup and router registration
+  app.py                          Development application entry point
+  application_factory.py          Application setup and router registration
   api/                            Shared authentication, transactions and demo routes
   services/attendance.py          Shared attendance completion integration point
   modules/biometrics/             Chew Zhexuan's backend module
@@ -22,7 +23,6 @@ backend/
     inference.py                  Face recognition and MediaPipe hand inference
     templates.py                  Face-template encryption and decryption
     constants.py                  Capture and liveness limits
-  biometrics.py                   Compatibility imports for the old file location
   tests/
     test_biometric_inference.py    Inference and geometry checks
     test_biometric_api_contract.py OpenAPI and interface checks
@@ -51,8 +51,8 @@ demo. Device registration, network verification and campus checks remain outside
 this module.
 
 For integration, start with [API_INTEGRATION.md](API_INTEGRATION.md). Existing
-backend imports and Flutter camera imports continue working through small
-compatibility files; new code should import from the module folders.
+Flutter camera imports continue working through a small compatibility export;
+backend biometric imports should use the module folders.
 
 ## Device registration (Phase 1)
 
