@@ -37,6 +37,7 @@ class AttendanceFixture {
   DateTime now = DateTime.now();
   int issued = 0, frames = 0;
   bool wrongBinding = false, expired = false;
+  bool classroomRequired = false;
   String? denial, preflightFailure;
   bool preflightOffline = false;
   Object? preflightTransportError;
@@ -110,6 +111,8 @@ class AttendanceFixture {
         return response({
           'success': true,
           ...binding,
+          'classroom_wifi_required': classroomRequired,
+          'classroom_id': classroomRequired ? 'A' : null,
           'algorithm': 'ECDSA_P256_SHA256',
           'signature_encoding': 'base64-DER',
           'signing_payload': base64Encode(utf8.encode(jsonEncode(payload))),

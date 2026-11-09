@@ -5,7 +5,7 @@
 from api.context import AppContext
 from api.dependencies import authenticated, get_context, get_db
 from api.schemas import ERROR_RESPONSES
-from fastapi import APIRouter, Depends, File, Form, UploadFile, Request
+from fastapi import APIRouter, Depends, File, Form, UploadFile, Request, HTTPException
 
 from .schemas import (
     AttendanceAccepted,
@@ -29,6 +29,12 @@ def get_biometric_service(context: AppContext = Depends(get_context)):
     return BiometricService(context)
 
 
+async def enrollment_fields(request: Request):
+    # Identity/assurance can never be overridden by multipart client fields.
+    if set(await request.form()) - {'consent', 'file', 'auto_capture', 'preview_only'}:
+        raise HTTPException(422, 'Unexpected face enrollment field.')
+
+
 @router.post(
     "/register-face",
     tags=["Face registration"],
@@ -37,6 +43,7 @@ def get_biometric_service(context: AppContext = Depends(get_context)):
     summary="Register the signed-in student’s face once with consent",
 )
 def register_face(
+    _fields=Depends(enrollment_fields),
     consent: bool = Form(
         ..., description="Explicit consent to store an encrypted face template."
     ),
@@ -52,9 +59,9 @@ def register_face(
     db=Depends(get_db, scope="function"),
     service: BiometricService = Depends(get_biometric_service),
 ):
-    student, _ = identity
+    student, auth = identity
     return service.register_face(
-        student, db, file, consent, auto_capture=auto_capture, preview_only=preview_only
+        student, db, file, consent, auto_capture=auto_capture, preview_only=preview_only, auth=auth
     )
 
 
@@ -104,6 +111,7 @@ def liveness_frame(
     request: Request,
     device_challenge_id: str | None = Form(None, max_length=64),
     device_signature: str | None = Form(None, max_length=256),
+    classroom_wifi_proof_id: str | None = Form(None, max_length=64),
     challenge_id: str = Form(...),
     file: UploadFile = File(
         ...,
@@ -118,7 +126,7 @@ def liveness_frame(
         # Student/auth first, before the biometric challenge lock; algorithms unchanged.
         AttendanceAuthorizationService(service.context).identity(db,student,auth)
         return service.liveness_frame(student, auth, db, challenge_id, file,
-            request_scope=request.scope,device_challenge_id=device_challenge_id,device_signature=device_signature)
+            request_scope={**request.scope,'classroom_wifi_proof_id':classroom_wifi_proof_id},device_challenge_id=device_challenge_id,device_signature=device_signature)
     return registration_response(operation)
 
 

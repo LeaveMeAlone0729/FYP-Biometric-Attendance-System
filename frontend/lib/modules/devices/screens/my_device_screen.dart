@@ -155,14 +155,12 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
           ),
         ] else if (_loaded) ...[
           const SizedBox(height: 12),
-          const InfoNotice(
-            'Additional enrollment requires fresh trusted biometric approval and candidate-key proof. Replacement preserves the old device until genuine trusted approval succeeds.',
+          const Text(
+            'Adding or replacing a device requires face and liveness verification.',
           ),
         ],
         if (_loaded && _pendingEnrollmentAvailable) ...[
-          const Text(
-            'Slot 2 is available for preparation. Activation is checked automatically and requires trusted server approval.',
-          ),
+          const Text('A second device slot is available.'),
           if (!_checking && _result == null)
             TextButton(
               onPressed: () async {
@@ -187,14 +185,18 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
             ],
           ),
         if (_result != null)
-          InfoNotice(
-            'Automatic device verification: PASS\nChecked: ${_result!.verifiedAt.toIso8601String()}',
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(
+              Icons.check_circle_outline,
+              color: Colors.green,
+            ),
+            title: const Text('Automatic device verification: PASS'),
+            subtitle: Text('Checked: ${_result!.verifiedAt.toIso8601String()}'),
           ),
         if (_error != null) InfoNotice(_error!, warning: true),
         const SizedBox(height: 20),
-        const InfoNotice(
-          'Each device check uses a fresh signed challenge. This status does not authorize attendance. Replacement requires approval.',
-        ),
+        const Text('Attendance checks your device and connection again.'),
       ],
     ),
   );

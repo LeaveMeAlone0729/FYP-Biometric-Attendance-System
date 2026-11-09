@@ -1,4 +1,5 @@
 """Relational and preservation checks for the fictional presentation dataset."""
+import secrets
 import sys
 import unittest
 from datetime import date, datetime
@@ -10,12 +11,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from database import make_sessions
 from models import (Attendance, Base, ClassSchedule, ClassSession, Course, Programme,
                     Student, StudentGroup, VerificationAttempt)
-from seed_sample import PASSWORD, seed_sample
+from seed_sample import seed_sample
 from security import verify_password
 
 
 class SampleDataTests(unittest.TestCase):
     def test_history_integrity_rerun_and_existing_record_preservation(self):
+        initial_password = secrets.token_urlsafe(24)
         engine = create_engine('sqlite://')
         @event.listens_for(engine, 'connect')
         def enable_foreign_keys(connection, _):
@@ -33,13 +35,13 @@ class SampleDataTests(unittest.TestCase):
                 db.add(Student(student_id='EXISTING', name='Existing student', email='existing@example.test',
                     group_id=old_group.group_id, password_hash='unchanged', created_at=datetime(2026, 1, 1)))
             with sessions.begin() as db:
-                seed_sample(db, date(2026, 10, 29))
+                seed_sample(db, date(2026, 10, 29), initial_password=initial_password)
             with sessions.begin() as db:
                 self.assertEqual(db.scalar(select(func.count()).select_from(Student)), 37)
                 self.assertEqual(db.scalar(select(func.count()).select_from(ClassSchedule)), 12)
                 self.assertEqual(db.scalar(select(func.count()).select_from(ClassSession)), 144)
                 for student in db.scalars(select(Student).where(Student.student_id != 'EXISTING')):
-                    self.assertTrue(verify_password(PASSWORD, student.password_hash))
+                    self.assertTrue(verify_password(initial_password, student.password_hash))
                     self.assertIsNone(student.face_encoding)
                     self.assertIsNone(student.consent_at)
                 for record in db.scalars(select(Attendance)):
@@ -65,7 +67,7 @@ class SampleDataTests(unittest.TestCase):
                 student.password_hash = 'student-changed-password'
                 student.face_encoding = 'existing-encrypted-template'
             with sessions.begin() as db:
-                seed_sample(db, date(2026, 10, 29))
+                seed_sample(db, date(2026, 10, 29), initial_password=secrets.token_urlsafe(24))
             with sessions() as db:
                 self.assertEqual(counts, {table.name: db.scalar(select(func.count()).select_from(table)) for table in Base.metadata.sorted_tables})
                 self.assertEqual(db.get(Student, 'EXISTING').password_hash, 'unchanged')
@@ -77,7 +79,7 @@ class SampleDataTests(unittest.TestCase):
                 db.get(Course, 'BMIT3173').course_name = 'Existing custom course'
             with self.assertRaisesRegex(ValueError, 'Course code collision'):
                 with sessions.begin() as db:
-                    seed_sample(db, date(2026, 10, 29))
+                    seed_sample(db, date(2026, 10, 29), initial_password=initial_password)
             with sessions() as db:
                 self.assertEqual(db.get(Course, 'BMIT3173').course_name, 'Existing custom course')
                 self.assertEqual(counts, {table.name: db.scalar(select(func.count()).select_from(table)) for table in Base.metadata.sorted_tables})

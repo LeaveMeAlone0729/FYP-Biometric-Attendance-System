@@ -183,13 +183,14 @@ class WorkflowTests(unittest.TestCase):
 
     def setUp(self):
         self.current = datetime(2026, 10, 20, 12, 0, 0)
-        self.engine = create_engine(
+        self.engine = getattr(self,'engine_override',None) or create_engine(
             "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
         )
 
-        @event.listens_for(self.engine, "connect")
-        def foreign_keys(connection, record):
-            connection.execute("PRAGMA foreign_keys=ON")
+        if self.engine.dialect.name=='sqlite':
+            @event.listens_for(self.engine, "connect")
+            def foreign_keys(connection, record):
+                connection.execute("PRAGMA foreign_keys=ON")
 
         Base.metadata.create_all(self.engine)
         self.sessions = make_sessions(self.engine)

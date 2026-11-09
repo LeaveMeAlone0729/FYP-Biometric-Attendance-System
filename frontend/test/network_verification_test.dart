@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:frontend/services/api_client.dart';
+import 'package:frontend/theme.dart' show InfoNotice;
 import 'package:frontend/modules/networks/services/network_verification_api.dart';
 import 'package:frontend/modules/networks/screens/network_verification_screen.dart';
 import 'package:frontend/modules/networks/services/network_verification_failure.dart';
@@ -169,6 +170,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Network verification: PASS'), findsOneWidget);
       expect(
+        tester
+            .widgetList<InfoNotice>(find.byType(InfoNotice))
+            .where((notice) => !notice.warning),
+        isEmpty,
+      );
+      expect(
         find.textContaining('Backend-observed source IP: 192.0.2.10'),
         findsOneWidget,
       );
@@ -179,6 +186,10 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       await tester.tap(find.text('Check current connection'));
+      await tester.pumpAndSettle();
+      // The new classroom card extends the scrollable page. Inspect the CIDR
+      // result at the top rather than assuming it remains in the lazy viewport.
+      await tester.drag(find.byType(ListView), const Offset(0, 1000));
       await tester.pumpAndSettle();
       expect(find.text('Network verification: PASS'), findsNothing);
       expect(find.text('Network verification: FAIL'), findsOneWidget);
@@ -289,8 +300,10 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
     expect(find.text('Network verification: PASS'), findsNothing);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byKey(const ValueKey('cidr-progress')), findsOneWidget);
     api.wait!.complete(result('NETWORK_NOT_AUTHORIZED'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, 1000));
     await tester.pumpAndSettle();
     expect(api.calls, 2);
     expect(find.text('Network verification: FAIL'), findsOneWidget);

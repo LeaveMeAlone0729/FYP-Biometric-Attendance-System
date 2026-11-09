@@ -8,6 +8,7 @@ from config import iso_time
 from models import AuthSession, Student
 from .crypto import canonical_public_key, verify_signature
 from .models import RegisteredDevice
+from .local_demo import permits_device
 from .service import DeviceRegistrationError
 from .verification_models import DeviceVerificationChallenge, DeviceVerificationEvent
 
@@ -64,6 +65,9 @@ class DeviceVerificationService:
         if device.status != "ACTIVE":
             self.deny(db, student, operation, 403, "DEVICE_NOT_ACTIVE",
                       "Your registered device is not active. Contact the project administrator.", challenge)
+        if not permits_device(db, device):
+            self.deny(db, student, operation, 403, "LOCAL_DEMO_DEVICE_DISABLED",
+                      "This LOCAL FYP DEMO device requires the original local demo profile.", challenge)
         if challenge is not None and (device.device_id != challenge.device_id
                 or device.public_key_fingerprint != challenge.key_fingerprint):
             self.deny(db, student, operation, 403, "DEVICE_BINDING_CHANGED",

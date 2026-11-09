@@ -68,7 +68,8 @@ def start_attendance(
             "pin",
             "The PIN does not match an active class for your group.",
         )
-    session = matches[0]
+    session = (db.get(ClassSession,matches[0].session_id,with_for_update=True,populate_existing=True)
+        if getattr(context,'classroom_attendance',None) is not None else matches[0])
     if db.scalar(
         select(Attendance).where(
             Attendance.session_id == session.session_id,
@@ -115,6 +116,8 @@ def start_attendance(
         + timedelta(seconds=context.settings.challenge_seconds),
     )
     db.add(challenge)
+    if getattr(context,'classroom_attendance',None) is not None:
+        context.classroom_attendance.freeze(db,challenge,session)
     schedule = db.get(ClassSchedule, session.schedule_id)
     course = db.get(Course, schedule.course_code)
     return {

@@ -50,6 +50,30 @@ class NetworkTests(unittest.TestCase):
             self.assertEqual(event.result,'PASS');self.assertEqual(event.policy_cidr,'192.0.2.0/24');self.assertEqual(event.verified_at,self.f.now)
             self.assertNotEqual(event.auth_token_hash,self.f.headers['Authorization'].split()[1])
         self.assertEqual(self.count(Attendance),0)
+    def test_login_profile_available_without_authorized_attendance_network(self):
+        # Login/profile need valid credentials, not an attendance CIDR verdict.
+        client=TestClient(self.f.app,client=('198.51.100.9',32123))
+        try:
+            login=client.post('/login',json={'student_id':'DEVICE001','password':'test-password'})
+            self.assertEqual(login.status_code,200)
+            headers={'Authorization':'Bearer '+login.json()['access_token']}
+            for configured in ('absent','disabled','outside'):
+                if configured=='disabled':self.policy(enabled=False)
+                elif configured=='outside':self.policy(enabled=True)
+                self.assertEqual(client.get('/me',headers=headers).status_code,200)
+                result=client.post(PATH,headers=headers,json={}).json()
+                self.assertEqual(result['result'],'FAIL')
+                self.assertFalse(result['attendance_authorized'])
+            self.assertEqual(self.count(Attendance),0)
+        finally:client.close()
+    def test_fake_wifi_claims_never_authorize_network(self):
+        self.policy()
+        for field in ('ssid','bssid','wifi_name','campus_wifi','is_authorized_wifi'):
+            self.assertEqual(self.request('198.51.100.9',body={field:'claimed-campus'}).status_code,422)
+        result=self.request('198.51.100.9',headers={'X-Wifi-SSID':'claimed-campus','X-Network-Verified':'PASS'}).json()
+        self.assertEqual(result['result'],'FAIL')
+        self.assertEqual(result['source_ip'],'198.51.100.9')
+        self.assertEqual(self.count(Attendance),0)
     def test_outside_network_and_missing_or_disabled_policy_fail(self):
         self.assertEqual(self.request().json()['reason_code'],'NO_ENABLED_NETWORK_POLICY')
         self.policy(enabled=False);self.assertEqual(self.request().json()['result'],'FAIL')

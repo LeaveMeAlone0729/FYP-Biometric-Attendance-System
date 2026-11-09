@@ -315,9 +315,9 @@ class ActivationTests(unittest.TestCase):
     def test_real_provider_fails_closed_through_authenticated_public_routes(self):
         base='/api/v1/devices/pending-registrations/'+self.identifier
         response=self.f.client.post(base+'/activation-readiness',headers=self.f.headers,json={})
-        self.assertEqual(response.status_code,503);self.assertEqual(response.json()['code'],'APPROVAL_UNAVAILABLE')
+        self.assertEqual(response.status_code,403);self.assertEqual(response.json()['code'],'BIOMETRIC_TRUST_REQUIRED')
         response=self.f.client.post(base+'/activation-challenges',headers=self.f.headers,json={'approval_id':'grant-1'})
-        self.assertEqual(response.status_code,503)
+        self.assertEqual(response.status_code,403)
         self.assertEqual(self.f.client.post(base+'/activation-readiness',json={}).status_code,401)
         self.assertEqual(self.f.client.post(base+'/activation-readiness',headers=self.f.headers,json={'trusted':True}).status_code,422)
         self.assertEqual(self.count(RegisteredDevice),1);self.assertEqual(self.count(Attendance),0)

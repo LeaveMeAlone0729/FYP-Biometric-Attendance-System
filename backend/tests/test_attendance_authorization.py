@@ -24,7 +24,10 @@ class AttendanceAuthorizationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.password_hash=hash_password('test-password');cls.bio_key=Fernet.generate_key().decode()
     def setUp(self):
-        self.f=workflow.WorkflowTests();self.f.password_hash=self.password_hash;self.f.key=self.bio_key;self.f.setUp()
+        self.f=workflow.WorkflowTests();self.f.password_hash=self.password_hash;self.f.key=self.bio_key
+        if hasattr(self,'engine_factory'):self.f.engine_override=self.engine_factory()
+        elif hasattr(self,'engine_override'):self.f.engine_override=self.engine_override
+        self.f.setUp()
     def tearDown(self):self.f.tearDown()
     def count(self,model):
         with self.f.sessions() as db:return db.scalar(select(func.count()).select_from(model))

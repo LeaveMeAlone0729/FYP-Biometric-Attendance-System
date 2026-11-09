@@ -1,3 +1,4 @@
+from database_compat import shared_read
 """Fresh connection-bound diagnostics; never an attendance authorization grant."""
 from sqlalchemy import select
 from fastapi import HTTPException
@@ -36,7 +37,7 @@ class NetworkVerificationService:
         address,reason=connection_ip(scope);matched=None
         # No headers, JSON IP fields, device metadata, SSID or location are read.
         if reason is None:
-            policies=db.scalars(select(NetworkPolicy).where(NetworkPolicy.enabled==True).order_by(NetworkPolicy.network_id).with_for_update()).all()
+            policies=db.scalars(select(NetworkPolicy).where(NetworkPolicy.enabled==True).order_by(NetworkPolicy.network_id).with_for_update(read=shared_read(db))).all()
             networks=[]
             if not policies:reason='NO_ENABLED_NETWORK_POLICY'
             else:

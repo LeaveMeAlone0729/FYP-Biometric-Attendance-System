@@ -1,3 +1,4 @@
+from database_compat import shared_read
 """Server-owned final decision. No standalone PASS or client flags are accepted."""
 import base64,json,math,secrets
 from datetime import timedelta
@@ -6,6 +7,7 @@ from models import Student,AuthSession,Challenge,ClassSession,VerificationAttemp
 from config import iso_time
 from modules.devices.crypto import canonical_public_key,verify_signature
 from modules.devices.models import RegisteredDevice
+from modules.devices.local_demo import permits_device
 from modules.devices.service import DeviceRegistrationError
 from modules.networks.service import NetworkVerificationService
 from modules.biometrics.constants import REQUIRED_LIVENESS_FRAMES
@@ -45,7 +47,7 @@ class AttendanceAuthorizationService:
             self.reject(db,student,auth,403,'ATTENDANCE_ATTEMPT_MISMATCH','This attendance attempt belongs to another student or login.')
         if attempt.consumed:self.reject(db,student,auth,409,'ATTENDANCE_ATTEMPT_ENDED','This attendance attempt has ended. Check history or start again.',attempt=attempt)
         if attempt.expires_at<=self.context.now():self.reject(db,student,auth,410,'ATTENDANCE_ATTEMPT_EXPIRED','Attendance verification expired. Enter the PIN again.',attempt=attempt)
-        session=db.scalar(select(ClassSession).where(ClassSession.session_id==attempt.session_id).with_for_update().execution_options(populate_existing=True))
+        session=db.scalar(select(ClassSession).where(ClassSession.session_id==attempt.session_id).with_for_update(read=shared_read(db)).execution_options(populate_existing=True))
         if session is None or not self.context.session_open(session,student,db):
             self.reject(db,student,auth,409,'ATTENDANCE_WINDOW_CLOSED','The attendance window is closed.',attempt=attempt)
         return attempt,session
@@ -56,6 +58,7 @@ class AttendanceAuthorizationService:
         def fail(code,message):self.reject(db,student,auth,403,code,message,attempt=attempt,nonce=nonce,final=final)
         if device is None:fail('ATTENDANCE_DEVICE_NOT_REGISTERED','This installation is not a registered attendance device. Register it or complete approved enrollment first.')
         if device.status!='ACTIVE' or device.slot_number not in (1,2):fail('ATTENDANCE_DEVICE_NOT_ACTIVE','This device is revoked or inactive. Use an ACTIVE trusted device.')
+        if not permits_device(db, device):fail('LOCAL_DEMO_DEVICE_DISABLED','This LOCAL FYP DEMO device requires the original local demo profile.')
         try:_,actual=canonical_public_key(device.public_key_spki)
         except ValueError:actual=None
         if actual!=device.public_key_fingerprint or (nonce and actual!=nonce.key_fingerprint):fail('ATTENDANCE_DEVICE_BINDING_CHANGED','The registered key changed. Restart attendance using the correct installation.')
@@ -76,7 +79,7 @@ class AttendanceAuthorizationService:
         old=db.scalar(select(AttendanceDeviceChallenge).where(AttendanceDeviceChallenge.attendance_challenge_id==identifier,AttendanceDeviceChallenge.consumed_at==None).with_for_update())
         if old:
             if old.expires_at>now:
-                if old.device_id==device.device_id and old.auth_token_hash==auth.token_hash and old.key_fingerprint==fingerprint and json.loads(old.signing_payload).get('purpose')==purpose:return self.info(old,device.slot_number)
+                if old.device_id==device.device_id and old.auth_token_hash==auth.token_hash and old.key_fingerprint==fingerprint and json.loads(old.signing_payload).get('purpose')==purpose:return self.info(old,device.slot_number,db)
                 self.reject(db,student,auth,409,'ATTENDANCE_DEVICE_PROOF_PENDING','Another device is already bound to this attendance attempt.',attempt=attempt)
             old.consumed_at=now;old.result='FAIL';old.failure_code='ATTENDANCE_DEVICE_PROOF_EXPIRED';db.flush()
         recent=db.scalar(select(func.count()).select_from(AttendanceAuthorizationEvent).where(AttendanceAuthorizationEvent.student_id==student.student_id,
@@ -94,13 +97,14 @@ class AttendanceAuthorizationService:
             operation='attendance_authorization',signing_payload=payload,created_at=now,expires_at=expires,result='PENDING')
         db.add(nonce);db.flush();self.event(db,student,auth,'preflight' if preflight else 'challenge','ISSUED',
             'ATTENDANCE_PREFLIGHT_CHALLENGE_ISSUED' if preflight else 'ATTENDANCE_DEVICE_CHALLENGE_ISSUED',attempt,nonce)
-        return self.info(nonce,device.slot_number)
+        return self.info(nonce,device.slot_number,db)
 
-    def info(self,nonce,slot):
+    def info(self,nonce,slot,db=None):
+        extra=self.context.classroom_attendance.info(db,nonce) if getattr(self.context,'classroom_attendance',None) is not None else {}
         return dict(success=True,challenge_id=nonce.challenge_id,attendance_challenge_id=nonce.attendance_challenge_id,
             attendance_session_id=nonce.session_id,device_id=nonce.device_id,slot_number=slot,public_key_fingerprint=nonce.key_fingerprint,
             operation=json.loads(nonce.signing_payload)['operation'],algorithm='ECDSA_P256_SHA256',signature_encoding='base64-DER',
-            signing_payload=base64.b64encode(nonce.signing_payload.encode()).decode(),expires_at=iso_time(nonce.expires_at,self.context.settings))
+            signing_payload=base64.b64encode(nonce.signing_payload.encode()).decode(),expires_at=iso_time(nonce.expires_at,self.context.settings),**extra)
 
     def preflight_network(self,db,student,auth,attempt,scope,nonce=None):
         network=NetworkVerificationService(self.context).verify(db,student,auth,scope,operation='attendance_authorization',attendance_attempt_id=attempt.challenge_id)
@@ -108,7 +112,7 @@ class AttendanceAuthorizationService:
             self.reject(db,student,auth,403,network['reason_code'],network['message'],attempt=attempt,nonce=nonce,network_id=network['verification_id'])
         return network
 
-    def preflight(self,db,student,auth,identifier,proof_id,signature,scope):
+    def preflight(self,db,student,auth,identifier,proof_id,signature,scope,classroom_wifi_proof_id=None):
         student,auth=self.identity(db,student,auth);attempt,session=self.attempt(db,student,auth,identifier)
         nonce=db.scalar(select(AttendanceDeviceChallenge).where(AttendanceDeviceChallenge.challenge_id==proof_id).with_for_update().execution_options(populate_existing=True))
         def deny(status,code,message,owned=None):
@@ -131,6 +135,9 @@ class AttendanceAuthorizationService:
         root=db.get(VerificationAttempt,attempt.verification_id)
         if attempt.stage!='face' or root.verification_result!='pending':deny(409,'ATTENDANCE_PREFLIGHT_STAGE','Restart attendance before opening the camera.',nonce)
         network=self.preflight_network(db,student,auth,attempt,scope,nonce)
+        if getattr(self.context,'classroom_attendance',None) is not None:
+            try:self.context.classroom_attendance.check(db,student,auth,attempt,session,nonce,classroom_wifi_proof_id,preflight=True)
+            except DeviceRegistrationError as exc:deny(exc.status,exc.code,exc.message,nonce)
         try:self.fresh(db,student,auth,attempt,session,nonce)
         except DeviceRegistrationError as exc:deny(exc.status,exc.code,exc.message,nonce)
         nonce.result='PASS';nonce.failure_code=None
@@ -168,6 +175,9 @@ class AttendanceAuthorizationService:
         if not verify_signature(device.public_key_spki,nonce.signing_payload,signature):deny(403,'ATTENDANCE_DEVICE_SIGNATURE_INVALID','The attendance device signature is invalid. Use the installation holding the registered key.',nonce)
         network=NetworkVerificationService(self.context).verify(db,student,auth,scope,operation='attendance_authorization',attendance_attempt_id=attempt.challenge_id)
         if network['result']!='PASS':deny(403,network['reason_code'],network['message'],nonce,network['verification_id'])
+        if getattr(self.context,'classroom_attendance',None) is not None:
+            try:self.context.classroom_attendance.check(db,student,auth,attempt,session,nonce,scope.get('classroom_wifi_proof_id'))
+            except DeviceRegistrationError as exc:deny(exc.status,exc.code,exc.message,nonce,network['verification_id'])
         try:self.fresh(db,student,auth,attempt,session,nonce)
         except DeviceRegistrationError as exc:deny(exc.status,exc.code,exc.message,nonce,network['verification_id'])
         if db.scalar(select(Attendance.attendance_id).where(Attendance.student_id==student.student_id,Attendance.session_id==session.session_id)):
@@ -177,3 +187,5 @@ class AttendanceAuthorizationService:
     def fresh(self,db,student,auth,attempt,session,nonce):
         if min(auth.expires_at,attempt.expires_at,nonce.expires_at)<=self.context.now() or not self.context.session_open(session,student,db):
             raise DeviceRegistrationError(410,'ATTENDANCE_AUTHORIZATION_EXPIRED','The attendance authorization expired while processing. Start again.')
+        if getattr(self.context,'classroom_attendance',None) is not None:
+            self.context.classroom_attendance.fresh(db,attempt,session)

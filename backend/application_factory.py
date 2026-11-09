@@ -22,7 +22,8 @@ from fastapi import FastAPI
 from modules.biometrics.router import router as biometrics_router
 
 
-def create_app(settings=None, engine=None, biometrics=None, clock=None, startup_validator=None):
+def create_app(settings=None, engine=None, biometrics=None, clock=None, startup_validator=None,
+               classroom_features=False):
     settings = settings or Settings()
     engine = engine or make_engine(settings)
     context = AppContext(
@@ -69,4 +70,12 @@ def create_app(settings=None, engine=None, biometrics=None, clock=None, startup_
         attendance_authorization_router,
     ):
         app.include_router(router)
+    if classroom_features:
+        from modules.classroom_wifi.router import router as wifi_router
+        from modules.classroom_ble.router import router as ble_router
+        from modules.classroom_wifi.attendance import AttendanceClassroomService
+        app.include_router(wifi_router)
+        app.include_router(ble_router)
+        context.classroom_attendance = AttendanceClassroomService(context)
+        # BLE deliberately has no attendance authorization adapter.
     return app

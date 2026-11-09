@@ -119,6 +119,12 @@ def required_grants():
         add(name, "SELECT", "INSERT")
     for name in ("device_biometric_events", "network_verification_events"):
         add(name, "INSERT")
+    add('device_enrollment_revisions', 'SELECT')  # Never approve/invalidate enrollment from the runtime account.
+    add('school_provisioned_accounts', 'SELECT')  # Offline school provisioning only.
+    add('device_enrollment_observations', 'SELECT', 'INSERT')
+    add('device_biometric_authorizations', 'SELECT', 'INSERT')
+    grants['device_biometric_authorizations'].add(('UPDATE', 'consumed_at'))
+    add('device_trust_events', 'INSERT')
     grants["students"].update(("UPDATE", col) for col in ("face_encoding", "biometric_status", "consent_at", "updated_at"))
     grants["registered_devices"].update(("UPDATE", col) for col in ("status", "revoked_at", "revocation_reason"))
     return grants
@@ -204,7 +210,7 @@ def validate_startup(engine, profile):
     from sqlalchemy import text
     try:
         with engine.connect() as connection:
-            # Runtime sees precisely its 24 granted tables. Offline admin checks all 26.
+            # Runtime sees precisely its reviewed grant set, including additive device-management tables.
             rows = connection.execute(text("SELECT TABLE_NAME, ENGINE, TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA=:schema"), {"schema": profile.db_name}).all()
             if {r[0] for r in rows} != set(required_grants()) or any(r[1:] != ("InnoDB", "BASE TABLE") for r in rows):
                 deny("RUNTIME_SCHEMA_MISMATCH")

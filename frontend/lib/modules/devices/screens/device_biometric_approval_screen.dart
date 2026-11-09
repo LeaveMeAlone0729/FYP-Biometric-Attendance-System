@@ -533,6 +533,21 @@ class _DeviceBiometricApprovalScreenState
             _activationStatus = 'UNAVAILABLE';
             _trustedStatus = 'NOT YET AVAILABLE';
           }
+          if (error is ApiException &&
+              error.code == 'BIOMETRIC_TRUST_REQUIRED') {
+            _activationStatus = 'BLOCKED';
+            _trustedStatus = 'ENROLLMENT PROVENANCE UNVERIFIED';
+          }
+          if (error is ApiException &&
+              error.code == 'LOCAL_DEMO_EVIDENCE_REQUIRED') {
+            _activationStatus = 'BLOCKED';
+            _trustedStatus = 'LOCAL DEMO EVIDENCE REQUIRED';
+          }
+          if (error is ApiException &&
+              error.code == 'FRESH_BIOMETRIC_PROOF_REQUIRED') {
+            _activationStatus = 'FRESH SCAN REQUIRED';
+            _trustedStatus = 'NOT CONFIRMED';
+          }
           _activationError = error.toString();
         });
       }
@@ -575,6 +590,13 @@ class _DeviceBiometricApprovalScreenState
         trustedApprovalStatus: _trustedStatus,
         activationBusy: _activationBusy,
         activationError: _activationError,
+        localDemo: _trustedStatus == 'LOCAL DEMO EVIDENCE REQUIRED',
+        supervisedScanReference:
+            (_trustedStatus == 'ENROLLMENT PROVENANCE UNVERIFIED' ||
+                    _trustedStatus == 'LOCAL DEMO EVIDENCE REQUIRED') &&
+                _result!['operation'] == 'enroll_second_device'
+            ? _result!['approval_id'] as String
+            : null,
         onBack: () => Navigator.pop(context, true),
       );
     }
@@ -583,10 +605,6 @@ class _DeviceBiometricApprovalScreenState
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          const InfoNotice(
-            'Face and liveness checks are an untrusted test result. This device remains inactive until institutional biometric approval is implemented.',
-          ),
-          const SizedBox(height: 12),
           ...[
             Text(
               _result?['stage'] == 'LIVENESS'

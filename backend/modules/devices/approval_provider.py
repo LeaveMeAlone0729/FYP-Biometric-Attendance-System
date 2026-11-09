@@ -3,12 +3,13 @@
 An integrated provider must lock a persistent approval and current trust revision,
 revalidate the current encrypted-template binding and session, and consume the
 approval in the SAME SQLAlchemy transaction as device activation. It must never
-commit internally. The default provider remains unavailable; implement the documented server adapter to integrate genuine institutional trust.
+commit internally. The built-in provider issues per-operation approvals only after verified enrollment provenance and fresh bound checks. Faculty recovery is outside this app.
 """
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Protocol
 from .service import DeviceRegistrationError
+from .management_models import MANAGEMENT_TABLES  # Register additive models before fixture/schema creation.
 
 
 @dataclass(frozen=True)
@@ -76,7 +77,7 @@ def validate_approval(approval, approval_id, binding, now):
     if not isinstance(approval, TrustedBiometricApproval) or approval.approval_id != approval_id or approval.binding != binding:
         raise DeviceRegistrationError(403, "APPROVAL_MISMATCH", "Approval does not belong to this candidate and login.")
     if not approval.template_trusted or not approval.trusted_template_revision_id or approval.result != "PASS":
-        raise DeviceRegistrationError(403, "BIOMETRIC_TRUST_REQUIRED", "An institution-approved biometric template is required.")
+        raise DeviceRegistrationError(403, "BIOMETRIC_TRUST_REQUIRED", "An enrollment with verified identity provenance is required.")
     if approval.consumed_at is not None:
         raise DeviceRegistrationError(409, "APPROVAL_USED", "This biometric approval has already been used.")
     if approval.expires_at <= now or approval.verified_at < now - timedelta(seconds=60):
@@ -86,43 +87,7 @@ def validate_approval(approval, approval_id, binding, now):
     return approval
 
 
-class UnavailableTrustedApprovalProvider:
-    def _unavailable(self, *args, **kwargs):
-        raise DeviceRegistrationError(503, "APPROVAL_UNAVAILABLE", "Institutional biometric trust and fresh trusted approval are not integrated. Device remains inactive.")
-
-    current_template_revision = _unavailable
-    validate_template_trust = _unavailable
-    invalidate_revision = _unavailable
-    find_fresh_approval = _unavailable
-    validate_fresh_result = _unavailable
-
-    def validate_and_lock(self, db, approval_id, binding, now):
-        if not approval_id:
-            raise DeviceRegistrationError(403, "BIOMETRIC_TRUST_REQUIRED", "Trusted biometric approval is required.")
-        raise DeviceRegistrationError(503, "APPROVAL_UNAVAILABLE", "Trusted biometric approval is not integrated. Trusted device activation and replacement are disabled.")
-
-    def consume(self, db, approval, now):
-        raise DeviceRegistrationError(503, "APPROVAL_UNAVAILABLE", "No trusted approval provider is installed.")
-
-
 def trusted_approval_provider() -> TrustedApprovalProvider:
-    """Partner-owned composition seam. Missing adapter always fails closed.
-
-    No environment/client switch. Partner implements this module entrypoint after
-    trust/recovery review; it must use the caller's SQLAlchemy transaction.
-    """
-    from importlib import import_module
-    name='modules.biometrics.trusted_device_provider'
-    try: module=import_module(name)
-    except ModuleNotFoundError as exc:
-        if exc.name==name:return UnavailableTrustedApprovalProvider()
-        raise DeviceRegistrationError(503,'APPROVAL_UNAVAILABLE','Trusted biometric provider dependencies are unavailable.') from exc
-    factory=getattr(module,'create_device_approval_provider',None)
-    if not callable(factory):
-        raise DeviceRegistrationError(503,'APPROVAL_UNAVAILABLE','Trusted biometric provider entrypoint is unavailable.')
-    provider=factory()
-    methods=('current_template_revision','validate_template_trust','invalidate_revision',
-        'find_fresh_approval','validate_fresh_result','validate_and_lock','consume')
-    if not all(callable(getattr(provider,method,None)) for method in methods):
-        raise DeviceRegistrationError(503,'APPROVAL_UNAVAILABLE','Trusted biometric provider contract is incomplete.')
-    return provider
+    """Built-in self-service approval; enrollment provenance is never fabricated."""
+    from .management_approval import LocalDeviceApprovalProvider
+    return LocalDeviceApprovalProvider()

@@ -31,7 +31,7 @@ class PendingRegistrationResponse(BaseModel):
     expires_at: datetime
     key_proven_at: datetime | None = None
     activation_enabled: Literal[False] = False
-    biometric_approval_status: Literal["UNAVAILABLE"] = "UNAVAILABLE"
+    biometric_approval_status: Literal["NOT_CHECKED"] = "NOT_CHECKED"
     attendance_authorized: Literal[False] = False
 
 

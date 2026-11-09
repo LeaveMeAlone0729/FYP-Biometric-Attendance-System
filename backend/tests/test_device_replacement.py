@@ -108,7 +108,7 @@ class ReplacementTests(unittest.TestCase):
         self.assertEqual(self.h.p.prove(second).status_code,410);self.assert_unchanged()
     def test_unavailable_untrusted_and_wrong_binding_fail_closed(self):
         self.prepare()
-        self.assertEqual(self.post('/activation-readiness',{}).json()['code'],'APPROVAL_UNAVAILABLE')
+        self.assertEqual(self.post('/activation-readiness',{}).json()['code'],'BIOMETRIC_TRUST_REQUIRED')
         with patch('modules.devices.activation_service.trusted_approval_provider',return_value=self.h.provider):
             for changes in [{'operation':'enroll_second_device'},{'slot_number':2},{'replaced_device_id':'wrong'},{'replaced_device_fingerprint':'wrong'},{'student_id':'DEVICE002'},{'auth_token_hash':'wrong'}]:
                 with self.f.sessions.begin() as db:db.get(activation.FixtureGrant,'grant-1').binding=json.dumps({**self.h.binding.__dict__,**changes})

@@ -49,7 +49,7 @@ Map<String, dynamic> result(String stage, {int valid = 0}) => {
   'activation_eligible': false,
   'activation_enabled': false,
   'message': stage == 'COMPLETED_UNTRUSTED'
-      ? 'Biometric checks completed — awaiting trusted biometric approval'
+      ? 'Biometric checks completed — checking device authorization'
       : stage == 'FACE'
       ? 'Center your face.'
       : 'Show three fingers with your face visible.',
@@ -73,6 +73,7 @@ class BioFixture {
       lostFaceResponse = false;
   bool networkFailure = false;
   String? faceFeedback, livenessFeedback;
+  String? readinessError;
   Completer<http.Response>? delayedFace, delayedLiveness;
   final paths = <String>[];
   final uploads = <List<int>>[];
@@ -112,11 +113,11 @@ class BioFixture {
         return jsonResponse(
           jsonEncode({
             'success': false,
-            'code': 'APPROVAL_UNAVAILABLE',
+            'code': readinessError ?? 'APPROVAL_UNAVAILABLE',
             'message':
-                'Institutional biometric trust is unavailable. Device remains inactive.',
+                'Enrollment identity provenance or fresh device authorization is not confirmed. Device remains inactive.',
           }),
-          503,
+          readinessError == null ? 503 : 403,
         );
       }
       expect(
@@ -309,6 +310,50 @@ Color guideColor(WidgetTester tester, {bool liveness = false}) {
 }
 
 void main() {
+  for (final code in [
+    'BIOMETRIC_TRUST_REQUIRED',
+    'LOCAL_DEMO_EVIDENCE_REQUIRED',
+    'FRESH_BIOMETRIC_PROOF_REQUIRED',
+  ]) {
+    testWidgets(
+      'Unverified enrollment or stale biometric proof blocks activation: $code',
+      (tester) async {
+        final f = BioFixture()..readinessError = code;
+        await mountBio(tester, f);
+        await start(tester);
+        for (var i = 0; i < 4; i++) {
+          await tick(tester);
+        }
+        expect(find.byType(DeviceBiometricCompletion), findsOneWidget);
+        expect(find.text('Registration status: NOT ACTIVE'), findsOneWidget);
+        expect(
+          find.text(switch (code) {
+            'BIOMETRIC_TRUST_REQUIRED' =>
+              'Trusted biometric approval: ENROLLMENT PROVENANCE UNVERIFIED',
+            'LOCAL_DEMO_EVIDENCE_REQUIRED' =>
+              'Trusted biometric approval: LOCAL DEMO EVIDENCE REQUIRED',
+            _ => 'Device activation: FRESH SCAN REQUIRED',
+          }),
+          findsOneWidget,
+        );
+        expect(
+          f.paths.any(
+            (p) =>
+                p.endsWith('/activation-challenges') || p.endsWith('/activate'),
+          ),
+          isFalse,
+        );
+        expect(find.byType(CameraPreview), findsNothing);
+        expect(
+          find.text('Scan reference: bio-test'),
+          code == 'FRESH_BIOMETRIC_PROOF_REQUIRED'
+              ? findsNothing
+              : findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets(
     'Biometric completion automatically activates and returns after server ACTIVE',
     (tester) async {
@@ -548,12 +593,7 @@ void main() {
         latin1.decode(f.uploads.first),
         contains('\r\n\r\n\u0001\r\n'),
       ); // Original camera bytes, no preview transform applied to upload.
-      expect(
-        find.text(
-          'Biometric checks completed — awaiting trusted biometric approval',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('Face verification complete'), findsOneWidget);
       expect(find.textContaining('Slot 2 remains inactive'), findsOneWidget);
       expect(camera.releases, 1);
       expect(
@@ -869,6 +909,12 @@ void main() {
       ]) {
         expect(find.text(text), findsOneWidget);
       }
+      expect(
+        find.text(
+          'Slot 2 remains inactive until the server approves registration.',
+        ),
+        findsOneWidget,
+      );
       expect(find.byType(CameraPreview), findsNothing);
       expect(find.byType(DeviceLivenessPanel), findsNothing);
       expect(find.byType(LinearProgressIndicator), findsNothing);

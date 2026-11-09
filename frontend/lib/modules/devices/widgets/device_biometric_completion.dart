@@ -11,6 +11,8 @@ class DeviceBiometricCompletion extends StatelessWidget {
     this.trustedApprovalStatus,
     this.activationBusy = false,
     this.activationError,
+    this.supervisedScanReference,
+    this.localDemo = false,
     this.replacement = false,
     this.activationState = const DeviceActivationState.unavailable(
       keyVerified: true,
@@ -20,7 +22,8 @@ class DeviceBiometricCompletion extends StatelessWidget {
   });
   final VoidCallback onBack;
   final String? activationStatus, trustedApprovalStatus, activationError;
-  final bool activationBusy, replacement;
+  final String? supervisedScanReference;
+  final bool activationBusy, replacement, localDemo;
   final DeviceActivationState activationState;
 
   @override
@@ -42,7 +45,7 @@ class DeviceBiometricCompletion extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Biometric checks completed — awaiting trusted biometric approval',
+                  'Face verification complete',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 20),
@@ -91,14 +94,25 @@ class DeviceBiometricCompletion extends StatelessWidget {
                     activationError!,
                     key: const ValueKey('activation-error'),
                   ),
+                if (supervisedScanReference case final reference?) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    localDemo
+                        ? 'Give the scan reference to the local FYP operator for demo verification.'
+                        : 'An authorized institution verifier must check your identity and witness a fresh Slot 2 scan. Give the verifier the reference from that supervised scan.',
+                  ),
+                  SelectableText('Scan reference: $reference'),
+                  Text(
+                    localDemo
+                        ? 'After the operator records the demo evidence, cancel this pending request and run a fresh Slot 2 scan.'
+                        : 'After the verifier records the signed evidence, cancel the pending request and start Slot 2 registration again.',
+                  ),
+                ],
                 const SizedBox(height: 20),
                 Text(
                   replacement
-                      ? 'Your face, live gesture and candidate device key checks succeeded. The result is COMPLETED_UNTRUSTED. The old device remains ACTIVE until genuine trusted replacement approval and fresh key proof succeed. The other slot is unchanged.'
-                      : 'Your face, live gesture and candidate device key checks succeeded. '
-                            'The result is COMPLETED_UNTRUSTED. Slot 2 remains inactive until '
-                            'the backend confirms a genuine trusted approval and fresh activation-key proof. '
-                            'The biometric test result alone does not authorize registration.',
+                      ? 'Your old device remains ACTIVE until replacement is approved. Your other device is unchanged.'
+                      : 'Slot 2 remains inactive until the server approves registration.',
                 ),
                 const SizedBox(height: 24),
                 FilledButton(

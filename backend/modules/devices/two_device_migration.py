@@ -1,3 +1,4 @@
+from database_compat import verify_check_enforcement
 """Resumable MariaDB Stage A migration. Verify new guards BEFORE releasing old uniqueness."""
 import hashlib
 import json
@@ -20,7 +21,8 @@ def require(condition, message="Stage A migration safety validation failed"):
 
 
 def normalized(value):
-    return re.sub(r"[\s`()]+", "", value).lower()
+    from database_compat import normalized_expression
+    return normalized_expression(value)
 
 
 def indexes(connection, table=TABLE):
@@ -90,7 +92,7 @@ def upgrade_two_device_schema(engine, release_legacy=False):
         lock = "attendance.stage_a." + database
         require(connection.scalar(text('SELECT GET_LOCK(:name,10)'), dict(name=lock)) == 1, 'Migration already running')
         try:
-            require(connection.scalar(text('SELECT @@check_constraint_checks')) == 1, 'CHECK enforcement is disabled')
+            verify_check_enforcement(connection)
             require(connection.scalar(text('SELECT @@unique_checks')) == 1, 'Unique enforcement is disabled')
             require(inspect(connection).has_table(TABLE), 'Apply Phase 1 first')
             references = connection.execute(text("SELECT TABLE_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND REFERENCED_TABLE_NAME='registered_devices' AND REFERENCED_COLUMN_NAME='student_id'")).all()

@@ -117,7 +117,8 @@ class GrantTests(unittest.TestCase):
         for grant in grants(p):
             unquoted.append(re.sub(r"\([^()]+\)", lambda m: m[0].replace("`", ""), grant))
         validate_grants(unquoted, p)
-        self.assertEqual(len(required_grants()), 24)
+        self.assertEqual(len(required_grants()), 29)
+        self.assertEqual(required_grants()['device_enrollment_revisions'], {('SELECT', None)})
 
     def test_broad_missing_role_and_cross_schema_grants_fail(self):
         p = profile()
@@ -125,6 +126,8 @@ class GrantTests(unittest.TestCase):
                   "GRANT SELECT ON `other`.* TO `fyp_prod_runtime`@`127.0.0.1`",
                   f"GRANT DELETE ON `{p.db_name}`.`attendance` TO `fyp_prod_runtime`@`127.0.0.1`",
                   f"GRANT UPDATE ON `{p.db_name}`.`students` TO `fyp_prod_runtime`@`127.0.0.1`",
+                    f"GRANT INSERT ON `{p.db_name}`.`device_enrollment_revisions` TO `fyp_prod_runtime`@`127.0.0.1`",
+                    f"GRANT UPDATE ON `{p.db_name}`.`device_enrollment_revisions` TO `fyp_prod_runtime`@`127.0.0.1`",
                   "GRANT `admin` TO `fyp_prod_runtime`@`127.0.0.1`",
                   grants(p)[1] + " WITH GRANT OPTION", grants(p)[1].replace("127.0.0.1", "%")]
         for extra in extras:

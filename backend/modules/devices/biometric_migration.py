@@ -1,3 +1,4 @@
+from database_compat import verify_check_enforcement
 """Additive B3 untrusted-session migration. Existing records are untouched."""
 import re
 import secrets
@@ -18,7 +19,7 @@ def probe_biometric_constraints(connection):
         insert(1)
         for number,values in enumerate((dict(),dict(stage="TRUSTED"),dict(slot=3),dict(fingers=6),dict(valid=4)),2):
             try:insert(number,**values)
-            except DBAPIError as exc:require(getattr(exc.orig,"errno",None) in (1062,4025),"Unexpected B3 constraint error")
+            except DBAPIError as exc:require(getattr(exc.orig,"errno",None) in (1062,4025,3819),"Unexpected B3 constraint error")
             else:raise RuntimeError("B3 constraint did not reject invalid session")
         connection.exec_driver_sql("UPDATE `"+name+"` SET stage='COMPLETED_UNTRUSTED'")
         insert(9)
@@ -32,7 +33,7 @@ def upgrade_biometric_schema(engine):
         require(connection.scalar(text("SELECT GET_LOCK(:name,10)"),dict(name=lock))==1,"B3 migration already running")
         created=[]
         try:
-            require(connection.scalar(text("SELECT @@check_constraint_checks"))==1,"CHECK enforcement disabled")
+            verify_check_enforcement(connection)
             require(connection.scalar(text("SELECT @@unique_checks"))==1,"Unique enforcement disabled")
             verify_guards(connection)
             require(inspect(connection).has_table("pending_device_registrations"),"Apply B2 first")
