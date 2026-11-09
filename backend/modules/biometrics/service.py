@@ -17,6 +17,7 @@ from sqlalchemy import select
 from .constants import MAX_IMAGE_BYTES, MAX_LIVENESS_FRAMES, REQUIRED_LIVENESS_FRAMES
 from .inference import BiometricError
 from .presentation import validate_scores
+from .head_movement import MESSAGES, HOLD_FRAMES
 from .templates import decrypt_encoding, encrypt_encoding
 
 
@@ -64,6 +65,16 @@ class BiometricService:
             raise BiometricError(
                 "Your facial registration needs attention. Visit your department for supervised re-registration. Ask your lecturer to record attendance manually while this is resolved."
             ) from exc
+
+    def head_progress(self, state, *, ready=False, message=None):
+        action = state["actions"][state["step"]]
+        return {
+            "success": True, "ready": ready, "complete": False,
+            "stage": "face", "liveness_step": "head", "head_action": action,
+            "head_step": state["step"] + 1, "head_steps": len(state["actions"]),
+            "held_frames": state["held"], "required_hold_frames": HOLD_FRAMES,
+            "message": message or MESSAGES[action],
+        }
 
     def register_face(
         self, student, db, file, consent, *, auto_capture=False, preview_only=False, auth=None
@@ -140,11 +151,16 @@ class BiometricService:
         challenge, session = self.context.get_challenge(
             challenge_id, "face", db, student, auth
         )
+        head = self.context.runtime_head.read(challenge)
+        hashes = json.loads(challenge.frame_hashes)
+        if ((head is None and (hashes or challenge.valid_frames))
+                or (head is not None and head["progress"] != challenge.valid_frames)):
+            raise HTTPException(409, "Head movement progress was reset. Enter the attendance PIN again.")
         try:
             image = self.read_image(file)
             encoding = (
                 self.context.bio.guided_face(image)
-                if auto_capture
+                if auto_capture and head is None
                 else self.context.bio.face(image)
             )
             face_scores = self.face_evidence(image)
@@ -163,6 +179,12 @@ class BiometricService:
                         410,
                         challenge,
                     )
+                if head is not None:
+                    state = self.context.runtime_head.advance(challenge)
+                    if state is None:
+                        raise HTTPException(409, "Head movement progress was reset. Enter the attendance PIN again.")
+                    challenge.valid_frames = state["progress"]
+                    return self.head_progress(state, message=str(exc))
                 return {
                     "success": True,
                     "ready": False,
@@ -212,22 +234,53 @@ class BiometricService:
                 410,
                 challenge,
             )
-        if preview_only:
+        if preview_only and head is None:
             return {
                 "success": True,
                 "ready": True,
                 "preview_only": True,
                 "message": "Face matched. Hold still for automatic capture.",
             }
+        try:
+            pose = self.context.bio.head_pose(image)
+        except BiometricError as exc:
+            self.check_deadline(student, db, challenge, session)
+            if head is None:
+                return {"success": True, "ready": False, "retryable": True, "message": str(exc)}
+            state = self.context.runtime_head.advance(challenge)
+            if state is None:
+                raise HTTPException(409, "Head movement progress was reset. Enter the attendance PIN again.")
+            challenge.valid_frames = state["progress"]
+            return self.head_progress(state, message=str(exc))
+        except (RuntimeError, ImportError, OSError, ValueError, AttributeError) as exc:
+            raise HTTPException(503, "Facial challenge verification is unavailable. Check the backend face model before retrying.") from exc
+        self.check_deadline(student, db, challenge, session)
+        if head is None:
+            head = self.context.runtime_head.start(challenge)
+        if head is None:
+            raise HTTPException(409, "Head movement progress was reset. Enter the attendance PIN again.")
+        if len(hashes) >= MAX_LIVENESS_FRAMES:
+            self.context.reject(db, student.student_id, "face", "Too many head movement frames. Start again.", session.session_id, 429, challenge)
+        digest = hashlib.sha256(image.tobytes()).hexdigest()
+        replayed = digest in hashes
+        if not replayed:
+            hashes.append(digest)
+            challenge.frame_hashes = json.dumps(hashes)
+        state = self.context.runtime_head.advance(challenge, None if replayed else pose)
+        if state is None:
+            raise HTTPException(409, "Head movement progress was reset. Enter the attendance PIN again.")
+        challenge.valid_frames = state["progress"]
+        if state["step"] < len(state["actions"]):
+            return self.head_progress(state, ready=not replayed and state["held"] > 0,
+                                      message="Use fresh camera frames for the head movement check." if replayed else None)
         challenge.stage = "liveness"
         challenge.fingers = secrets.randbelow(5) + 1
-        if not self.context.runtime_liveness.start(challenge, face_scores):
+        challenge.valid_frames = 0
+        if not self.context.runtime_liveness.start(challenge, face_scores, head_verified=True):
             self.check_deadline(student, db, challenge, session)
             raise HTTPException(409, "Verification progress was reset. Enter the attendance PIN again.")
-        # An enrollment/face frame can never count as a liveness response.
-        challenge.frame_hashes = json.dumps(
-            [hashlib.sha256(image.tobytes()).hexdigest()]
-        )
+        self.context.runtime_head.discard(challenge)
+        # All head/face frames remain in the replay list for the finger stage.
         root = db.get(VerificationAttempt, challenge.verification_id)
         root.stage = "liveness"
         root.face_distance = distance
@@ -241,7 +294,8 @@ class BiometricService:
             "expires_at": iso_time(challenge.expires_at, self.context.settings),
             "liveness_step": "hand",
             "anti_spoof_verified": True,
-            "message": f"Face and anti-spoof checks passed. Show {challenge.fingers} finger(s) beside your face, palm toward the camera.",
+            "head_movement_verified": True,
+            "message": f"Face, facial actions and anti-spoof checks passed. Show {challenge.fingers} finger(s) beside your face, palm toward the camera.",
         }
 
     def liveness_frame(self, student, auth, db, challenge_id, file, *, request_scope=None, device_challenge_id=None, device_signature=None):
@@ -249,7 +303,7 @@ class BiometricService:
             challenge_id, "liveness", db, student, auth
         )
         state = self.context.runtime_liveness.read(challenge)
-        if state is None or len(state["frames"]) != challenge.valid_frames:
+        if state is None or not state["head_verified"] or len(state["frames"]) != challenge.valid_frames:
             raise HTTPException(409, "Verification progress was reset. Enter the attendance PIN again.")
         if len(json.loads(challenge.frame_hashes)) >= MAX_LIVENESS_FRAMES:
             self.context.reject(
@@ -334,6 +388,7 @@ class BiometricService:
             raise HTTPException(404, "Verification request not found.")
         if not challenge.consumed:
             self.context.runtime_liveness.discard(challenge)
+            self.context.runtime_head.discard(challenge)
             challenge.consumed = True
             root = db.get(VerificationAttempt, challenge.verification_id)
             root.verification_result = "cancelled"
@@ -374,7 +429,7 @@ class BiometricService:
             # Report the committed outcome after runtime evidence is discarded.
             "face_liveness_verified": status == "success" and challenge.stage == "complete"
             and challenge.valid_frames == REQUIRED_LIVENESS_FRAMES and attendance_id is not None,
-            "valid_frames": challenge.valid_frames,
+            "valid_frames": challenge.valid_frames if challenge.stage != "face" else 0,
             "required_frames": REQUIRED_LIVENESS_FRAMES,
             "expires_at": iso_time(challenge.expires_at, self.context.settings),
             "attendance_id": attendance_id,

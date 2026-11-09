@@ -49,6 +49,8 @@ class _CameraScreenState extends State<CameraScreen>
       _message =
           'Center your face in the circle. Capture happens automatically.';
   String? _cameraError, _recordedAt;
+  String? _headAction;
+  int _headStep = 0, _headSteps = 7, _headHeld = 0;
   int _fingers = 0, _valid = 0, _remaining = 90;
   Timer? _clock, _captureTimer;
   late final Stopwatch _elapsed, _faceElapsed;
@@ -277,7 +279,7 @@ class _CameraScreenState extends State<CameraScreen>
   Future<void> _scanFrame() async {
     if (!_canScan || _busy) return;
     final generation = _cameraGeneration;
-    final isFace = _stage == 'face';
+    final isFace = _stage != 'liveness';
     var nextDelay = isFace
         ? const Duration(milliseconds: 900)
         : const Duration(milliseconds: 500);
@@ -299,11 +301,39 @@ class _CameraScreenState extends State<CameraScreen>
           consent: _consent,
           previewOnly: _readyChecks == 0,
         );
+      } else if (isFace && _stage == 'head' && _headAction == 'blink') {
+        final frames = <Uint8List>[bytes];
+        var burstBytes = bytes.length;
+        for (var index = 1; index < 8; index++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          if (!mounted ||
+              _finished ||
+              _paused ||
+              _deadlineReached ||
+              generation != _cameraGeneration) {
+            return;
+          }
+          final frame = await _capture();
+          if (burstBytes + frame.length > 6 * 1024 * 1024) break;
+          frames.add(frame);
+          burstBytes += frame.length;
+        }
+        if (!mounted ||
+            _finished ||
+            _paused ||
+            _deadlineReached ||
+            generation != _cameraGeneration) {
+          return;
+        }
+        response = await _biometrics.verifyBlink(
+          widget.challenge!['challenge_id'] as String,
+          frames,
+        );
       } else if (isFace) {
         response = await _biometrics.verifyFace(
           widget.challenge!['challenge_id'] as String,
           bytes,
-          previewOnly: _readyChecks == 0,
+          previewOnly: _stage == 'face' && _readyChecks == 0,
         );
       } else {
         response = await _biometrics.submitLivenessFrame(
@@ -314,7 +344,22 @@ class _CameraScreenState extends State<CameraScreen>
       if (!mounted || _finished) return;
       // Apply responses even while paused: the server may have advanced the
       // challenge. Only scheduling and camera capture are suspended.
-      if (isFace && response['ready'] == false) {
+      if (isFace && response['liveness_step'] == 'head') {
+        _faceElapsed.stop();
+        setState(() {
+          _stage = 'head';
+          _readyChecks = 1;
+          _headAction = response['head_action'] as String;
+          _headStep = response['head_step'] as int;
+          _headSteps = response['head_steps'] as int;
+          _headHeld = response['held_frames'] as int;
+          _feedback = response['ready'] == true
+              ? _ScanFeedback.ready
+              : _ScanFeedback.adjust;
+          _message = response['message'] as String;
+        });
+        nextDelay = const Duration(milliseconds: 500);
+      } else if (isFace && response['ready'] == false) {
         setState(() {
           _readyChecks = 0;
           _feedback = _ScanFeedback.adjust;
@@ -355,7 +400,7 @@ class _CameraScreenState extends State<CameraScreen>
         _recordedAt = response['recorded_at'] as String?;
         _finish(
           true,
-          'Your identity and gesture were verified. Your attendance has been recorded.',
+          'Your facial and hand challenges passed. Your attendance has been recorded.',
         );
       } else if (!isFace) {
         setState(() {
@@ -447,21 +492,32 @@ class _CameraScreenState extends State<CameraScreen>
       ? const Color(0xFF35D596)
       : Colors.white70;
 
-  String get _guideLabel => switch (_feedback) {
-    _ScanFeedback.waiting =>
-      widget.enrollment && !_consent
-          ? 'CONSENT TO START'
-          : _stage == 'face'
-          ? 'POSITION YOUR FACE'
-          : 'SHOW YOUR HAND ANYWHERE IN FRAME',
-    _ScanFeedback.checking => 'CHECKING AUTOMATICALLY',
-    _ScanFeedback.adjust =>
-      _stage == 'face' ? 'ADJUST YOUR POSITION' : 'ADJUST YOUR GESTURE',
-    _ScanFeedback.ready =>
-      _stage == 'face'
-          ? 'FACE DETECTED · HOLD STILL'
-          : 'FACE VERIFIED · HOLD YOUR GESTURE',
+  String get _headTitle => switch (_headAction) {
+    'turn_left' => 'Turn your head to your left',
+    'turn_right' => 'Turn your head to your right',
+    'look_up' => 'Look slightly upward',
+    'look_down' => 'Look slightly downward',
+    'blink' => 'Blink naturally',
+    _ => 'Look straight at the camera',
   };
+
+  String get _guideLabel => _stage == 'head'
+      ? _headTitle.toUpperCase()
+      : switch (_feedback) {
+          _ScanFeedback.waiting =>
+            widget.enrollment && !_consent
+                ? 'CONSENT TO START'
+                : _stage == 'face'
+                ? 'POSITION YOUR FACE'
+                : 'SHOW YOUR HAND ANYWHERE IN FRAME',
+          _ScanFeedback.checking => 'CHECKING AUTOMATICALLY',
+          _ScanFeedback.adjust =>
+            _stage == 'face' ? 'ADJUST YOUR POSITION' : 'ADJUST YOUR GESTURE',
+          _ScanFeedback.ready =>
+            _stage == 'face'
+                ? 'FACE DETECTED · HOLD STILL'
+                : 'FACE VERIFIED · HOLD YOUR GESTURE',
+        };
 
   Widget _check(String text, bool done) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 9),
@@ -618,6 +674,7 @@ class _CameraScreenState extends State<CameraScreen>
                             const SizedBox(height: 10),
                             _check('Class attendance code', true),
                             _check('Facial identity', _stage == 'liveness'),
+                            _check('Facial challenge', _stage == 'liveness'),
                             _check('Photo and screen check', _success),
                             _check('Hand gesture challenge', _success),
                             if (_recordedAt != null)
@@ -725,6 +782,8 @@ class _CameraScreenState extends State<CameraScreen>
                   Text(
                     _stage == 'liveness'
                         ? 'Show $_fingers finger${_fingers == 1 ? '' : 's'}'
+                        : _stage == 'head'
+                        ? _headTitle
                         : 'Center your face',
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
@@ -732,6 +791,10 @@ class _CameraScreenState extends State<CameraScreen>
                   Text(
                     _stage == 'liveness'
                         ? 'Keep your face and one full hand visible, palm toward the camera. Neither needs to be centered. Leave space between them.'
+                        : _stage == 'head'
+                        ? _headAction == 'blink'
+                              ? 'Blink naturally, then look at the camera with your eyes open. Your hands can stay down.'
+                              : 'Keep your face visible and follow the instruction gently. Hold briefly until the next instruction. Your hands can stay down.'
                         : 'Look into the camera. Hold still when the circle turns green; we’ll capture automatically.',
                   ),
                   const SizedBox(height: 20),
@@ -943,6 +1006,17 @@ class _CameraScreenState extends State<CameraScreen>
                       '30-second face scan · No capture button needed',
                       style: TextStyle(fontSize: 12, color: muted),
                     ),
+                  ],
+                  if (_stage == 'head') ...[
+                    const SizedBox(height: 16),
+                    LinearProgressIndicator(
+                      key: const ValueKey('head-movement-progress'),
+                      value: ((_headStep - 1) + _headHeld / 2) / _headSteps,
+                      minHeight: 7,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Facial challenge: step $_headStep of $_headSteps'),
                   ],
                   if (_stage == 'liveness') ...[
                     const SizedBox(height: 16),

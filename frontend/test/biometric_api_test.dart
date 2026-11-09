@@ -11,6 +11,58 @@ import 'package:frontend/services/api_client.dart';
 
 void main() {
   test(
+    'Blink burst uses authenticated frame checks and stops at the next action',
+    () async {
+      final uploaded = <String>[];
+      final client = ApiClient(
+        client: MockClient((request) async {
+          if (request.url.path == '/login') {
+            return http.Response(
+              jsonEncode({
+                'access_token': 'blink-token',
+                'student': {'student_id': 'TEST001'},
+              }),
+              200,
+            );
+          }
+          expect(request.url.path, '/verify-face');
+          expect(request.headers['Authorization'], 'Bearer blink-token');
+          final body = latin1.decode(request.bodyBytes);
+          expect(body, contains('name="preview_only"\r\n\r\nfalse'));
+          final sample = [
+            'open-sample',
+            'blink-sample',
+            'reopened-sample',
+          ][uploaded.length];
+          expect(body, contains(sample));
+          uploaded.add(sample);
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'liveness_step': 'head',
+              'head_action': uploaded.length < 3 ? 'blink' : 'look_straight',
+            }),
+            200,
+          );
+        }),
+      );
+      await client.login('TEST001', 'test-password');
+      final api = BiometricApi(client);
+      final result = await api.verifyBlink('challenge-id', [
+        for (final text in [
+          'open-sample',
+          'blink-sample',
+          'reopened-sample',
+          'unused-sample',
+        ])
+          Uint8List.fromList(utf8.encode(text)),
+      ]);
+      expect(uploaded, hasLength(3));
+      expect(result['head_action'], 'look_straight');
+    },
+  );
+
+  test(
     'Biometric requests preserve bearer authentication and multipart fields',
     () async {
       final calls = <String>[];

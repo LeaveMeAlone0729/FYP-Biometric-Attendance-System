@@ -104,11 +104,25 @@ try:
         fields={'challenge_id':attempt}
         if proof:fields.update(device_challenge_id=proof['challenge_id'],device_signature=base64.b64encode((key or f['key']).sign(base64.b64decode(proof['signing_payload']),ec.ECDSA(hashes.SHA256()))).decode())
         return request('post','/liveness/frame',headers or f['headers'],source,data=fields,files={'file':('frame.jpg',image,'image/jpeg')})
+    def match_face(f,attempt,face=b'correct-face'):
+        matched=request('post','/verify-face',f['headers'],data={'challenge_id':attempt},files={'file':('frame.jpg',face,'image/jpeg')})
+        blink_index=0
+        for index in range(24):
+            if matched.status_code!=200 or matched.json().get('face_verified'):break
+            assert matched.json().get('liveness_step')=='head',matched.text
+            action=matched.json()['head_action'];clock[0]+=timedelta(milliseconds=500)
+            if action=='blink':
+                action=('blink_open','blink_closed','blink_reopen')[blink_index%3];blink_index+=1
+            pixels=f'head-{action}-{index}'.encode()
+            matched=request('post','/verify-face',f['headers'],data={'challenge_id':attempt},files={'file':('frame.jpg',pixels,'image/jpeg')})
+        if matched.status_code==200:
+            assert matched.json().get('head_movement_verified'),matched.text
+            bio.gesture=matched.json()['fingers']
+        return matched
     def begin(f,face=b'correct-face'):
         started=request('post','/attendance/start',f['headers'],json={'pin':'765432'});assert started.status_code==200,started.text
         attempt=started.json()['challenge_id']
-        matched=request('post','/verify-face',f['headers'],data={'challenge_id':attempt},files={'file':('frame.jpg',face,'image/jpeg')})
-        if matched.status_code==200:bio.gesture=matched.json()['fingers']
+        matched=match_face(f,attempt,face)
         return attempt,matched
     def proof(f,attempt):return request('post','/api/v1/attendance/device-challenges',f['headers'],json={'attendance_challenge_id':attempt,'public_key_fingerprint':f['fp']})
     def ready(f):
@@ -141,7 +155,7 @@ try:
         assert count()==before
         if mode=='valid preflight':
             cases.append(dict(case='valid preflight is readiness only',http_status=200,result='PREFLIGHT_PASS',attendance_delta=0));continue
-        matched=request('post','/verify-face',f['headers'],data={'challenge_id':attempt},files={'file':('frame.jpg',b'correct-face','image/jpeg')})
+        matched=match_face(f,attempt)
         assert matched.status_code==200,matched.text;bio.gesture=matched.json()['fingers'];nonce=proof(f,attempt).json()
         for i in range(2):assert frame(f,attempt,('preflight-live-'+str(i)).encode(),nonce).status_code==200
         with sessions.begin() as db:db.get(NetworkPolicy,'p5-isolated').enabled=False

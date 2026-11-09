@@ -4,4 +4,3 @@ analyzer:
   exclude:
     - build/**
     - android/**
-    - ios/**

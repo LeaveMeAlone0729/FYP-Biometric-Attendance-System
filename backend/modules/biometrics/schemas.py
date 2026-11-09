@@ -39,6 +39,21 @@ class FaceVerified(BaseModel):
     expires_at: datetime
     liveness_step: Literal["hand"]
     anti_spoof_verified: Literal[True]
+    head_movement_verified: Literal[True]
+    message: str
+
+
+class HeadMovementProgress(BaseModel):
+    success: Literal[True]
+    ready: bool
+    complete: Literal[False]
+    stage: Literal["face"]
+    liveness_step: Literal["head"]
+    head_action: Literal["look_straight", "turn_left", "turn_right", "look_up", "look_down", "blink"]
+    head_step: int = Field(ge=1, le=7)
+    head_steps: Literal[7]
+    held_frames: int = Field(ge=0, le=1)
+    required_hold_frames: Literal[2]
     message: str
 
 

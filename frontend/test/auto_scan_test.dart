@@ -167,6 +167,172 @@ Color guideColor(WidgetTester tester, {String guide = 'face-guide'}) =>
         .color;
 
 void main() {
+  for (final expires in [false, true]) {
+    testWidgets(
+      'Blink burst stops before upload on ${expires ? 'expiry' : 'background'}',
+      (tester) async {
+        final camera = TestCamera();
+        final api = ScanApi(
+          (path, fields) async => fields['preview_only'] == 'true'
+              ? {'ready': true, 'preview_only': true, 'message': 'Hold still.'}
+              : {
+                  'ready': true,
+                  'liveness_step': 'head',
+                  'head_action': 'blink',
+                  'head_step': 2,
+                  'head_steps': 7,
+                  'held_frames': 0,
+                  'message': 'Blink naturally.',
+                },
+        );
+        await mountScan(
+          tester,
+          api,
+          seconds: expires ? 3 : 90,
+          createCamera: () => camera,
+        );
+        await advance(tester, 1200);
+        await advance(tester, 900);
+        await advance(tester, 500);
+        expect(api.calls, hasLength(2));
+        if (!expires) {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.paused,
+          );
+          await tester.pump();
+        }
+        for (var frame = 0; frame < 8; frame++) {
+          await advance(tester, 100);
+        }
+        expect(api.calls, hasLength(2));
+        expect(camera.captures, lessThan(10));
+        expect(api.cancellations, expires ? 1 : 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'Blink captures a burst before inference and stays before fingers',
+    (tester) async {
+      var frames = 0;
+      final camera = TestCamera();
+      final api = ScanApi((path, fields) async {
+        expect(path, '/verify-face');
+        if (fields['preview_only'] == 'true') {
+          return {
+            'ready': true,
+            'preview_only': true,
+            'message': 'Hold still.',
+          };
+        }
+        frames++;
+        return {
+          'ready': true,
+          'complete': false,
+          'stage': 'face',
+          'liveness_step': 'head',
+          'head_action': frames < 4 ? 'blink' : 'look_straight',
+          'head_step': frames < 4 ? 2 : 3,
+          'head_steps': 7,
+          'held_frames': 0,
+          'required_hold_frames': 2,
+          'message':
+              'Blink naturally once, then look at the camera with your eyes open.',
+        };
+      });
+      await mountScan(tester, api, createCamera: () => camera);
+      await advance(tester, 1200);
+      await advance(tester, 900);
+      expect(find.text('Blink naturally'), findsOneWidget);
+      expect(find.textContaining('Close your eyes'), findsNothing);
+      await advance(tester, 500);
+      expect(api.calls, hasLength(2));
+      for (var frame = 0; frame < 7; frame++) {
+        await advance(tester, 100);
+      }
+      expect(camera.captures, 10);
+      expect(api.calls, hasLength(5));
+      expect(find.text('Look straight at the camera'), findsOneWidget);
+      expect(find.text('Start liveness challenge'), findsNothing);
+      expect(api.maximumInFlight, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Head movement stays in face verification until the server enables fingers',
+    (tester) async {
+      var headFrames = 0;
+      var finishHead = false;
+      final api = ScanApi((path, fields) async {
+        expect(path, '/verify-face');
+        if (fields['preview_only'] == 'true') {
+          return {
+            'ready': true,
+            'preview_only': true,
+            'message': 'Hold still.',
+          };
+        }
+        if (finishHead) {
+          return {
+            'ready': true,
+            'face_verified': true,
+            'head_movement_verified': true,
+            'fingers': 3,
+          };
+        }
+        headFrames++;
+        return {
+          'ready': headFrames == 1,
+          'complete': false,
+          'stage': 'face',
+          'liveness_step': 'head',
+          'head_action': headFrames == 1 ? 'look_straight' : 'turn_left',
+          'head_step': headFrames == 1 ? 1 : 2,
+          'head_steps': 7,
+          'held_frames': headFrames == 1 ? 1 : 0,
+          'required_hold_frames': 2,
+          'message': headFrames == 1
+              ? 'Look straight.'
+              : 'Turn gently to your left.',
+        };
+      });
+      await mountScan(tester, api);
+      await advance(tester, 1200);
+      await advance(tester, 900);
+      expect(
+        find.byKey(const ValueKey('head-movement-progress')),
+        findsOneWidget,
+      );
+      expect(find.text('Look straight at the camera'), findsOneWidget);
+      expect(find.text('Start liveness challenge'), findsNothing);
+      await advance(tester, 500);
+      expect(find.text('Turn your head to your left'), findsOneWidget);
+      expect(find.text('Facial challenge: step 2 of 7'), findsOneWidget);
+      expect(api.calls.last['preview_only'], 'false');
+      // The 30-second initial positioning timer must stop during head actions.
+      await advance(tester, 31000);
+      expect(
+        find.byKey(const ValueKey('head-movement-progress')),
+        findsOneWidget,
+      );
+      expect(api.cancellations, 0);
+      expect(
+        api.calls.where((call) => call['path'] == '/liveness/frame'),
+        isEmpty,
+      );
+      finishHead = true;
+      await advance(tester, 900);
+      expect(find.text('Next: show 3 fingers'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('head-movement-progress')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Automatic scan turns red, recovers green and advances without a capture tap',
     (tester) async {

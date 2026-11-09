@@ -9,7 +9,7 @@ from .constants import REQUIRED_LIVENESS_FRAMES
 from .inference import BiometricError
 from .presentation import validate_scores
 
-VERSION = 2
+VERSION = 3
 
 
 class RuntimeLiveness:
@@ -39,8 +39,8 @@ class RuntimeLiveness:
             if self._entries[key][0][-1] <= now:
                 del self._entries[key]
 
-    def start(self, challenge, face_scores):
-        state = new_state(face_scores)
+    def start(self, challenge, face_scores, *, head_verified=False):
+        state = new_state(face_scores, head_verified=head_verified)
         with self._lock:
             self._prune()
             if challenge.expires_at <= self._clock():
@@ -80,8 +80,9 @@ class RuntimeLiveness:
             self._entries.clear()
 
 
-def new_state(face_scores):
-    return {"version": VERSION, "face_scores": validate_scores(face_scores), "frames": []}
+def new_state(face_scores, *, head_verified=False):
+    return {"version": VERSION, "face_scores": validate_scores(face_scores),
+            "head_verified": head_verified, "frames": []}
 
 
 def read_state(value):
@@ -90,6 +91,8 @@ def read_state(value):
         if type(state) is not dict or state.get("version") != VERSION:
             return None
         validate_scores(state["face_scores"])
+        if type(state.get("head_verified")) is not bool:
+            return None
         frames = state["frames"]
         if type(frames) is not list or len(frames) > REQUIRED_LIVENESS_FRAMES:
             return None

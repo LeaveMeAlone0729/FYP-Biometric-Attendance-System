@@ -17,6 +17,35 @@ class BiometricError(ValueError):
     pass
 
 
+def head_angles(matrix):
+    """Yaw/pitch/roll in degrees from MediaPipe's canonical-face transform."""
+    transform = np.asarray(matrix, dtype=float)
+    if transform.shape != (4, 4) or not np.isfinite(transform).all():
+        raise RuntimeError("Invalid head-pose transform.")
+    rotation = transform[:3, :3]
+    norms = np.linalg.norm(rotation, axis=0)
+    if np.any(norms < 1e-6):
+        raise RuntimeError("Invalid head-pose rotation.")
+    rotation = rotation / norms
+    if (not np.allclose(rotation.T @ rotation, np.eye(3), atol=0.05)
+            or np.linalg.det(rotation) < 0.9):
+        raise RuntimeError("Invalid head-pose rotation.")
+    return {
+        "yaw": math.degrees(math.atan2(rotation[0, 2], rotation[2, 2])),
+        "pitch": math.degrees(math.atan2(-rotation[1, 2], math.hypot(rotation[0, 2], rotation[2, 2]))),
+        "roll": math.degrees(math.atan2(rotation[1, 0], rotation[1, 1])),
+    }
+
+
+def expression_scores(categories):
+    scores = {category.category_name: float(category.score) for category in categories}
+    names = {'blink_left': 'eyeBlinkLeft', 'blink_right': 'eyeBlinkRight'}
+    if any(name not in scores or not math.isfinite(scores[name]) or not 0 <= scores[name] <= 1
+           for name in names.values()):
+        raise RuntimeError("Invalid facial expression scores.")
+    return {key: scores[name] for key, name in names.items()}
+
+
 def finger_count(points, *, image_aspect_ratio=1.0):
     """Count extended fingers using joint angles and distance from the wrist.
 
@@ -63,11 +92,14 @@ class Biometrics:
             or Path(__file__).resolve().parents[2] / "models" / "hand_landmarker.task"
         )
         self._hand_detector = None
+        self._head_detector = None
         self._presentation_checker = None
         self._lock = threading.Lock()
 
     def decode(self, data):
-        if not data or len(data) > MAX_IMAGE_BYTES:
+        if not data:
+            raise BiometricError("The uploaded image is empty. Select a valid image.")
+        if len(data) > MAX_IMAGE_BYTES:
             raise BiometricError("Use an image smaller than 6 MB.")
         try:
             with Image.open(io.BytesIO(data)) as source:
@@ -154,9 +186,38 @@ class Biometrics:
             image_aspect_ratio=image.shape[1] / image.shape[0],
         )
 
+    def head_pose(self, image):
+        import mediapipe as mp
+        from mediapipe.tasks.python import BaseOptions
+        from mediapipe.tasks.python.vision import FaceLandmarker, FaceLandmarkerOptions
+        from .model_assets import verified_model
+
+        with self._lock:
+            if self._head_detector is None:
+                model = verified_model(self.model_path.parent / "face_landmarker.task")
+                self._head_detector = FaceLandmarker.create_from_options(
+                    FaceLandmarkerOptions(
+                        base_options=BaseOptions(model_asset_path=str(model)),
+                        num_faces=2,
+                        output_facial_transformation_matrixes=True,
+                        output_face_blendshapes=True,
+                    )
+                )
+            result = self._head_detector.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=image))
+        if len(result.face_landmarks) != 1:
+            raise BiometricError("Keep exactly one clear face visible for the head movement check.")
+        if len(result.facial_transformation_matrixes) != 1:
+            raise RuntimeError("Head-pose estimation is unavailable.")
+        if len(result.face_blendshapes) != 1:
+            raise RuntimeError("Facial expression estimation is unavailable.")
+        return {**head_angles(result.facial_transformation_matrixes[0]),
+                **expression_scores(result.face_blendshapes[0])}
+
     def close(self):
         if self._hand_detector is not None:
             self._hand_detector.close()
+        if self._head_detector is not None:
+            self._head_detector.close()
         if self._presentation_checker is not None:
             self._presentation_checker.close()
 

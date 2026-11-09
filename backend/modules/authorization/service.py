@@ -34,6 +34,7 @@ class AttendanceAuthorizationService:
             nonce.consumed_at=nonce.consumed_at or self.context.now();nonce.result='FAIL';nonce.failure_code=code
         if final and attempt is not None and not attempt.consumed:
             self.context.runtime_liveness.discard(attempt)
+            self.context.runtime_head.discard(attempt)
             attempt.consumed=True
             root=db.get(VerificationAttempt,attempt.verification_id)
             root.verification_result='failed';root.stage='authorization';root.failure_reason=message
@@ -67,7 +68,8 @@ class AttendanceAuthorizationService:
     def issue(self,db,student,auth,identifier,fingerprint,*,preflight=False,scope=None):
         student,auth=self.identity(db,student,auth);attempt,session=self.attempt(db,student,auth,identifier)
         root=db.get(VerificationAttempt,attempt.verification_id)
-        if not preflight and (attempt.stage!='liveness' or root.verification_result!='pending' or root.face_distance is None or not math.isfinite(root.face_distance) or root.face_distance>=self.context.settings.face_threshold):
+        evidence=self.context.runtime_liveness.read(attempt) if not preflight else None
+        if not preflight and (attempt.stage!='liveness' or evidence is None or not evidence['head_verified'] or root.verification_result!='pending' or root.face_distance is None or not math.isfinite(root.face_distance) or root.face_distance>=self.context.settings.face_threshold):
             self.reject(db,student,auth,409,'ATTENDANCE_FACE_REQUIRED','Complete genuine face verification before signing the attendance challenge.',attempt=attempt)
         if preflight:
             if attempt.stage!='face' or root.verification_result!='pending':
@@ -153,10 +155,10 @@ class AttendanceAuthorizationService:
         def deny(status,code,message,nonce=None,network_id=None):self.reject(db,student,auth,status,code,message,attempt=attempt,nonce=nonce,network_id=network_id,final=True)
         state = self.context.runtime_liveness.read(attempt)
         if (attempt.stage!='liveness' or root.verification_result!='pending' or root.stage!='liveness'
-                or state is None or len(state['frames'])!=REQUIRED_LIVENESS_FRAMES
+                or state is None or not state['head_verified'] or len(state['frames'])!=REQUIRED_LIVENESS_FRAMES
                 or attempt.valid_frames!=REQUIRED_LIVENESS_FRAMES or root.face_distance is None
                 or not math.isfinite(root.face_distance) or root.face_distance>=self.context.settings.face_threshold):
-            deny(403,'ATTENDANCE_BIOMETRICS_REQUIRED','Successful server face matching, passive anti-spoof checks and three live gesture frames are required.')
+            deny(403,'ATTENDANCE_BIOMETRICS_REQUIRED','Successful server face matching, head movement, passive anti-spoof checks and three live gesture frames are required.')
         if not proof_id or not signature:deny(403,'ATTENDANCE_DEVICE_PROOF_REQUIRED','A fresh signed attendance-device challenge is required. Update the app and use an ACTIVE registered installation.')
         nonce=db.scalar(select(AttendanceDeviceChallenge).where(AttendanceDeviceChallenge.challenge_id==proof_id).with_for_update().execution_options(populate_existing=True))
         if (nonce is None or nonce.student_id!=student.student_id or nonce.auth_token_hash!=auth.token_hash

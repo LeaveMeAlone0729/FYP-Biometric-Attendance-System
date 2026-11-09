@@ -1,4 +1,4 @@
-"""Pinned model downloads for face presentation checks and hand landmarks.
+"""Pinned model downloads for face presentation, head pose and hand landmarks.
 
 MiniFASNet models: minivision-ai/Silent-Face-Anti-Spoofing, Apache-2.0.
 ONNX exports and preprocessing: github.com/yakhyo/face-anti-spoofing.
@@ -10,6 +10,10 @@ from pathlib import Path
 from urllib.request import urlopen
 
 MODEL_ASSETS = {
+    "face_landmarker.task": (
+        "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+        "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+    ),
     "hand_landmarker.task": (
         "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
         "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1",

@@ -99,6 +99,8 @@ def start_attendance(
         )
     ):
         old.consumed = True
+        context.runtime_head.discard(old)
+        context.runtime_liveness.discard(old)
         root = db.get(VerificationAttempt, old.verification_id)
         root.verification_result = "cancelled"
         root.failure_reason = "Replaced by a new verification request."

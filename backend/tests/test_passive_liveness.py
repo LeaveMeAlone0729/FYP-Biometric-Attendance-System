@@ -86,7 +86,7 @@ class PresentationWorkflowTests(unittest.TestCase):
     def tearDown(self):
         self.fixture.tearDown()
 
-    def test_face_then_three_passive_hand_frames_complete_without_facial_actions(self):
+    def test_face_and_head_then_three_passive_hand_frames_complete(self):
         f = self.fixture
         identifier = f.start()
         response = f.face(identifier).json()
