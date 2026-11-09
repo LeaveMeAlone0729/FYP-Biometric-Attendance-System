@@ -15,6 +15,7 @@ from models import (
 )
 from security import hash_password
 from modules.biometrics.passive_liveness import RuntimeLiveness
+from modules.biometrics.head_movement import RuntimeHeadMovement
 from sqlalchemy import select
 
 
@@ -25,6 +26,7 @@ class AppContext:
         self.bio = biometrics
         self.now = clock
         self.runtime_liveness = RuntimeLiveness(clock)
+        self.runtime_head = RuntimeHeadMovement(clock)
         self.sessions = make_sessions(engine)
         self.sessions.configure(info={'fyp_account_bound_enrollment':
             getattr(settings, 'fyp_account_bound_enrollment', False) is True})
@@ -51,6 +53,7 @@ class AppContext:
     ):
         if challenge:
             self.runtime_liveness.discard(challenge)
+            self.runtime_head.discard(challenge)
             challenge.consumed = True
             root = db.get(VerificationAttempt, challenge.verification_id)
             root.verification_result = "failed"

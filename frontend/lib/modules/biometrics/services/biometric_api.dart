@@ -44,6 +44,28 @@ class BiometricApi {
         as Map,
   );
 
+  /// Process a short pre-captured burst so network inference cannot hide a blink.
+  /// Each frame still goes through the server's identity, PAD and replay checks.
+  Future<Map<String, dynamic>> verifyBlink(
+    String challengeId,
+    List<Uint8List> frames,
+  ) async {
+    if (frames.isEmpty || frames.length > 8) {
+      throw ArgumentError(
+        'Blink capture requires between one and eight frames.',
+      );
+    }
+    Map<String, dynamic> result = {};
+    for (final frame in frames) {
+      result = await verifyFace(challengeId, frame);
+      if (result['liveness_step'] != 'head' ||
+          result['head_action'] != 'blink') {
+        break;
+      }
+    }
+    return result;
+  }
+
   Future<Map<String, dynamic>> getResult(String challengeId) async =>
       Map<String, dynamic>.from(
         await _client.get('/verification/${Uri.encodeComponent(challengeId)}')

@@ -64,6 +64,13 @@ class SyntheticBiometrics:
     def guided_face(self, image):
         return self.face(image)
 
+    def head_pose(self, image):
+        yaw = 25 if image.value.startswith(b"head-turn_left") else (-25 if image.value.startswith(b"head-turn_right") else 0)
+        pitch = -20 if image.value.startswith(b"head-look_up") else (20 if image.value.startswith(b"head-look_down") else 0)
+        blink = 0.9 if image.value.startswith(b"head-blink_closed") else 0.0
+        return {"yaw": yaw, "pitch": pitch, "roll": 0,
+                "blink_left": blink, "blink_right": blink}
+
     def hand(self, image):
         if image.value.startswith(b"no-hand"):
             raise BiometricError("Show one hand next to your face.")
@@ -269,6 +276,24 @@ class WorkflowTests(unittest.TestCase):
     def face(self, identifier):
         response = self.image("/verify-face", identifier)
         self.assertEqual(response.status_code, 200, response.text)
+        return self.finish_head(identifier, response)
+
+    def finish_head(self, identifier, response, *, auto=False):
+        blink_index = 0
+        for index in range(24):
+            if response.json().get("face_verified"):
+                break
+            self.assertEqual(response.json().get("liveness_step"), "head", response.text)
+            action = response.json()["head_action"]
+            if action == 'blink':
+                action = ('blink_open', 'blink_closed', 'blink_reopen')[blink_index % 3]
+                blink_index += 1
+            self.current += timedelta(milliseconds=500)
+            image = f"head-{action}-{index}".encode()
+            response = self.auto_face(identifier, image) if auto else self.image("/verify-face", identifier, image)
+            self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["face_verified"])
+        self.assertTrue(response.json()["head_movement_verified"])
         self.bio.gesture = response.json()["fingers"]
         return response
 
@@ -483,6 +508,7 @@ class WorkflowTests(unittest.TestCase):
         with self.sessions() as db:
             self.assertEqual(db.get(Challenge, identifier).stage, "face")
         response = self.auto_face(identifier)
+        response = self.finish_head(identifier, response, auto=True)
         self.assertTrue(response.json()["face_verified"])
         self.bio.gesture = response.json()["fingers"]
         for index in range(3):

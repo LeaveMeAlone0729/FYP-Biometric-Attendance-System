@@ -1,10 +1,3 @@
-"""Passive CPU presentation-attack checks on each face image.
-
-The two Apache-2.0 MiniFASNet exports use BGR 0..255 input and class 1=real.
-Their preprocessing contract is documented by yakhyo/face-anti-spoofing.
-Scores are classifier outputs, not guarantees of presentation-attack resistance.
-"""
-
 import threading
 from pathlib import Path
 

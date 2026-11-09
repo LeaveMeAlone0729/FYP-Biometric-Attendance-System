@@ -549,7 +549,7 @@
         "tags": [
           "Facial verification"
         ],
-        "summary": "Match the enrolled face and pass passive anti-spoof checks before the finger challenge",
+        "summary": "Match the face, pass anti-spoof checks and complete random server-issued facial actions before the finger challenge",
         "operationId": "verifyFace",
         "requestBody": {
           "content": {
@@ -573,6 +573,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/FacePreview"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HeadMovementProgress"
                     },
                     {
                       "$ref": "#/components/schemas/FaceVerified"
@@ -5676,6 +5679,11 @@
             "const": true,
             "title": "Anti Spoof Verified"
           },
+          "head_movement_verified": {
+            "type": "boolean",
+            "const": true,
+            "title": "Head Movement Verified"
+          },
           "message": {
             "type": "string",
             "title": "Message"
@@ -5692,6 +5700,7 @@
           "expires_at",
           "liveness_step",
           "anti_spoof_verified",
+          "head_movement_verified",
           "message"
         ],
         "title": "FaceVerified"
@@ -5726,6 +5735,87 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HeadMovementProgress": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true,
+            "title": "Success"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          },
+          "complete": {
+            "type": "boolean",
+            "const": false,
+            "title": "Complete"
+          },
+          "stage": {
+            "type": "string",
+            "const": "face",
+            "title": "Stage"
+          },
+          "liveness_step": {
+            "type": "string",
+            "const": "head",
+            "title": "Liveness Step"
+          },
+          "head_action": {
+            "type": "string",
+            "enum": [
+              "look_straight",
+              "turn_left",
+              "turn_right",
+              "look_up",
+              "look_down",
+              "blink"
+            ],
+            "title": "Head Action"
+          },
+          "head_step": {
+            "type": "integer",
+            "maximum": 7.0,
+            "minimum": 1.0,
+            "title": "Head Step"
+          },
+          "head_steps": {
+            "type": "integer",
+            "const": 7,
+            "title": "Head Steps"
+          },
+          "held_frames": {
+            "type": "integer",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Held Frames"
+          },
+          "required_hold_frames": {
+            "type": "integer",
+            "const": 2,
+            "title": "Required Hold Frames"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "ready",
+          "complete",
+          "stage",
+          "liveness_step",
+          "head_action",
+          "head_step",
+          "head_steps",
+          "held_frames",
+          "required_hold_frames",
+          "message"
+        ],
+        "title": "HeadMovementProgress"
       },
       "LivenessProgress": {
         "properties": {

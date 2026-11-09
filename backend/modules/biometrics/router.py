@@ -12,6 +12,7 @@ from .schemas import (
     FacePreview,
     FaceRegistered,
     FaceVerified,
+    HeadMovementProgress,
     LivenessProgress,
     ScanAdjustment,
     SuccessResponse,
@@ -69,8 +70,8 @@ def register_face(
     "/verify-face",
     tags=["Facial verification"],
     operation_id="verifyFace",
-    response_model=ScanAdjustment | FacePreview | FaceVerified,
-    summary="Match the enrolled face and pass passive anti-spoof checks before the finger challenge",
+    response_model=ScanAdjustment | FacePreview | HeadMovementProgress | FaceVerified,
+    summary="Match the face, pass anti-spoof checks and complete random server-issued facial actions before the finger challenge",
 )
 def verify_face(
     challenge_id: str = Form(

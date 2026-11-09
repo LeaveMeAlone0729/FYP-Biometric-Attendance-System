@@ -43,6 +43,7 @@ def create_app(settings=None, engine=None, biometrics=None, clock=None, startup_
             yield
         finally:
             context.runtime_liveness.clear()
+            context.runtime_head.clear()
             context.bio.close()
             engine.dispose()
 

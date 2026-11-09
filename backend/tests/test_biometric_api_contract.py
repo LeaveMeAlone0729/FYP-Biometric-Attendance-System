@@ -15,11 +15,17 @@ from export_openapi import main as export_openapi
 
 
 class BiometricContractTests(unittest.TestCase):
-    def test_passive_face_check_goes_directly_to_hand_challenge(self):
+    def test_face_verification_requires_head_movement_before_hand_challenge(self):
         schemas = app.openapi()["components"]["schemas"]
         face = schemas["FaceVerified"]
         self.assertIn("anti_spoof_verified", face["required"])
         self.assertEqual(face["properties"]["anti_spoof_verified"]["const"], True)
+        self.assertEqual(face["properties"]["head_movement_verified"]["const"], True)
+        head = schemas["HeadMovementProgress"]
+        self.assertEqual(head["properties"]["liveness_step"]["const"], "head")
+        self.assertEqual(set(head["properties"]["head_action"]["enum"]),
+                         {"look_straight", "turn_left", "turn_right", "look_up", "look_down", "blink"})
+        self.assertEqual(head["properties"]["head_steps"]["const"], 7)
         for name in ("FaceVerified", "LivenessProgress"):
             properties = schemas[name]["properties"]
             self.assertEqual(properties["liveness_step"]["const"], "hand")

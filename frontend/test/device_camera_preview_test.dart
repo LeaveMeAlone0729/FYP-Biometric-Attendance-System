@@ -131,7 +131,7 @@ void main() {
       expect(correction(), 2);
       expect(correction(profile: ''), 0);
       expect(correction(debug: false), 0);
-      expect(correction(platform: TargetPlatform.iOS), 0);
+      expect(correction(platform: TargetPlatform.windows), 0);
       expect(correction(metadata: {...environment, 'is_emulator': false}), 0);
       expect(
         correction(metadata: {...environment, 'avd_name': 'Another_AVD'}),
