@@ -330,7 +330,12 @@ mock or client-controlled trust path exists.
 
 ## Stage C1 device replacement
 
-Device-owned replacement now uses POST /api/v1/devices/replacements and the shared pending proof/status/cancellation, attendance-free biometric and trusted activation routes for either occupied slot. Existing algorithms and attendance routes are unchanged. The old device remains ACTIVE until an atomic trusted handover succeeds; the other slot is preserved. The provider methods are unchanged, with replacement target ID/fingerprint added to the exact binding. Production remains fail closed without the partner provider. See [complete replacement contract, migration and tests](DEVICE_REPLACEMENT_C1.md).
+Current self-service policy supersedes the old missing-partner-provider blocker:
+the built-in device authorization provider issues fresh bound approvals against
+verified enrollment provenance. There is no per-operation faculty integration.
+Legacy templates remain unverified. NEW school-account first enrollment can record ACCOUNT_BOUND_FYP assurance under the explicit opt-in [FYP policy](FYP_ACCOUNT_BOUND_ENROLLMENT.md). See [current contract, migration and controlled demo](SELF_SERVICE_DEVICE_MANAGEMENT.md).
+
+Device-owned replacement now uses POST /api/v1/devices/replacements and the shared pending proof/status/cancellation, attendance-free biometric and trusted activation routes for either occupied slot. Existing algorithms and attendance routes are unchanged. The old device remains ACTIVE until an atomic trusted handover succeeds; the other slot is preserved. The provider methods are unchanged, with replacement target ID/fingerprint added to the exact binding. The built-in provider now handles eligible account-bound FYP operations; legacy templates still fail closed. See [complete replacement contract, migration and tests](DEVICE_REPLACEMENT_C1.md).
 
 ## Phase 4 network verification FR-06
 
@@ -344,3 +349,8 @@ POST /liveness/frame still owns runtime attendance completion, through the same 
 ### Attendance readiness before capture
 
 After `/attendance/start` validates the PIN, Flutter now signs a server-issued `/api/v1/attendance/preflight-challenges` nonce and submits it to `/api/v1/attendance/preflight`. Both use the existing bearer login and exact attendance attempt; both check the actual ASGI source network, and confirmation requires the current ACTIVE installation's ECDSA signature. On any failure/unavailability the existing verification-result view opens without initializing the camera. A successful response explicitly sets `attendance_authorized:false`; a separate fresh final nonce and fresh network verification remain mandatory at `/liveness/frame`. See [contracts, lifecycle, audit semantics and tests](ATTENDANCE_AUTHORIZATION_PHASE5.md#early-preflight-before-biometric-capture-november-2026-refinement). No client IP/PASS field or cached Profile verification is accepted.
+
+Confirmed FYP first-enrollment policy: the only additional partner-owned changes
+are register_face authorization and atomic provenance recording, plus multipart
+identity/assurance field rejection in its router. Detection, encoding, thresholds,
+gestures and attendance algorithms are unchanged. See [policy and isolated tests](FYP_ACCOUNT_BOUND_ENROLLMENT.md).

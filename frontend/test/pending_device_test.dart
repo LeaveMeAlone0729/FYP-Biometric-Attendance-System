@@ -366,10 +366,7 @@ void main() {
     );
     expect(find.text('Prepare and prove device key'), findsNothing);
     expect(find.byType(TextField), findsNothing);
-    expect(
-      find.textContaining('Repeating it will not complete registration'),
-      findsOneWidget,
-    );
+    expect(find.text('Step 2: Face verification'), findsOneWidget);
     expect(find.textContaining('attendance'), findsNothing);
     expect(find.textContaining('Verify This Device'), findsNothing);
   });
@@ -399,7 +396,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Pending registration expired'), findsOneWidget);
-    expect(find.textContaining('Your local key is retained'), findsOneWidget);
+    expect(find.textContaining('Your key is retained'), findsOneWidget);
     expect(find.text('Start a new pending request'), findsOneWidget);
     expect(find.text('Device key verified successfully'), findsNothing);
     expect(service.prepared, 0);

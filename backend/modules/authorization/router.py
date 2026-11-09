@@ -24,6 +24,8 @@ class AttendanceDeviceResponse(BaseModel):
     signature_encoding: Literal['base64-DER']
     signing_payload: str
     expires_at: datetime
+    classroom_wifi_required: bool=False
+    classroom_id: str | None=None
 
 router=APIRouter(prefix='/api/v1/attendance',tags=['Final attendance authorization'])
 
@@ -38,6 +40,7 @@ class AttendancePreflightProof(BaseModel):
     attendance_challenge_id: str=Field(min_length=1,max_length=64)
     challenge_id: str=Field(min_length=1,max_length=64)
     signature: str=Field(min_length=1,max_length=256)
+    classroom_wifi_proof_id: str | None=Field(None,max_length=64)
 
 class AttendancePreflightChallengeResponse(AttendanceDeviceResponse):
     operation: Literal['attendance_preflight']
@@ -58,4 +61,4 @@ class AttendancePreflightResponse(BaseModel):
 @router.post('/preflight',response_model=AttendancePreflightResponse)
 def preflight(data:AttendancePreflightProof,request:Request,identity=Depends(authenticated),db=Depends(get_db,scope='function'),context=Depends(get_context)):
     student,auth=identity
-    return registration_response(lambda:AttendanceAuthorizationService(context).preflight(db,student,auth,data.attendance_challenge_id,data.challenge_id,data.signature,request.scope))
+    return registration_response(lambda:AttendanceAuthorizationService(context).preflight(db,student,auth,data.attendance_challenge_id,data.challenge_id,data.signature,request.scope,data.classroom_wifi_proof_id))

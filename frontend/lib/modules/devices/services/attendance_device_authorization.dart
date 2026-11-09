@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../../../services/api_client.dart';
 import 'device_key_store.dart';
+import '../../networks/services/classroom_wifi_api.dart';
 
 /// Caches only a signed, attempt-bound unconsumed nonce, never a PASS/grant.
 /// The final writer rechecks ACTIVE ownership, expiry, one-time use and network.
@@ -10,9 +11,12 @@ class AttendanceDeviceAuthorization {
     ApiClient? client,
     DeviceKeyStore? keys,
     DateTime Function()? now,
+    ClassroomWifiApi? classroomWifi,
   }) : _client = client ?? ApiClient.instance,
        _keys = keys ?? const DeviceKeyStore(),
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now,
+       _wifi = classroomWifi ?? ClassroomWifiApi(client: client, keys: keys);
+  final ClassroomWifiApi _wifi;
   final DateTime Function() _now;
   final ApiClient _client;
   final DeviceKeyStore _keys;
@@ -28,6 +32,8 @@ class AttendanceDeviceAuthorization {
           'attendance_challenge_id': attendanceId,
           'challenge_id': fields['device_challenge_id'],
           'signature': fields['device_signature'],
+          if (fields['classroom_wifi_proof_id'] != null)
+            'classroom_wifi_proof_id': fields['classroom_wifi_proof_id'],
         })
         .timeout(const Duration(seconds: 15));
     if (!_client.authenticated.value ||
@@ -113,7 +119,12 @@ class AttendanceDeviceAuthorization {
     if (cached != null &&
         cached['fingerprint'] == fingerprint &&
         DateTime.parse(cached['expires_at'] as String).isAfter(_now())) {
-      return Map<String, String>.from(cached['fields'] as Map);
+      return _withWifi(
+        attendanceId,
+        Map<String, String>.from(cached['fields'] as Map),
+        cached['challenge'] as Map,
+        preflight: false,
+      );
     }
     _proofs.removeWhere(
       (key, value) =>
@@ -209,9 +220,44 @@ class AttendanceDeviceAuthorization {
         'fields': fields,
         'fingerprint': fingerprint,
         'expires_at': challenge['expires_at'],
+        'challenge': challenge,
       };
     }
-    return fields;
+    return _withWifi(attendanceId, fields, challenge, preflight: preflight);
+  }
+
+  Future<Map<String, String>> _withWifi(
+    String attempt,
+    Map<String, String> fields,
+    Map challenge, {
+    required bool preflight,
+  }) async {
+    if (challenge['classroom_wifi_required'] != true) return fields;
+    final classroom = challenge['classroom_id'];
+    if (classroom is! String || classroom.isEmpty) {
+      throw const ApiException(
+        'The required classroom is unavailable. Enter the PIN again.',
+        409,
+        'CLASSROOM_REQUIREMENT_INVALID',
+      );
+    }
+    final result = await _wifi.attendance(
+      classroom,
+      attempt,
+      fields['device_challenge_id']!,
+      preflight: preflight,
+    );
+    if (result['result'] != 'PASS') {
+      throw ApiException(
+        result['message'] as String,
+        403,
+        result['reason_code'] as String,
+      );
+    }
+    return {
+      ...fields,
+      'classroom_wifi_proof_id': result['classroom_wifi_proof_id'] as String,
+    };
   }
 
   void completed(String attendanceId) {

@@ -198,6 +198,7 @@ void main() {
         null,
         'APPROVAL_EXPIRED',
         'BIOMETRIC_TRUST_REQUIRED',
+        'FRESH_BIOMETRIC_PROOF_REQUIRED',
       ]) {
         final f = ActivationFixture()
           ..unavailable = true

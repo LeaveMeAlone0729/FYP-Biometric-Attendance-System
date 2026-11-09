@@ -1,4 +1,4 @@
-"""Attendance-free face/liveness checks. Inference reused; trust never conferred."""
+"""Attendance-free raw face/liveness checks with separate provenance-bound authorization."""
 import hashlib
 import json
 import math
@@ -15,6 +15,7 @@ from .biometric_models import DeviceBiometricSession, DeviceBiometricEvent
 from .pending_models import PendingDeviceRegistration
 from .pending_service import PendingEnrollmentService
 from .service import DeviceRegistrationError
+from .management_approval import capture_enrollment, issue_device_authorization
 
 OPEN=("FACE","LIVENESS")
 
@@ -71,7 +72,7 @@ class DeviceBiometricService(PendingEnrollmentService):
             expires_in=max(0,int((session.expires_at-self.context.now()).total_seconds())),
             result_classification="UNTRUSTED_TEST_RESULT",trusted=False,activation_eligible=False,
             consumable=False,activation_enabled=False,message=message or (
-                "Biometric checks completed — awaiting trusted biometric approval" if session.stage=="COMPLETED_UNTRUSTED"
+                "Biometric checks completed — checking device authorization" if session.stage=="COMPLETED_UNTRUSTED"
                 else "Center your face in the camera." if session.stage=="FACE" else
                 f"Show {session.fingers} finger(s) on one hand, palm toward the camera; keep your face visible."))
 
@@ -104,6 +105,7 @@ class DeviceBiometricService(PendingEnrollmentService):
             template_binding=binding,stage="FACE",valid_frames=0,frame_count=0,frame_hashes="[]",
             created_at=now,expires_at=min(now+timedelta(seconds=self.context.settings.challenge_seconds),now+timedelta(seconds=90),pending.expires_at,auth.expires_at))
         db.add(session);db.flush()
+        capture_enrollment(db,student,session,pending,now)
         self.bio_event(db,student,"create","ISSUED","UNTRUSTED_BIOMETRIC_SESSION_CREATED",session)
         return self.result(session)
 
@@ -194,5 +196,6 @@ class DeviceBiometricService(PendingEnrollmentService):
         session.valid_frames+=1
         if session.valid_frames==REQUIRED_LIVENESS_FRAMES:
             session.stage="COMPLETED_UNTRUSTED";session.completed_at=self.context.now()
+            issue_device_authorization(db,student,session,pending,session.completed_at)
             self.bio_event(db,student,"complete","PASS","BIOMETRICS_COMPLETED_UNTRUSTED",session)
         return self.result(session,ready=True)

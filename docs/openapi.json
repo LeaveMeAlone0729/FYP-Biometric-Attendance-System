@@ -3967,6 +3967,274 @@
           }
         ]
       }
+    },
+    "/api/v1/classroom-wifi/classrooms": {
+      "get": {
+        "tags": [
+          "Classroom Wi-Fi"
+        ],
+        "summary": "Classrooms",
+        "operationId": "classrooms_api_v1_classroom_wifi_classrooms_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/classroom-wifi/challenges": {
+      "post": {
+        "tags": [
+          "Classroom Wi-Fi"
+        ],
+        "summary": "Begin",
+        "operationId": "begin_api_v1_classroom_wifi_challenges_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Begin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/classroom-wifi/verifications": {
+      "post": {
+        "tags": [
+          "Classroom Wi-Fi"
+        ],
+        "summary": "Confirm",
+        "operationId": "confirm_api_v1_classroom_wifi_verifications_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/modules__classroom_wifi__router__Confirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/classroom-wifi/attendance-challenges": {
+      "post": {
+        "tags": [
+          "Classroom Wi-Fi"
+        ],
+        "summary": "Attendance Challenge",
+        "operationId": "attendance_challenge_api_v1_classroom_wifi_attendance_challenges_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendanceBegin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/classroom-ble/classrooms": {
+      "get": {
+        "tags": [
+          "Experimental standalone BLE"
+        ],
+        "summary": "Classrooms",
+        "operationId": "classrooms_api_v1_classroom_ble_classrooms_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/classroom-ble/challenges": {
+      "post": {
+        "tags": [
+          "Experimental standalone BLE"
+        ],
+        "summary": "Begin",
+        "operationId": "begin_api_v1_classroom_ble_challenges_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Begin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/classroom-ble/verifications": {
+      "post": {
+        "tags": [
+          "Experimental standalone BLE"
+        ],
+        "summary": "Confirm",
+        "operationId": "confirm_api_v1_classroom_ble_verifications_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/modules__classroom_ble__router__Confirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -4349,6 +4617,34 @@
         ],
         "title": "AttendanceAccepted"
       },
+      "AttendanceBegin": {
+        "properties": {
+          "attendance_challenge_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Attendance Challenge Id"
+          },
+          "device_challenge_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Device Challenge Id"
+          },
+          "preflight": {
+            "type": "boolean",
+            "title": "Preflight",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "attendance_challenge_id",
+          "device_challenge_id"
+        ],
+        "title": "AttendanceBegin"
+      },
       "AttendanceDeviceRequest": {
         "properties": {
           "attendance_challenge_id": {
@@ -4430,6 +4726,22 @@
             "type": "string",
             "format": "date-time",
             "title": "Expires At"
+          },
+          "classroom_wifi_required": {
+            "type": "boolean",
+            "title": "Classroom Wifi Required",
+            "default": false
+          },
+          "classroom_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classroom Id"
           }
         },
         "type": "object",
@@ -4507,6 +4819,22 @@
             "type": "string",
             "format": "date-time",
             "title": "Expires At"
+          },
+          "classroom_wifi_required": {
+            "type": "boolean",
+            "title": "Classroom Wifi Required",
+            "default": false
+          },
+          "classroom_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classroom Id"
           }
         },
         "type": "object",
@@ -4544,6 +4872,18 @@
             "maxLength": 256,
             "minLength": 1,
             "title": "Signature"
+          },
+          "classroom_wifi_proof_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classroom Wifi Proof Id"
           }
         },
         "additionalProperties": false,
@@ -4595,6 +4935,27 @@
           "network_verification_id"
         ],
         "title": "AttendancePreflightResponse"
+      },
+      "Begin": {
+        "properties": {
+          "classroom_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "title": "Classroom Id"
+          },
+          "public_key_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Public Key Fingerprint"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "classroom_id",
+          "public_key_fingerprint"
+        ],
+        "title": "Begin"
       },
       "Body_face_api_v1_device_approvals__approval_id__face_post": {
         "properties": {
@@ -4682,6 +5043,18 @@
               }
             ],
             "title": "Device Signature"
+          },
+          "classroom_wifi_proof_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classroom Wifi Proof Id"
           },
           "challenge_id": {
             "type": "string",
@@ -5660,9 +6033,9 @@
           },
           "biometric_approval_status": {
             "type": "string",
-            "const": "UNAVAILABLE",
+            "const": "NOT_CHECKED",
             "title": "Biometric Approval Status",
-            "default": "UNAVAILABLE"
+            "default": "NOT_CHECKED"
           },
           "attendance_authorized": {
             "type": "boolean",
@@ -6341,6 +6714,66 @@
           "attendance_id"
         ],
         "title": "VerificationResult"
+      },
+      "modules__classroom_ble__router__Confirm": {
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 40,
+            "title": "Challenge Id"
+          },
+          "evidence_payload": {
+            "type": "string",
+            "maxLength": 6000,
+            "minLength": 1,
+            "title": "Evidence Payload"
+          },
+          "signature": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Signature"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "challenge_id",
+          "evidence_payload",
+          "signature"
+        ],
+        "title": "Confirm"
+      },
+      "modules__classroom_wifi__router__Confirm": {
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 40,
+            "title": "Challenge Id"
+          },
+          "evidence_payload": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Evidence Payload"
+          },
+          "signature": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Signature"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "challenge_id",
+          "evidence_payload",
+          "signature"
+        ],
+        "title": "Confirm"
       }
     },
     "securitySchemes": {

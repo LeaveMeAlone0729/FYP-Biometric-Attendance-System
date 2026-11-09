@@ -2,11 +2,30 @@ import 'package:flutter/material.dart';
 import '../../../theme.dart';
 import '../services/network_verification_api.dart';
 import '../services/network_verification_failure.dart';
+import '../widgets/wifi_diagnostics_card.dart';
+import '../services/wifi_diagnostics.dart';
+import '../services/classroom_wifi_api.dart';
+import '../widgets/classroom_wifi_card.dart';
+import '../services/ble_diagnostics.dart';
+import '../widgets/ble_diagnostics_card.dart';
+import '../services/classroom_ble_api.dart';
+import '../widgets/classroom_ble_card.dart';
 
 /// Independent FR-06 diagnostic. Attendance workflow is intentionally unchanged.
 class NetworkVerificationScreen extends StatefulWidget {
-  const NetworkVerificationScreen({super.key, this.api});
+  const NetworkVerificationScreen({
+    super.key,
+    this.api,
+    this.wifiDiagnostics,
+    this.classroomApi,
+    this.bleDiagnostics,
+    this.bleApi,
+  });
   final NetworkVerificationApi? api;
+  final WifiDiagnostics? wifiDiagnostics;
+  final ClassroomWifiApi? classroomApi;
+  final BleDiagnostics? bleDiagnostics;
+  final ClassroomBleApi? bleApi;
   @override
   State<NetworkVerificationScreen> createState() =>
       _NetworkVerificationScreenState();
@@ -93,14 +112,12 @@ class _NetworkVerificationScreenState extends State<NetworkVerificationScreen>
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 16),
-              const Text(
-                'The backend checks its observed connection source IP against enabled authorised CIDR policies. This FYP uses a controlled simulation; it does not identify your exact Wi-Fi location.',
-              ),
+              const Text('Check whether your current connection is allowed.'),
               const SizedBox(height: 20),
               if (_busy)
                 const Column(
                   children: [
-                    CircularProgressIndicator(),
+                    CircularProgressIndicator(key: ValueKey('cidr-progress')),
                     SizedBox(height: 12),
                     Text('Checking the connection on the server...'),
                   ],
@@ -119,9 +136,11 @@ class _NetworkVerificationScreenState extends State<NetworkVerificationScreen>
                   'Network verification: ${_result!['result']}',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
-                Text('Reason: ${_result!['reason_code']}'),
-                const SizedBox(height: 12),
-                Text(_result!['message'] as String),
+                if (_result!['result'] != 'PASS') ...[
+                  Text('Reason: ${_result!['reason_code']}'),
+                  const SizedBox(height: 12),
+                  Text(_result!['message'] as String),
+                ],
                 const SizedBox(height: 12),
                 Text(
                   'Backend-observed source IP: ${_result!['source_ip'] ?? 'unavailable'}',
@@ -143,7 +162,7 @@ class _NetworkVerificationScreenState extends State<NetworkVerificationScreen>
                 InfoNotice(_error!.message, warning: true),
                 if (_error!.unreachable)
                   const Text(
-                    'The backend could not verify the source IP. No network authorization was obtained.',
+                    'No network check completed. Attendance is blocked.',
                   ),
               ],
               const SizedBox(height: 20),
@@ -152,12 +171,24 @@ class _NetworkVerificationScreenState extends State<NetworkVerificationScreen>
                 child: const Text('Check current connection'),
               ),
               const SizedBox(height: 20),
-              const InfoNotice(
-                'This result does not authorize or record attendance. Final attendance authorization will perform a fresh network check for that exact request.',
-              ),
-              const SizedBox(height: 12),
               const Text(
-                'USB ADB reverse may appear as 127.0.0.1 or ::1. Localhost is not accepted as campus-network proof. No Android location permission is needed.',
+                'Attendance checks your connection again before saving.',
+              ),
+              const SizedBox(height: 20),
+              WifiDiagnosticsCard(diagnostics: widget.wifiDiagnostics),
+              const SizedBox(height: 20),
+              BleDiagnosticsCard(diagnostics: widget.bleDiagnostics),
+              const SizedBox(height: 20),
+              ClassroomWifiCard(
+                api:
+                    widget.classroomApi ??
+                    ClassroomWifiApi(wifi: widget.wifiDiagnostics),
+              ),
+              const SizedBox(height: 20),
+              ClassroomBleCard(
+                api:
+                    widget.bleApi ??
+                    ClassroomBleApi(scanner: widget.bleDiagnostics),
               ),
             ],
           ),

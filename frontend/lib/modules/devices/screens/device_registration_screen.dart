@@ -193,16 +193,17 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                 Text('Status: ${_device!['status']}'),
                 Text('Registered: ${_device!['registered_at']}'),
                 const SizedBox(height: 16),
-                InfoNotice(
-                  _localMatch
-                      ? 'This installation holds the registered device key.'
-                      : 'The registered key is not available in this installation. Device replacement requires approval. Open My Device on the new installation to request it.',
-                  warning: !_localMatch,
-                ),
+                if (_localMatch)
+                  const Text(
+                    'This installation holds the registered device key.',
+                  )
+                else
+                  const InfoNotice(
+                    'The registered key is not available in this installation. Device replacement requires approval. Open My Device on the new installation to request it.',
+                    warning: true,
+                  ),
               ] else if (_loaded && _initialAllowed) ...[
-                const Text(
-                  'Register your initial Android installation. Additional enrollment and replacement use separate trusted-approval workflows in My Device.',
-                ),
+                const Text('Register this Android device to your account.'),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _name,
@@ -221,8 +222,8 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                 ),
               ],
               const SizedBox(height: 20),
-              const InfoNotice(
-                'Your private key stays in Android Keystore. Additional enrollment and replacement require genuine server-approved biometrics. Attendance is unchanged.',
+              const Text(
+                'Your device key stays on this device. Keep the app and its data.',
               ),
               if (_error != null) ...[
                 const SizedBox(height: 16),

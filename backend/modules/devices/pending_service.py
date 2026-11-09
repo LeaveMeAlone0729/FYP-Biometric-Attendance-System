@@ -74,7 +74,7 @@ class PendingEnrollmentService(DeviceRegistrationService):
             challenge_expires_at=iso_time(pending.challenge_expires_at, self.context.settings),
             expires_at=iso_time(pending.expires_at, self.context.settings),
             key_proven_at=iso_time(pending.key_proven_at, self.context.settings),
-            activation_enabled=False, biometric_approval_status="UNAVAILABLE", attendance_authorized=False)
+            activation_enabled=False, biometric_approval_status="NOT_CHECKED", attendance_authorized=False)
 
     def owned(self, db, student, auth, identifier):
         pending = db.scalar(select(PendingDeviceRegistration).where(
@@ -111,7 +111,10 @@ class PendingEnrollmentService(DeviceRegistrationService):
             DeviceEnrollmentEvent.occurred_at > now - timedelta(minutes=5)))
         if recent >= 5:
             self.refuse(db, student, "prepare", 429, "ENROLLMENT_RATE_LIMITED", "Too many enrollment attempts. Try again in five minutes.")
+        from .local_demo import PREFIX, enabled
         identifier, candidate = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+        if enabled(db, student.student_id):
+            candidate = PREFIX + candidate
         expires = min(now + timedelta(minutes=5), auth.expires_at)
         challenge_expires = min(now + timedelta(seconds=120), expires)
         payload = json.dumps(dict(version=1, operation=OPERATION, slot_number=2,

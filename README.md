@@ -1,57 +1,87 @@
-# Attend student attendance system
+# FYP Biometric Attendance System
 
-Flutter Android app, FastAPI biometric services and MySQL for the **facial recognition and liveness detection module** of the Mobile Biometric Attendance System. Login, class PINs and attendance history provide a working demo around the biometric module. The student workflow is:
+For the preferred **new isolated MySQL teammate setup**, use
+[MySQL testing setup](docs/MYSQL_TESTING.md). It preserves the existing MariaDB
+environment and does not change the original database or port 8000 defaults.
 
-**Six-digit class PIN → group and class-window validation → facial match → random finger-count challenge → attendance confirmation.**
+Flutter Android and FastAPI with MySQL or MariaDB. The student workflow is:
+
+**Six-digit class PIN → group/class-window validation → device/network preflight → facial match → random finger-count challenge → final device/network authorization and any session-specific classroom Wi-Fi check → attendance confirmation.**
 
 Attendance is inserted only after all checks pass. Face verification alone cannot record attendance.
+
+For synthetic Android testing on isolated MariaDB **3322** and FastAPI **8002**,
+use the [simple private-LAN workflow](docs/FYP_NETWORK_TEST_WORKFLOW.md):
+`./fyp-test.ps1 start --lan`, then configure an explicitly labeled simulation
+policy with `./fyp-test.ps1 policy set --cidr <test-CIDR> --simulation`.
+Login/profile access is separate from attendance network authorization. Do not
+use the original production launcher or database for this disposable exercise.
 
 Module owner: **Chew Zhexuan**. See the [module/file map](docs/MODULE_OWNERSHIP.md)
 and [API integration guide](docs/API_INTEGRATION.md) for the organized code,
 request contracts, teammate integration points and importable OpenAPI file.
 
-Device registration is now available as the teammate's separate Phase 1 module in the shared backend and Android app; see [the registration guide](docs/DEVICE_REGISTRATION.md). Installation binding for attendance, device replacement, Wi-Fi/campus verification and IP allowlists are not enforced yet. The phone still needs an ordinary connection to the backend API.
+Attendance requires an active Android Keystore registration and an authorized CIDR. A session assigned to a classroom also requires its configured Wi-Fi check. [BLE](docs/CLASSROOM_BLE_PHASE4B.md) remains experimental and separate from attendance.
 
-For an existing database, run `backend\venv\Scripts\python.exe backend\migrate.py` from the project root before restarting the updated backend. This removes only the retired `device_hash` columns from `students` and `auth_sessions`, preserving accounts, encrypted face templates, consent, login sessions and attendance history. `setup.py` also applies this idempotent migration; fresh databases already use the current schema.
+## Start from a fresh checkout on Windows
 
-## Start on this Windows computer
+Use PowerShell 7 from the cloned repository. Install Python 3.12, Flutter with
+Dart 3.11 or compatible, and the Android SDK. If dlib must compile, install
+CMake and the Visual C++ build tools.
 
-1. Start **MySQL in XAMPP**. Keep Laragon's MySQL stopped: both installations use port 3306, so they cannot run on that port together. The attendance app uses XAMPP's separate `attendance_proposal_xampp` database.
-2. If dependencies or the database have not been initialized, run from `C:\Users\User\source\repos\FYP-Biometric-Attendance-System`:
+1. Install dependencies and the checksum-verified liveness model. The model
+   command does not load database settings or initialize a schema.
 
    ```powershell
-   cd backend
-   .\venv\Scripts\python.exe -m pip install -r requirements.txt
-   .\venv\Scripts\python.exe setup.py
-   cd ..
-   cd frontend
+   py -3.12 -m venv backend\venv
+   .\backend\venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+   .\backend\venv\Scripts\python.exe .\backend\setup.py --model-only
+   Push-Location frontend
    flutter pub get
-   cd ..
+   Pop-Location
    ```
 
-   The existing virtual environment uses Python 3.12. If rebuilding it on another computer, install Python 3.12 and create a new `backend\venv` first. `face_recognition` needs dlib; compiling dlib on Windows requires CMake and the Visual C++ build tools. The existing environment already contains dlib.
-
-3. Start the API in one PowerShell terminal:
+2. Provision your own disposable MySQL profile using the tested MySQL
+   Community 8.4.3 binaries. Setup creates the current 43-table schema,
+   per-environment credentials and a synthetic school-provisioned student.
+   Start the panel with the administrator password you choose interactively.
 
    ```powershell
-   .\start-backend.ps1
+   $mysqlHome = Read-Host 'MySQL 8.4.3 installation folder'
+   .\fyp-mysql.ps1 setup --mysql-home $mysqlHome
+   .\fyp-mysql.ps1 admin-init
+   .\fyp-mysql.ps1 start
+   .\fyp-mysql.ps1 status
    ```
 
-   Check `http://localhost:8000/docs`. If port 8000 is already used by the existing reloading backend, use that terminal or stop its process with Ctrl+C before starting another.
+   The panel is at [127.0.0.1:8013/login](http://127.0.0.1:8013/login) and the
+   API at [127.0.0.1:8012/docs](http://127.0.0.1:8012/docs) by default.
+   See [MySQL setup](docs/MYSQL_TESTING.md) for the private synthetic credentials,
+   port overrides, migrations and shutdown.
 
-4. Start an Android emulator, then run in a second terminal:
+3. For the emulator, select a device listed by `flutter devices` and run:
 
    ```powershell
-   .\start-frontend.ps1 -DeviceId emulator-5554
+   .\start-frontend.ps1 -DeviceId emulator-5554 -ApiBaseUrl http://10.0.2.2:8012
    ```
 
-   Android emulator API address defaults to `http://10.0.2.2:8000`. For a physical phone on the same Wi-Fi:
+   For an explicitly configured private-LAN backend on port 8000, use:
 
    ```powershell
-   .\start-frontend.ps1 -DeviceId YOUR_DEVICE_ID -ApiBaseUrl http://YOUR_PC_IPV4:8000
+   $deviceId = Read-Host 'Flutter device ID'
+   $lanIp = Read-Host 'Laptop private-LAN IPv4'
+   .\start-frontend.ps1 -DeviceId $deviceId -ApiBaseUrl "http://${lanIp}:8000"
    ```
 
-   `flutter devices` lists device IDs. The URL is configured in one place using `API_BASE_URL`; no Dart source edits are needed.
+   The disposable MySQL profile binds to loopback. A physical attendance PASS requires a reachable
+   LAN backend and matching CIDR. ADB reverse is transport for login and other
+   permitted tests. Loopback cannot authorize attendance.
+
+For an existing database, use the appropriate [original MariaDB guide](docs/ORIGINAL_FYP_SETUP.md)
+or [disposable MySQL guide](docs/MYSQL_TESTING.md). Verify the schema and a
+consistent backup before applying reviewed migrations. Keep `backend/.env`,
+database credentials, biometric encryption keys and admin credentials local.
+Setup scripts for fresh profiles should not be run against an existing schema.
 
 ## Realistic sample data for testing
 
@@ -64,7 +94,9 @@ list is `.work/testing-accounts.txt`.
 ## Original single-account demonstration
 
 - Student ID: **DEMO001**
-- Password: **DemoAttend2026!**
+- Use the assigned password. Legacy commits published a demo fixture password.
+  Treat it as exposed wherever it is still accepted. Fresh legacy demo setup
+  prompts for a unique password and preserves existing accounts.
 - Group: **DEMO-A**
 - Attendance PINs: **123456** for Biometric Attendance Lab, **654321** for Software Security.
 - DEMO-B is a separate group with PIN **222222**. DEMO-A students cannot use it.
@@ -107,11 +139,16 @@ The eight main entities are `programmes`, `student_groups`, `students`, `courses
 `backend/setup.py` creates the ignored `backend/.env` from `.env.example` with a random Fernet key. Back up this key securely with the database; changing or losing it makes existing biometric templates unreadable. Do not commit it.
 
 - `DB_NAME=attendance_proposal_xampp` is the active schema. Obsolete prototype databases were archived and removed during the 29 October 2026 cleanup; see [CLEANUP.md](CLEANUP.md).
-- `DEMO_MODE=true` enables demo fixtures, demo labels and self-registration. In production mode, student accounts and groups must be provisioned by an operator; clients cannot choose their own academic group.
+- `DEMO_MODE=true` enables legacy demo fixtures and self-registration. Leave it
+  disabled for real accounts. The separate `FYP_ACCOUNT_BOUND_ENROLLMENT` option
+  accepts only the genuine first enrollment of a school-provisioned account.
 - `APP_TIMEZONE=Asia/Kuala_Lumpur` controls all academic dates and class windows. `tzdata` is required on Windows. The camera timer uses elapsed time rather than the emulator's wall clock.
 - `CHALLENGE_SECONDS=90` limits the complete verification flow. Logout, cancellation and successful completion invalidate pending challenges.
 - `FACE_DISTANCE_THRESHOLD=0.45` preserves the original project's matching threshold. Calibrate it using consented research participants rather than treating it as an evaluated accuracy guarantee.
-- Login accepts `student_id` and `password` only. `/me` reports the student and biometric status. Neither login nor biometric/attendance responses include device or network verification flags. Challenge ownership remains bound to the authenticated login, with expiry and single-use enforcement.
+- Login accepts `student_id` and `password` only. `/me` reports the student and
+  biometric status. Attendance preflight and final authorization perform their
+  own device and network checks. Challenges are bound to the authenticated
+  session, expire, and are single-use.
 - The example uses local HTTP for emulator development. Use HTTPS and a restricted database account before handling real students over a shared network. Keep the database reachable only by the backend.
 - A randomized 2D hand gesture is an academic liveness heuristic, not certified presentation-attack detection. It does not prove resistance to all prerecorded videos, composites, deepfakes or modified clients. Conduct the proposal's authorized spoofing and usability evaluation before making effectiveness claims.
 - Biometric registration verifies the signed-in student's account ownership but does not independently prove the first enrolled face belongs to an institutionally verified person. Real deployment needs supervised identity enrollment and account recovery.
@@ -158,10 +195,9 @@ Run these from `backend` with the virtual environment's Python. These operations
 ```powershell
 cd backend
 .\venv\Scripts\python.exe -m unittest discover -s tests -v
-# Optional live MySQL regression, with the demo backend running:
-$env:ATTENDANCE_API_URL = 'http://127.0.0.1:8000'
-.\venv\Scripts\python.exe -m unittest discover -s tests -v
-Remove-Item Env:ATTENDANCE_API_URL
+# Optional pytest runner, installed separately from runtime dependencies:
+.\venv\Scripts\python.exe -m pip install pytest
+.\venv\Scripts\python.exe -m pytest -q
 cd ..\frontend
 flutter analyze
 flutter test
@@ -170,20 +206,19 @@ flutter build apk --debug
 
 Backend tests use an isolated in-memory SQL database and synthetic biometric responses for deterministic workflow checks. Additional tests run the actual face detector and MediaPipe model on blank images and verify rejection. These tests establish workflow behavior, not real-world biometric accuracy. Real face/gesture acceptance, device compatibility and spoof resistance still require consented camera testing.
 
-Original source and earlier work artifacts are archived in `.work/cleanup-20261029/work-history.zip`.
-
-The app database was transferred from Laragon to XAMPP after a port-3306 conflict. It uses `attendance_proposal_xampp`. Earlier migration backups are in `.work/cleanup-20261029/work-history.zip`; current cleanup backups are described in [CLEANUP.md](CLEANUP.md). Use XAMPP's MySQL control for this project and leave Laragon's MySQL stopped.
+Historical implementation notes are in [CLEANUP.md](CLEANUP.md). Local backups,
+logs, build artifacts and test evidence are kept outside the shared source.
 
 Implementation references: [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/python), [Flutter camera plugin](https://pub.dev/packages/camera), [FastAPI security](https://fastapi.tiangolo.com/tutorial/security/).
 
-## Device registration — Phase 1
+## Historical device registration milestones
 
 Student → Account & Sign Out → **My Device** registers one Android installation
 using an Android Keystore public key and signed server challenge. Apply the
 additive migration with `backend\venv\Scripts\python.exe backend\migrate_devices.py`.
 See [device registration setup, REST contracts and USB testing](docs/DEVICE_REGISTRATION.md).
-Registration does not yet gate attendance; login and the biometric/liveness flow
-continue unchanged. No device replacement shortcut is provided.
+This was the Phase 1 behavior. The current attendance boundary requires an
+attempt-bound device signature.
 
 ## Automatic device verification — Phase 2
 
@@ -196,28 +231,48 @@ This standalone check does not authorize or gate attendance.
 
 ## Stage A — two-device foundation
 
-Storage now supports two ACTIVE device slots and automatic verification selects
-the local public-key fingerprint. **Second-device enrollment remains blocked**
-until Stage B biometric/liveness approval; replacement remains disabled. Existing
+Stage A introduced two ACTIVE device slots and automatic verification by
+local public-key fingerprint. Second-device enrollment and replacement were
+disabled at that milestone. Existing
 Samsung keys/registration and attendance are preserved. See
 [Stage A policy, migration evidence and phone testing](docs/TWO_DEVICE_STAGE_A.md).
 
 ## Stage B2 — pending second-device preparation
 
-Slot 2 candidate key proof is available, but activation remains disabled. The partner
-trusted-biometric provider is not integrated; approval scaffolds fail closed. See
+Stage B2 added Slot 2 candidate key proof before the activation integration. See
 [the B2 guide](docs/SECOND_DEVICE_STAGE_B2.md) for migration and safe tablet testing.
 
 ## Stage B3 — device biometric tests
 
-Second-device face/liveness checks now run through separate device APIs. Results
-remain UNTRUSTED_TEST_RESULT and cannot activate Slot 2. See
+Second-device face/liveness checks run through separate device APIs. An
+untrusted scan result alone cannot activate Slot 2. See
 [the B3 guide](docs/SECOND_DEVICE_STAGE_B3.md) for contracts, migration and webcam testing.
+
+Current device-management policy: the built-in server now authorizes Slot 2 and
+replacement after fresh bound face/liveness and key proof against a previously
+eligible enrollment. No faculty approval is requested per operation. The opt-in
+[ACCOUNT_BOUND_FYP policy](docs/FYP_ACCOUNT_BOUND_ENROLLMENT.md) records only the
+first face of a school-provisioned account; it does not claim institution-verified
+identity or upgrade legacy templates. See [self-service implementation](docs/SELF_SERVICE_DEVICE_MANAGEMENT.md).
+
+The [LOCAL FYP DEMO workflow](docs/SUPERVISED_ENROLLMENT_VERIFICATION.md#local-fyp-demo-on-the-original-server)
+is an explicit operator-run test for the original profile. Institutional
+assurance remains `UNVERIFIED`. Never copy its private credential, an enrolled
+face or a device binding to a teammate's environment.
 
 ## Phase 4 network verification
 
-Profile now provides an independent Network Verification diagnostic. The backend reads the actual ASGI peer IP and enabled database CIDRs; it does not trust IP fields/forwarded headers or automatically allow ADB localhost. Run the backend with the existing start-backend.ps1 (--no-proxy-headers). No policy is seeded. This phase does not enforce network checks in existing attendance recording. See [full contract, operator CLI and local test instructions](docs/NETWORK_VERIFICATION_PHASE4.md).
+Profile provides an independent Network Verification diagnostic. The backend
+matches the actual ASGI peer IP against enabled database CIDRs. The diagnostic
+does not authorize attendance. See [the Phase 4 contract and operator CLI](docs/NETWORK_VERIFICATION_PHASE4.md).
 
 ## Phase 5 mandatory attendance authorization
 
 Attendance now requires server-confirmed face/liveness, a fresh attempt-bound Keystore signature from an ACTIVE registration and a matching enabled CIDR policy on the final request. The existing /liveness/frame writer is guarded; old APKs without the new proof cannot record attendance. No production policy was seeded, and USB localhost is denied. Use an isolated restored database for later home/Samsung tests. See [implementation report and exact testing instructions](docs/ATTENDANCE_AUTHORIZATION_PHASE5.md).
+## Original local setup
+
+Use [the original-environment guide](docs/ORIGINAL_FYP_SETUP.md) for database
+3306, backend 8000 and localhost panel 8003. The pinned launcher checks all
+43 application tables before use.
+Do not use setup/reset scripts or treat application readiness as proof that the
+earlier MariaDB system-table corruption has been repaired.

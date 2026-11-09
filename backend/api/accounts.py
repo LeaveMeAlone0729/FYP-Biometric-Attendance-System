@@ -27,7 +27,7 @@ router = APIRouter(tags=["Demo accounts"])
 def groups(
     db=Depends(get_db, scope="function"), context: AppContext = Depends(get_context)
 ):
-    if not context.settings.demo_mode:
+    if not context.settings.demo_mode or getattr(context.settings, 'fyp_account_bound_enrollment', False):
         # Production group assignment is controlled through pre-provisioned student accounts.
         return []
     return [
@@ -46,7 +46,7 @@ def register(
     db=Depends(get_db, scope="function"),
     context: AppContext = Depends(get_context),
 ):
-    if not context.settings.demo_mode:
+    if not context.settings.demo_mode or getattr(context.settings, 'fyp_account_bound_enrollment', False):
         raise HTTPException(
             403, "Student accounts must be provisioned by the institution."
         )

@@ -42,14 +42,18 @@ class BiometricService:
             ) from exc
 
     def register_face(
-        self, student, db, file, consent, *, auto_capture=False, preview_only=False
+        self, student, db, file, consent, *, auto_capture=False, preview_only=False, auth=None
     ):
         # Lock student so simultaneous enrollment requests cannot overwrite a template.
         student = db.scalar(
             select(Student)
             .where(Student.student_id == student.student_id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
+        # Authorization/provenance only; partner inference is unchanged.
+        from .enrollment_policy import check_first_enrollment, record_first_enrollment
+        provisioned = check_first_enrollment(self.context, db, student, auth)
         if not consent:
             raise HTTPException(
                 400, "Your consent is required before registering facial biometrics."
@@ -88,6 +92,7 @@ class BiometricService:
         student.biometric_status = "active"
         student.consent_at = self.context.now()
         student.updated_at = self.context.now()
+        record_first_enrollment(self.context, db, student, auth, provisioned)
         self.context.audit(db, student.student_id, "enrollment", None, result="success")
         return {
             "success": True,

@@ -1,7 +1,9 @@
+from database_compat import verify_check_enforcement
 """Add only B2 tables; validate every resumed step and preserve Stage A guards."""
 import re
 import secrets
-from sqlalchemy import inspect, text
+from sqlalchemy import Boolean, inspect, text
+from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.exc import DBAPIError
 from .pending_models import PENDING_TABLES
 from .two_device_migration import require, normalized, verify_guards
@@ -14,7 +16,12 @@ def verify_table(connection, table):
     for column in table.columns:
         found = actual[column.name]
         require(found["nullable"] == column.nullable, "Wrong nullability: " + column.name)
-        require(found["type"]._type_affinity is column.type._type_affinity, "Wrong type: " + column.name)
+        # MySQL/MariaDB reflect BOOLEAN as TINYINT(1). Other integer widths
+        # must not qualify as a Boolean merely because they are integers.
+        boolean_alias = (isinstance(column.type, Boolean) and isinstance(found["type"], TINYINT)
+                         and found["type"].display_width == 1)
+        require(boolean_alias or found["type"]._type_affinity is column.type._type_affinity,
+                "Wrong type: " + column.name)
         require(getattr(found["type"], "length", None) == getattr(column.type, "length", None), "Wrong length: " + column.name)
         if column.computed:
             require(found.get("computed", {}).get("persisted") and normalized(found["computed"]["sqltext"]) == normalized(str(column.computed.sqltext)), "Wrong generated pending slot")
@@ -43,7 +50,7 @@ def probe_pending_constraints(connection):
         for number,values in enumerate((dict(),dict(slot=3),dict(status="ACTIVE"),dict(status="FAILED",operation="attendance")),2):
             try: insert(number,**values)
             except DBAPIError as exc:
-                require(getattr(exc.orig,"errno",None) in (1062,4025), "Unexpected constraint probe error")
+                require(getattr(exc.orig,"errno",None) in (1062,4025,3819), "Unexpected constraint probe error")
             else: raise RuntimeError("Pending constraint did not reject invalid row")
         connection.exec_driver_sql("UPDATE `"+name+"` SET status='EXPIRED'")
         insert(9)
@@ -59,7 +66,7 @@ def upgrade_pending_schema(engine):
         require(connection.scalar(text("SELECT GET_LOCK(:name,10)"),dict(name=lock)) == 1, "Another B2 migration is running")
         created=[]
         try:
-            require(connection.scalar(text("SELECT @@check_constraint_checks")) == 1, "CHECK enforcement disabled")
+            verify_check_enforcement(connection)
             require(connection.scalar(text("SELECT @@unique_checks")) == 1, "Unique enforcement disabled")
             verify_guards(connection)
             # Existing malformed tables fail closed; never replace/drop them.

@@ -24,6 +24,8 @@ class AppContext:
         self.bio = biometrics
         self.now = clock
         self.sessions = make_sessions(engine)
+        self.sessions.configure(info={'fyp_account_bound_enrollment':
+            getattr(settings, 'fyp_account_bound_enrollment', False) is True})
         self.login_failures = {}
         self.login_lock = threading.Lock()
         # Equalize unknown-account and wrong-password verification cost.

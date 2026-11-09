@@ -148,19 +148,20 @@ class _PendingDeviceScreenState extends State<PendingDeviceScreen> {
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 12),
-        if (widget.replacementTarget != null)
-          InfoNotice(
-            'Replacing ${widget.replacementTarget!["device_name"]} in Slot ${widget.replacementTarget!["slot_number"]}. The old device remains ACTIVE until the server atomically approves replacement. The other slot stays unchanged.',
+        if (widget.replacementTarget != null && !_activated)
+          Text(
+            'Replacing ${widget.replacementTarget!["device_name"]} (Slot ${widget.replacementTarget!["slot_number"]}). The old device remains ACTIVE until replacement is approved. Your other device is unchanged.',
           ),
-        Text(
-          widget.replacementTarget == null
-              ? 'Create a pending Slot 2 enrollment request and prove that this installation holds its private key. This step does not complete device registration.'
-              : 'Prepare this new installation as the replacement candidate. Face, liveness and genuine trusted approval are required.',
-        ),
+        if (!_proven && !_activated)
+          const Text(
+            'Prepare this device, then complete face and liveness verification.',
+          ),
         const SizedBox(height: 16),
         if (_activated) ...[
-          const InfoNotice(
-            'Server confirmed device activation. Return to My Device to refresh the registered devices.',
+          const ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.check_circle_outline, color: Colors.green),
+            title: Text('Device activated'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context),
@@ -172,28 +173,18 @@ class _PendingDeviceScreenState extends State<PendingDeviceScreen> {
             leading: Icon(Icons.check_circle_outline, color: Colors.green),
             title: Text('Device key verified successfully'),
           ),
-          InfoNotice(
+          Text(
             widget.replacementTarget == null
                 ? 'This device is not yet an ACTIVE registration. Slot 2 remains inactive.'
                 : 'This candidate is not ACTIVE. The old device remains registered.',
           ),
           const SizedBox(height: 12),
           const Text(
-            'Step 2: Trusted biometric approval',
+            'Step 2: Face verification',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           const Text(
-            'After face recognition and liveness, the app automatically checks for a separate trusted server approval. An untrusted test result cannot activate this device.',
-          ),
-          const Text(
-            'Trusted biometric approval: checked on the server after biometric verification',
-          ),
-          const Text(
-            'Device activation: automatic only after server eligibility and key proof',
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Key preparation is complete for this pending request. Repeating it will not complete registration.',
+            'Complete face recognition and liveness. Registration finishes automatically if the server approves.',
           ),
         ] else if (_expired) ...[
           const Text(
@@ -201,7 +192,7 @@ class _PendingDeviceScreenState extends State<PendingDeviceScreen> {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           const Text(
-            'The device was not activated. Your local key is retained. A new request starts key preparation again; it does not bypass biometric approval.',
+            'The device was not activated. Your key is retained; start a new request.',
           ),
         ] else if (_pending?['status'] == 'FAILED') ...[
           Text(
@@ -224,10 +215,6 @@ class _PendingDeviceScreenState extends State<PendingDeviceScreen> {
           const SizedBox(height: 12),
           Text('Last server status: ${_pending!['status']}'),
           Text('Pending registration expires: ${_pending!['expires_at']}'),
-          const SizedBox(height: 8),
-          const Text(
-            'Refresh status to check this pending request. The server determines whether it is still valid.',
-          ),
         ],
         if (!_proven && !_activated && _loaded) ...[
           const SizedBox(height: 16),
@@ -281,11 +268,7 @@ class _PendingDeviceScreenState extends State<PendingDeviceScreen> {
         if (_error != null) InfoNotice(_error!, warning: true),
         const SizedBox(height: 20),
         const Text(
-          'Your private key stays in Android Keystore and is reused after app restarts. Keep this app installed and retain its data. Your existing trusted device is unchanged.',
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'A new login uses a different server session. If another pending request exists, wait for it to expire before starting a new request with the same local key.',
+          'Keep this app and its data. Your device key is reused after restarts.',
         ),
       ],
     ),

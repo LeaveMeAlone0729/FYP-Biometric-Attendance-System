@@ -1,3 +1,4 @@
+from database_compat import verify_check_enforcement
 """Controlled C1 metadata/check widening. No registration/data updates or index drops."""
 from sqlalchemy import inspect,text
 from .pending_models import PendingDeviceRegistration
@@ -19,7 +20,7 @@ def upgrade_replacement_schema(engine):
         lock="c1_migration_"+str(engine.url.database);steps=[]
         require(c.scalar(text("SELECT GET_LOCK(:name,10)"),dict(name=lock))==1,"C1 migration already running")
         try:
-            require(c.scalar(text("SELECT @@check_constraint_checks"))==1,"CHECK enforcement disabled")
+            verify_check_enforcement(c)
             require(c.scalar(text("SELECT @@unique_checks"))==1,"Unique enforcement disabled")
             verify_guards(c)
             for table in TABLES:require(inspect(c).has_table(table.name),"Apply existing B2/B3/B4 migrations first")

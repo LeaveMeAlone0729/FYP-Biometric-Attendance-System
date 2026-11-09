@@ -1,12 +1,14 @@
 # Local workspace
 .work/
+/outputs/
+/backups/
+/docs/ORIGINAL_FYP_COMPLETION_20261109.md
+.pytest_cache/
 
 # Backend secrets and generated files
 backend/.env
 backend/venv/
 backend/models/*.task
-backend/*.db
-backend/.pytest_cache/
 **/__pycache__/
 *.py[cod]
 *.log
@@ -21,6 +23,41 @@ backend/.pytest_cache/
 .env
 .env.*
 !.env.example
+**/panel-admin.json
+**/backend-profile.json
+**/production-profile.json
+**/profile.json
+**/identity.json
+**/processes.json
+**/lan-listener.json
+**/STUDENT_CREDENTIALS.txt
+**/USER_CREDENTIALS.txt
+**/temporary-dump-client.cnf
+*.key
+*.pem
+*.pfx
+*.p12
+*.jks
+*.keystore
+*.sql
+*.sql.gz
+*.sql.zip
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.ibd
+*.MAI
+*.MAD
+*.apk
+*.aab
 
 # Flutter generated files
 frontend/android/.gradle/

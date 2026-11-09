@@ -1,3 +1,4 @@
+from database_compat import verify_check_enforcement
 """Add three empty FR-06 tables; reject drift and never alter existing records."""
 import secrets
 from sqlalchemy import inspect,text,MetaData,Integer
@@ -23,16 +24,16 @@ def probe_network_constraints(c):
         c.exec_driver_sql("INSERT INTO `"+name+"` (network_id,network_name,network_cidr,created_at,updated_at) VALUES ('probe','probe','192.0.2.0/24','2000-01-01','2000-01-01')")
         require(c.exec_driver_sql('SELECT enabled FROM `'+name+'`').scalar()==0,'Policies must default to disabled')
         try:c.exec_driver_sql('UPDATE `'+name+'` SET enabled=2')
-        except DBAPIError as exc:require(getattr(exc.orig,'errno',None)==4025,'Unexpected policy probe error')
+        except DBAPIError as exc:require(getattr(exc.orig,'errno',None) in (4025,3819),'Unexpected policy probe error')
         else:raise RuntimeError('Invalid enabled status accepted')
     finally:c.exec_driver_sql('DROP TEMPORARY TABLE `'+name+'`')
     c.exec_driver_sql('CREATE TEMPORARY TABLE `'+name+'` LIKE network_verification_events')
     try:
         sql="INSERT INTO `"+name+"` (student_id,auth_token_hash,operation,source_ip,result,reason_code,verified_at) VALUES ('probe','probe',:operation,'192.0.2.1',:result,'probe','2000-01-01')"
         c.execute(text(sql),dict(operation='network_diagnostic',result='FAIL'))
-        for values in (dict(operation='network_diagnostic',result='PASS'),dict(operation='attendance_authorization',result='FAIL'),dict(operation='network_diagnostic',result='UNKNOWN')):
+        for values in (dict(operation='network_diagnostic',result='PASS'),dict(operation='attendance_authorization',result='FAIL'),dict(operation='network_diagnostic',result='BAD')):
             try:c.execute(text(sql),values)
-            except DBAPIError as exc:require(getattr(exc.orig,'errno',None)==4025,'Unexpected audit probe error')
+            except DBAPIError as exc:require(getattr(exc.orig,'errno',None) in (4025,3819),'Unexpected audit probe error')
             else:raise RuntimeError('Invalid network audit accepted')
     finally:c.exec_driver_sql('DROP TEMPORARY TABLE `'+name+'`')
 
@@ -42,7 +43,7 @@ def upgrade_network_schema(engine):
         lock='p4_migration_'+str(engine.url.database);created=[]
         require(c.scalar(text('SELECT GET_LOCK(:name,10)'),dict(name=lock))==1,'Another network migration is running')
         try:
-            require(c.scalar(text('SELECT @@check_constraint_checks'))==1,'CHECK enforcement disabled')
+            verify_check_enforcement(c)
             require(c.scalar(text('SELECT @@unique_checks'))==1,'Unique enforcement disabled')
             for table in NETWORK_TABLES:
                 if inspect(c).has_table(table.name):verify_network_table(c,table)

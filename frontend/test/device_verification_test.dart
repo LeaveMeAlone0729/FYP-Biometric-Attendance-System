@@ -10,6 +10,7 @@ import 'package:frontend/modules/devices/services/device_key_store.dart';
 import 'package:frontend/modules/devices/services/device_verification_service.dart';
 import 'package:frontend/modules/devices/screens/my_device_screen.dart';
 import 'package:frontend/services/api_client.dart';
+import 'package:frontend/theme.dart' show InfoNotice;
 
 class VerificationKeys extends DeviceKeyStore {
   int created = 0, signed = 0;
@@ -354,6 +355,18 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Status: ACTIVE'), findsOneWidget);
+    expect(
+      tester
+          .widgetList<InfoNotice>(find.byType(InfoNotice))
+          .where((notice) => !notice.warning),
+      isEmpty,
+    );
+    expect(
+      find.text(
+        'Adding or replacing a device requires face and liveness verification.',
+      ),
+      findsOneWidget,
+    );
     expect(find.byType(FilledButton), findsNothing);
     expect(find.byType(OutlinedButton), findsNothing);
     expect(find.textContaining('Verify This Device'), findsNothing);

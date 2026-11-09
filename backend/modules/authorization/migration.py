@@ -1,3 +1,4 @@
+from database_compat import verify_check_enforcement
 """Add only attendance-specific nonce/audit tables; no existing data updates."""
 import secrets
 from sqlalchemy import inspect,text
@@ -12,7 +13,7 @@ def upgrade_attendance_authorization_schema(engine):
         lock='p5_migration_'+str(engine.url.database);created=[]
         require(c.scalar(text('SELECT GET_LOCK(:name,10)'),dict(name=lock))==1,'Another attendance migration is running')
         try:
-            require(c.scalar(text('SELECT @@check_constraint_checks'))==1,'CHECK enforcement disabled')
+            verify_check_enforcement(c)
             require(c.scalar(text('SELECT @@unique_checks'))==1,'Unique enforcement disabled')
             for name in ['students','auth_sessions','verification_challenges','registered_devices','network_verification_events']:
                 require(inspect(c).has_table(name),'Missing prerequisite '+name)
@@ -30,7 +31,7 @@ def upgrade_attendance_authorization_schema(engine):
                 values=dict(id='first',attempt='attempt',operation='attendance_authorization',result='PENDING');c.execute(text(sql),values)
                 for i,changes in enumerate([{},dict(operation='device_status',attempt='other'),dict(result='PASS',attempt='other'),dict(result='UNKNOWN',attempt='other')]):
                     try:c.execute(text(sql),{**values,'id':'invalid'+str(i),**changes})
-                    except DBAPIError as exc:require(getattr(exc.orig,'errno',None) in (1062,4025),'Unexpected nonce guard error')
+                    except DBAPIError as exc:require(getattr(exc.orig,'errno',None) in (1062,4025,3819),'Unexpected nonce guard error')
                     else:raise RuntimeError('Attendance nonce guard failed')
                 c.exec_driver_sql("UPDATE `"+name+"` SET result='FAIL',consumed_at='2000-01-01'")
                 c.execute(text(sql),{**values,'id':'renewed'})

@@ -114,7 +114,12 @@ See [integration](SECOND_DEVICE_ACTIVATION_INTEGRATION.md) and
 
 ## Stage C1 device replacement
 
-Device-owned replacement now uses POST /api/v1/devices/replacements and the shared pending proof/status/cancellation, attendance-free biometric and trusted activation routes for either occupied slot. Existing algorithms and attendance routes are unchanged. The old device remains ACTIVE until an atomic trusted handover succeeds; the other slot is preserved. The provider methods are unchanged, with replacement target ID/fingerprint added to the exact binding. Production remains fail closed without the partner provider. See [complete replacement contract, migration and tests](DEVICE_REPLACEMENT_C1.md).
+Current scope: device-owned local authorization now replaces the missing external
+approval provider. Face/liveness inference is reused unchanged. Faculty identity
+recovery/face replacement remain outside the app, and no enrollment trust is
+automatically conferred. See [self-service device management](SELF_SERVICE_DEVICE_MANAGEMENT.md).
+
+Device-owned replacement now uses POST /api/v1/devices/replacements and the shared pending proof/status/cancellation, attendance-free biometric and trusted activation routes for either occupied slot. Existing algorithms and attendance routes are unchanged. The old device remains ACTIVE until an atomic trusted handover succeeds; the other slot is preserved. The provider methods are unchanged, with replacement target ID/fingerprint added to the exact binding. The built-in provider now handles eligible account-bound FYP operations; legacy templates still fail closed. See [complete replacement contract, migration and tests](DEVICE_REPLACEMENT_C1.md).
 
 ## Phase 4 network verification FR-06
 
@@ -126,3 +131,8 @@ POST /liveness/frame still owns runtime attendance completion, through the same 
 
 
 Phase 5 readiness refinement: device-owned authorization service/router now expose signed attendance-attempt preflight before camera navigation. The only additional partner-owned change is CameraScreen's presentation-only `initialFailure` result entry, which skips camera initialization/timers. No partner inference, thresholds, templates, gesture state machine, orientation logic or final attendance writer changes. Preflight PASS is never a final attendance grant; the existing final proof/network guard is preserved.
+
+Confirmed FYP first-enrollment policy: the only additional partner-owned changes
+are register_face authorization and atomic provenance recording, plus multipart
+identity/assurance field rejection in its router. Detection, encoding, thresholds,
+gestures and attendance algorithms are unchanged. See [policy and isolated tests](FYP_ACCOUNT_BOUND_ENROLLMENT.md).

@@ -285,6 +285,11 @@ void main() {
             )
             .first,
       );
+      await Scrollable.ensureVisible(
+        tester.element(find.text('Cancel pending request')),
+        alignment: .5,
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel pending request'));
       await tester.pumpAndSettle();
       expect(service.cancelled, 1);

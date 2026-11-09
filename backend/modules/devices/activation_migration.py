@@ -1,3 +1,4 @@
+from database_compat import verify_check_enforcement
 """Resumable additive B4 DDL. Application startup never runs this migration."""
 import re
 import secrets
@@ -18,7 +19,7 @@ def probe_activation_constraints(connection):
         insert("first")
         for i,values in enumerate((dict(),dict(slot=3),dict(operation="attendance"),dict(result="PASS"),dict(result="TRUSTED")),1):
             try:insert(str(i),pending="pending" if not values else "invalid"+str(i),**values)
-            except DBAPIError as exc:require(getattr(exc.orig,"errno",None) in (1062,4025),"Unexpected B4 constraint error")
+            except DBAPIError as exc:require(getattr(exc.orig,"errno",None) in (1062,4025,3819),"Unexpected B4 constraint error")
             else:raise RuntimeError("Activation constraint did not reject invalid row")
         connection.exec_driver_sql("UPDATE `"+name+"` SET result='FAIL',consumed_at='2000-01-01'")
         insert("new")
@@ -32,7 +33,7 @@ def upgrade_activation_schema(engine):
         require(connection.scalar(text("SELECT GET_LOCK(:name,10)"),dict(name=lock))==1,"B4 migration already running")
         created=[]
         try:
-            require(connection.scalar(text("SELECT @@check_constraint_checks"))==1,"CHECK enforcement disabled")
+            verify_check_enforcement(connection)
             require(connection.scalar(text("SELECT @@unique_checks"))==1,"Unique enforcement disabled")
             verify_guards(connection)
             require(inspect(connection).has_table("pending_device_registrations"),"Apply B2 first")

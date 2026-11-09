@@ -1,6 +1,6 @@
-"""Authenticated activation workflow; genuine institutional trust is mandatory.
+"""Authenticated activation against previously verified enrollment provenance.
 
-The default provider always rejects. Untrusted B3 results never grant authority.
+The local provider requires previously verified enrollment and a separate fresh authorization; raw B3 results never grant authority.
 Caller owns the outer transaction and must commit rejection audits/nonce use,
 as registration_response/get_db do; never catch an error and commit partial success.
 """
@@ -19,6 +19,7 @@ from .approval_provider import (ApprovalBinding, TrustedTemplateRevision, Truste
 from .biometric_models import DeviceBiometricSession
 from .crypto import canonical_public_key, verify_signature
 from .models import RegisteredDevice
+from .local_demo import PREFIX
 from .pending_service import PendingEnrollmentService
 from .service import DeviceRegistrationError
 
@@ -130,7 +131,7 @@ class DeviceActivationService(PendingEnrollmentService):
             self._reject(403,'BIOMETRIC_TRUST_REQUIRED','COMPLETED_UNTRUSTED is never an activation approval.')
         revision=provider.current_template_revision(db,student.student_id,now)
         if not isinstance(revision,TrustedTemplateRevision) or not revision.trusted or revision.invalidated_at is not None:
-            self._reject(403,'BIOMETRIC_TRUST_REQUIRED','An institution-approved current template revision is required.')
+            self._reject(403,'BIOMETRIC_TRUST_REQUIRED','A current template revision with verified enrollment provenance is required.')
         provider.validate_template_trust(db,revision,now)
         if (revision.student_id!=student.student_id or student.biometric_status!='active' or not student.face_encoding
                 or revision.template_hash!=hashlib.sha256(student.face_encoding.encode()).hexdigest()):
@@ -149,7 +150,7 @@ class DeviceActivationService(PendingEnrollmentService):
         return approval
 
     def _issue_transaction(self,db,student,auth,pending_id,approval_id):
-        """Shared transaction core; production provider currently unavailable."""
+        """Shared transaction core; local verified-enrollment provider."""
         def operation(state):
             nonlocal student,auth
             student,auth=self._identity(db,student,auth)
@@ -252,12 +253,16 @@ class DeviceActivationService(PendingEnrollmentService):
                         target.status="REVOKED";target.revoked_at=self.context.now()
                         target.revocation_reason="Approved replacement " + pending.pending_registration_id
                         db.flush()  # Release only the target ACTIVE slot inside the savepoint.
+                    demo = pending.candidate_device_id.startswith(PREFIX)
                     device=RegisteredDevice(device_id=pending.candidate_device_id,student_id=student.student_id,
                         slot_number=pending.slot_number,public_key_spki=pending.public_key_spki,public_key_fingerprint=pending.public_key_fingerprint,
-                        device_name=pending.device_name,device_model=pending.device_model,platform="android",status="ACTIVE",registered_at=self.context.now())
+                        device_name=("[LOCAL FYP DEMO] " + pending.device_name)[:100] if demo else pending.device_name,
+                        device_model=pending.device_model,platform="android",status="ACTIVE",registered_at=self.context.now())
                     db.add(device);pending.status="ACTIVATED";pending.consumed_at=self.context.now()
-                    self.audit(db,student,"activation","PASS",("DEVICE_REPLACED" if pending.operation=="replace_device" else "SECOND_DEVICE_ACTIVATED"),pending)
-                    self._event(db,student,"activate","PASS",("DEVICE_REPLACED" if pending.operation=="replace_device" else "SECOND_DEVICE_ACTIVATED"),state)
+                    code = ("LOCAL_FYP_DEMO_SLOT2_ACTIVATED" if demo else
+                            "DEVICE_REPLACED" if pending.operation=="replace_device" else "SECOND_DEVICE_ACTIVATED")
+                    self.audit(db,student,"activation","PASS",code,pending)
+                    self._event(db,student,"activate","PASS",code,state)
                     db.flush();fresh()
             except IntegrityError:
                 self._reject(409,"ACTIVATION_CONFLICT","Slot or candidate registration changed concurrently.")

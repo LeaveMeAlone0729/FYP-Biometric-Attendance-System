@@ -9,6 +9,29 @@ from database import make_engine, make_sessions
 from models import ClassSchedule, ClassSession, Course, Programme, Student, StudentGroup
 from security import digest, hash_password
 
+
+def create_class_session(db,*,group_id,course_code,course_name,session_date,start,end,venue,lecturer,pin):
+    """Existing operator creation workflow, shared with the isolated test wrapper."""
+    if not db.get(StudentGroup,group_id):raise ValueError('Group not found.')
+    if not re.fullmatch(r'\d{6}',pin):raise ValueError('Use a six-digit PIN.')
+    if end<=start:raise ValueError('End time must be after start time on the same day.')
+    if not re.fullmatch(r'[A-Za-z0-9]{1,10}',course_code):raise ValueError('Use a course code with up to 10 letters/digits.')
+    existing=db.scalars(select(ClassSession).join(ClassSchedule).where(
+        ClassSchedule.group_id==group_id,ClassSession.session_date==session_date,
+        ClassSession.pin_hash==digest(pin),ClassSession.status=='active')).all()
+    if any(s.start_time<end and s.end_time>start for s in existing):
+        raise ValueError('An overlapping session for this group already uses this PIN.')
+    if not db.get(Course,course_code):
+        db.add(Course(course_code=course_code,course_name=course_name,credit_hour=3));db.flush()
+    schedule=ClassSchedule(course_code=course_code,group_id=group_id,
+        day_of_week=session_date.strftime('%A'),class_type='Lecture',start_time=start,end_time=end,
+        start_date=session_date,end_date=session_date,lecturer=lecturer)
+    db.add(schedule);db.flush()
+    session=ClassSession(schedule_id=schedule.schedule_id,session_date=session_date,start_time=start,
+        end_time=end,venue=venue,status='active',pin_hash=digest(pin))
+    db.add(session)
+    return session
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -59,23 +82,10 @@ def main():
                 email=args.email.strip().lower(), password_hash=hash_password(password), created_at=current))
             print('Student account created.')
         elif args.command == 'create-session':
-            if not db.get(StudentGroup, args.group_id): raise SystemExit('Group not found.')
-            if not re.fullmatch(r'\d{6}', args.pin): raise SystemExit('Use a six-digit PIN.')
-            if args.end <= args.start: raise SystemExit('End time must be after start time on the same day.')
-            if not re.fullmatch(r'[A-Za-z0-9]{1,10}', args.course_code): raise SystemExit('Use a course code with up to 10 letters/digits.')
-            existing = db.scalars(select(ClassSession).join(ClassSchedule).where(
-                ClassSchedule.group_id == args.group_id, ClassSession.session_date == args.date,
-                ClassSession.pin_hash == digest(args.pin), ClassSession.status == 'active')).all()
-            if any(s.start_time < args.end and s.end_time > args.start for s in existing):
-                raise SystemExit('An overlapping session for this group already uses this PIN.')
-            if not db.get(Course, args.course_code):
-                db.add(Course(course_code=args.course_code, course_name=args.course_name, credit_hour=3)); db.flush()
-            schedule = ClassSchedule(course_code=args.course_code, group_id=args.group_id,
-                day_of_week=args.date.strftime('%A'), class_type='Lecture', start_time=args.start, end_time=args.end,
-                start_date=args.date, end_date=args.date, lecturer=args.lecturer)
-            db.add(schedule); db.flush()
-            db.add(ClassSession(schedule_id=schedule.schedule_id, session_date=args.date, start_time=args.start,
-                end_time=args.end, venue=args.venue, status='active', pin_hash=digest(args.pin)))
+            try:create_class_session(db,group_id=args.group_id,course_code=args.course_code,
+                course_name=args.course_name,session_date=args.date,start=args.start,end=args.end,
+                venue=args.venue,lecturer=args.lecturer,pin=args.pin)
+            except ValueError as exc:raise SystemExit(str(exc)) from None
             print('Dated class session created. Share the attendance PIN with the class when its window opens.')
     engine.dispose()
 
