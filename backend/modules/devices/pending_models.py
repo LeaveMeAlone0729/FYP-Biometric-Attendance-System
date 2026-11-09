@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import CheckConstraint, Computed, DateTime, ForeignKey, Index, SmallInteger, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
-from .models import RegisteredDevice  # Register the Slot 1 FK target before DDL.
+from .models import RegisteredDevice  # noqa: F401 -- Register the Slot 1 foreign-key target before DDL.
 
 
 class PendingDeviceRegistration(Base):

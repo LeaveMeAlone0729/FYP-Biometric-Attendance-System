@@ -33,6 +33,7 @@ class AttendanceAuthorizationService:
         if nonce is not None and nonce.result!='PASS':
             nonce.consumed_at=nonce.consumed_at or self.context.now();nonce.result='FAIL';nonce.failure_code=code
         if final and attempt is not None and not attempt.consumed:
+            self.context.runtime_liveness.discard(attempt)
             attempt.consumed=True
             root=db.get(VerificationAttempt,attempt.verification_id)
             root.verification_result='failed';root.stage='authorization';root.failure_reason=message
@@ -150,10 +151,12 @@ class AttendanceAuthorizationService:
         student,auth=self.identity(db,student,auth);attempt,session=self.attempt(db,student,auth,attempt.challenge_id)
         root=db.scalar(select(VerificationAttempt).where(VerificationAttempt.verification_id==attempt.verification_id).with_for_update())
         def deny(status,code,message,nonce=None,network_id=None):self.reject(db,student,auth,status,code,message,attempt=attempt,nonce=nonce,network_id=network_id,final=True)
+        state = self.context.runtime_liveness.read(attempt)
         if (attempt.stage!='liveness' or root.verification_result!='pending' or root.stage!='liveness'
+                or state is None or len(state['frames'])!=REQUIRED_LIVENESS_FRAMES
                 or attempt.valid_frames!=REQUIRED_LIVENESS_FRAMES or root.face_distance is None
                 or not math.isfinite(root.face_distance) or root.face_distance>=self.context.settings.face_threshold):
-            deny(403,'ATTENDANCE_BIOMETRICS_REQUIRED','Successful server face matching and three live gesture frames are required.')
+            deny(403,'ATTENDANCE_BIOMETRICS_REQUIRED','Successful server face matching, passive anti-spoof checks and three live gesture frames are required.')
         if not proof_id or not signature:deny(403,'ATTENDANCE_DEVICE_PROOF_REQUIRED','A fresh signed attendance-device challenge is required. Update the app and use an ACTIVE registered installation.')
         nonce=db.scalar(select(AttendanceDeviceChallenge).where(AttendanceDeviceChallenge.challenge_id==proof_id).with_for_update().execution_options(populate_existing=True))
         if (nonce is None or nonce.student_id!=student.student_id or nonce.auth_token_hash!=auth.token_hash

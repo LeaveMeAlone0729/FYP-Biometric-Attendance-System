@@ -549,7 +549,7 @@
         "tags": [
           "Facial verification"
         ],
-        "summary": "Match the registered face and issue a random finger challenge",
+        "summary": "Match the enrolled face and pass passive anti-spoof checks before the finger challenge",
         "operationId": "verifyFace",
         "requestBody": {
           "content": {
@@ -696,7 +696,7 @@
         "tags": [
           "Liveness"
         ],
-        "summary": "Check one fresh face/hand frame; complete after three consecutive matches",
+        "summary": "Complete three fresh frames with matching face, passive anti-spoof and correct fingers",
         "operationId": "submitLivenessFrame",
         "requestBody": {
           "content": {
@@ -5064,7 +5064,7 @@
             "type": "string",
             "contentMediaType": "application/octet-stream",
             "title": "File",
-            "description": "Fresh camera image with one visible face and one hand, at most 6 MB."
+            "description": "Fresh camera image with one visible face and one hand for identity, passive anti-spoofing and finger-count checks. At most 6 MB."
           }
         },
         "type": "object",
@@ -5666,6 +5666,16 @@
             "format": "date-time",
             "title": "Expires At"
           },
+          "liveness_step": {
+            "type": "string",
+            "const": "hand",
+            "title": "Liveness Step"
+          },
+          "anti_spoof_verified": {
+            "type": "boolean",
+            "const": true,
+            "title": "Anti Spoof Verified"
+          },
           "message": {
             "type": "string",
             "title": "Message"
@@ -5680,6 +5690,8 @@
           "fingers",
           "required_frames",
           "expires_at",
+          "liveness_step",
+          "anti_spoof_verified",
           "message"
         ],
         "title": "FaceVerified"
@@ -5737,6 +5749,16 @@
             "minimum": 1.0,
             "title": "Required Frames"
           },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready",
+            "default": false
+          },
+          "liveness_step": {
+            "type": "string",
+            "const": "hand",
+            "title": "Liveness Step"
+          },
           "message": {
             "type": "string",
             "title": "Message"
@@ -5748,6 +5770,7 @@
           "complete",
           "valid_frames",
           "required_frames",
+          "liveness_step",
           "message"
         ],
         "title": "LivenessProgress"
@@ -6672,6 +6695,10 @@
             "type": "boolean",
             "title": "Liveness Verified"
           },
+          "face_liveness_verified": {
+            "type": "boolean",
+            "title": "Face Liveness Verified"
+          },
           "valid_frames": {
             "type": "integer",
             "title": "Valid Frames"
@@ -6708,6 +6735,7 @@
           "stage",
           "face_verified",
           "liveness_verified",
+          "face_liveness_verified",
           "valid_frames",
           "required_frames",
           "expires_at",

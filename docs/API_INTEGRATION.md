@@ -17,7 +17,7 @@ class PINs and attendance storage currently supply the demo context.
 - Regenerate the handoff specification after changing a public contract:
 
   ```powershell
-  .\backend\venv\Scripts\python.exe backend\export_openapi.py
+  .\backend\venv\Scripts\python.exe backend\export_openapi.py --output "$env:TEMP\fyp-openapi.json"
   ```
 
 For a physical phone, use the PC's reachable address as the API base URL. The
@@ -269,73 +269,27 @@ The automated tests validate contract, ownership and workflow behavior. Real
 face/gesture acceptance and spoof resistance still require consented camera
 evaluation; the finger challenge is a research liveness heuristic.
 
-## Device registration API (Phase 1)
+## Device registration and activation API
 
-The shared backend now also exposes authenticated device registration at
-`/api/v1/devices/registration-challenges`, `/api/v1/devices/registrations` and
-`/api/v1/devices/current`. See [DEVICE_REGISTRATION.md](DEVICE_REGISTRATION.md)
-for signing bytes, contracts, migration, failure handling and USB phone testing.
-Registration is independent: it does not change any biometric endpoint or gate
-attendance. Automatic device verification is now provided by Phase 2 below.
-Replacement, CIDR checks and the final authorization coordinator remain later phases.
+Authenticated registration uses /api/v1/devices/registration-challenges,
+/api/v1/devices/registrations and /api/v1/devices/current. GET /api/v1/devices
+lists up to two active registrations. Automatic verification selects the local
+public-key fingerprint and requires a fresh signature. Its result is diagnostic.
 
-## Automatic device verification API (Phase 2)
+Adding or replacing a device uses pending key proof, a separate device
+face/liveness flow, a server-issued approval, and an activation signature.
+An untrusted scan result alone cannot authorize activation. Under
+/api/v1/devices/pending-registrations/{pending_id}:
 
-The device router adds `/api/v1/devices/verification-challenges`,
-`/api/v1/devices/verifications` and negative-only `/api/v1/devices/verification-failures`.
-See [DEVICE_VERIFICATION.md](DEVICE_VERIFICATION.md) for full contracts, operation
-binding, replay rules, audit and the additive migration. Only `device_status` is
-currently enabled; PASS is point-in-time evidence and never attendance authority.
-Phase 5 must add server-validated attendance-attempt binding and invoke the Flutter
-service automatically, then gate the final insert. Existing biometric endpoints
-and attendance completion remain unchanged in Phase 2.
+- POST /activation-readiness finds a valid server approval.
+- POST /activation-challenges issues a candidate-key proof nonce.
+- POST /activate consumes the valid proof and approval in the activation transaction.
+- GET /activation-status reports the committed state.
 
-## Stage A device selection
-
-GET `/api/v1/devices` lists up to two owned ACTIVE registrations. Automatic
-verification challenges now require the local `public_key_fingerprint` selector;
-a valid signature remains mandatory. Initial registration endpoints cannot
-activate a second device. No biometric or attendance API behavior changed. See
-[TWO_DEVICE_STAGE_A.md](TWO_DEVICE_STAGE_A.md) for contracts and rollout safety.
-
-## Stage B2 preparation boundary
-
-Device-owned pending registration/proof endpoints and fail-closed device approval
-scaffolds are documented in [SECOND_DEVICE_STAGE_B2.md](SECOND_DEVICE_STAGE_B2.md).
-No activation route exists. Initial registration and biometric/attendance APIs stay
-unchanged; `additional_enrollment_enabled` remains false.
-
-## Stage B3 updates to device-approval URLs
-
-The B2 scaffolds now host attendance-free face/liveness TEST sessions; they do not
-issue trusted approvals. Every result remains untrusted, non-consumable and
-ineligible for activation. See [SECOND_DEVICE_STAGE_B3.md](SECOND_DEVICE_STAGE_B3.md).
-
-## Current second-device activation REST API
-
-The authenticated device activation API and Flutter automatic signing flow are
-implemented. The default trusted provider remains unavailable; COMPLETED_UNTRUSTED
-cannot activate a device. Under /api/v1/devices/pending-registrations/{pending_id}:
-
-- POST /activation-readiness with {} finds a genuine server approval.
-- POST /activation-challenges with {approval_id} issues a signed-proof nonce.
-- POST /activate with {approval_id, challenge_id, signature} requires fresh key proof.
-- GET /activation-status reconciles final committed registration state.
-
-See [full contracts and migration evidence](SECOND_DEVICE_ACTIVATION_INTEGRATION.md)
-and [partner adapter schema](TRUSTED_BIOMETRIC_PROVIDER_CONTRACT.md). OpenAPI includes
-all four paths. The two additive activation tables are installed in production;
-existing registrations, templates and attendance were preserved. No production
-mock or client-controlled trust path exists.
-
-## Stage C1 device replacement
-
-Current self-service policy supersedes the old missing-partner-provider blocker:
-the built-in device authorization provider issues fresh bound approvals against
-verified enrollment provenance. There is no per-operation faculty integration.
-Legacy templates remain unverified. NEW school-account first enrollment can record ACCOUNT_BOUND_FYP assurance under the explicit opt-in [FYP policy](FYP_ACCOUNT_BOUND_ENROLLMENT.md). See [current contract, migration and controlled demo](SELF_SERVICE_DEVICE_MANAGEMENT.md).
-
-Device-owned replacement now uses POST /api/v1/devices/replacements and the shared pending proof/status/cancellation, attendance-free biometric and trusted activation routes for either occupied slot. Existing algorithms and attendance routes are unchanged. The old device remains ACTIVE until an atomic trusted handover succeeds; the other slot is preserved. The provider methods are unchanged, with replacement target ID/fingerprint added to the exact binding. The built-in provider now handles eligible account-bound FYP operations; legacy templates still fail closed. See [complete replacement contract, migration and tests](DEVICE_REPLACEMENT_C1.md).
+See [the provider contract](TRUSTED_BIOMETRIC_PROVIDER_CONTRACT.md) and
+[self-service device management](SELF_SERVICE_DEVICE_MANAGEMENT.md) for binding,
+provenance, and replacement. The old device stays active until an authorized
+replacement commits. Neither device workflow records attendance.
 
 ## Phase 4 network verification FR-06
 
@@ -343,7 +297,7 @@ The independent backend/modules/networks and frontend/lib/modules/networks modul
 
 ## Phase 5 mandatory final attendance authorization
 
-POST /liveness/frame still owns runtime attendance completion, through the same shared writer. It now requires an attendance-specific signed device nonce and fresh final-request network verification before insertion. The partner router/service only forward request scope and proof fields; camera adds API injection. Inference, enrollment/deletion, gesture/threshold and orientation logic are unchanged. The shared attendance UI injects the device-owned automatic signing adapter. Existing standalone device/network PASS results cannot authorize attendance. Production policies remain empty and localhost is denied. See [complete authorization contract, changed files, restored-database evidence and safe later phone tests](ATTENDANCE_AUTHORIZATION_PHASE5.md).
+POST /liveness/frame still owns runtime attendance completion, through the same shared writer. It now requires an attendance-specific signed device nonce and fresh final-request network verification before insertion. Attendance also requires face matching, passive anti-spoof checks and three accepted gesture frames. The final request includes classroom Wi-Fi proof when required by the session. The shared attendance UI injects the device-owned automatic signing adapter. Existing standalone device/network PASS results cannot authorize attendance. Production policies remain empty and localhost is denied. See [complete authorization contract, changed files, restored-database evidence and safe later phone tests](ATTENDANCE_AUTHORIZATION_PHASE5.md).
 
 
 ### Attendance readiness before capture

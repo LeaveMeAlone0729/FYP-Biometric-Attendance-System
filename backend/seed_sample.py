@@ -14,10 +14,10 @@ from database import make_engine, make_sessions
 from models import (Attendance, ClassSchedule, ClassSession, Course, Programme,
                     Student, StudentGroup, VerificationAttempt)
 from security import digest, hash_password
+from setup import new_demo_password
 
 TERM_START = date(2026, 9, 28)
 TERM_END = date(2026, 12, 18)
-PASSWORD = 'CampusAttend2026!'
 PROGRAMMES = (
     ('BIT', 'Bachelor of Information Technology (Honours)'),
     ('BCS', 'Bachelor of Computer Science (Honours)'),
@@ -92,7 +92,7 @@ TIMETABLE = (
 )
 
 
-def seed_sample(db, as_of):
+def seed_sample(db, as_of, *, initial_password):
     """Insert missing rows only. Caller owns the transaction; safe to rerun."""
     for code, name in PROGRAMMES:
         existing = db.get(Programme, code)
@@ -130,7 +130,7 @@ def seed_sample(db, as_of):
                 if db.scalar(select(Student).where(Student.email == email)):
                     raise ValueError(f'Email collision: {email}')
                 student = Student(student_id=identifier, group_id=group.group_id, name=full_name,
-                    email=email, password_hash=hash_password(PASSWORD),
+                    email=email, password_hash=hash_password(initial_password),
                     account_status='inactive' if index == 11 else 'active',
                     created_at=datetime(2026, 10, 26, 8) if index == 10 else datetime(2026, 9, 21, 8))
                 db.add(student)
@@ -207,7 +207,7 @@ def seed_sample(db, as_of):
 def write_accounts(path):
     lines = ['ATTENDANCE SYSTEM - FICTIONAL TEST ACCOUNTS',
         'All names, identifiers, course details and history are synthetic sample data.',
-        'Initial password for the accounts below: ' + PASSWORD,
+        'Use the operator-assigned password for newly created accounts.',
         'Sign in using Student ID. Passwords in the database are PBKDF2 hashes.',
         'Face templates, consent and login tokens are NOT seeded.',
         'Register your own face before camera testing.',
@@ -240,7 +240,7 @@ def main():
     parser.add_argument('--as-of', type=date.fromisoformat,
                         help='Generate historical records strictly before this date (default: local today).')
     parser.add_argument('--accounts-file', type=Path,
-                        default=Path(__file__).resolve().parents[1] / '.work' / 'testing-accounts.txt')
+                        default=Path.home() / 'Downloads' / 'FYP_Biometric_Test_Accounts.txt')
     args = parser.parse_args()
     settings = Settings()
     if not settings.demo_mode:
@@ -248,10 +248,11 @@ def main():
     as_of = args.as_of or local_now(settings).date()
     if as_of > local_now(settings).date():
         parser.error('--as-of cannot be in the future.')
+    initial_password = new_demo_password('new sample accounts')
     engine = make_engine(settings)
     try:
         with make_sessions(engine).begin() as db:
-            seed_sample(db, as_of)
+            seed_sample(db, as_of, initial_password=initial_password)
         write_accounts(args.accounts_file)
         with make_sessions(engine)() as db:
             for cls in (Programme, StudentGroup, Student, Course, ClassSchedule, ClassSession, Attendance, VerificationAttempt):

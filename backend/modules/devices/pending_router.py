@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from api.dependencies import authenticated, get_context, get_db
 from .router import registration_response
 from .pending_service import PendingEnrollmentService
-from .pending_schemas import PendingRegistrationRequest, CandidateProof, PendingRegistrationResponse, CurrentPendingResponse, DeviceApprovalRequest
+from .pending_schemas import PendingRegistrationRequest, CandidateProof, PendingRegistrationResponse, CurrentPendingResponse
 from .schemas import DeviceErrorResponse
 
 router = APIRouter(prefix="/api/v1", tags=["Pending second-device enrollment"], responses={

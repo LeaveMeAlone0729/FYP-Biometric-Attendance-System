@@ -23,6 +23,10 @@ handoff](SUPERVISED_ENROLLMENT_VERIFICATION.md) for a legacy template with no
 revision history. It records a signed institutional attestation and uses the
 existing provider for subsequent fresh device authorization.
 
+The attendance path also runs the partner’s passive anti-spoof checks. The
+device approval path uses its own bound face/gesture results and provenance.
+Neither path grants the other authority.
+
 ## Server-only interface
 
 The seven-method interface remains for device service compatibility:

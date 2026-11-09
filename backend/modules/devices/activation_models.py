@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import CheckConstraint, Computed, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
-from .pending_models import PendingDeviceRegistration
+from .pending_models import PendingDeviceRegistration  # noqa: F401 -- Register the foreign-key target before DDL.
 
 
 class DeviceActivationChallenge(Base):

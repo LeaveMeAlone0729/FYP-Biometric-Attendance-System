@@ -6,14 +6,12 @@ from datetime import timedelta
 from unittest.mock import patch
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
-from sqlalchemy import select,func
+from sqlalchemy import select
 import test_device_activation as activation
 from modules.devices.models import RegisteredDevice
 from modules.devices.pending_models import PendingDeviceRegistration
-from modules.devices.biometric_models import DeviceBiometricSession
 from modules.devices.crypto import canonical_public_key
 from modules.devices.approval_provider import ApprovalBinding
-from modules.devices.service import DeviceRegistrationError
 from models import Attendance
 from config import Settings
 from database import make_engine

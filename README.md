@@ -6,7 +6,7 @@ environment and does not change the original database or port 8000 defaults.
 
 Flutter Android and FastAPI with MySQL or MariaDB. The student workflow is:
 
-**Six-digit class PIN → group/class-window validation → device/network preflight → facial match → random finger-count challenge → final device/network authorization and any session-specific classroom Wi-Fi check → attendance confirmation.**
+**Six-digit class PIN → group/class-window validation → device/network preflight → facial match and passive anti-spoofing → random finger-count challenge → final device/network authorization and any session-specific classroom Wi-Fi check → attendance confirmation.**
 
 Attendance is inserted only after all checks pass. Face verification alone cannot record attendance.
 
@@ -16,6 +16,8 @@ use the [simple private-LAN workflow](docs/FYP_NETWORK_TEST_WORKFLOW.md):
 policy with `./fyp-test.ps1 policy set --cidr <test-CIDR> --simulation`.
 Login/profile access is separate from attendance network authorization. Do not
 use the original production launcher or database for this disposable exercise.
+
+Passive anti-spoofing runs during face matching and on every counted finger frame. Its temporary scores and frame evidence stay in server memory, bound to the student, login and challenge; they are cleared on completion, cancellation or expiry. No `face_liveness_state` database column is required. Use one backend worker. A backend restart or reload requires a fresh PIN challenge for any unfinished verification; saved attendance remains available.
 
 Module owner: **Chew Zhexuan**. See the [module/file map](docs/MODULE_OWNERSHIP.md)
 and [API integration guide](docs/API_INTEGRATION.md) for the organized code,
@@ -29,7 +31,7 @@ Use PowerShell 7 from the cloned repository. Install Python 3.12, Flutter with
 Dart 3.11 or compatible, and the Android SDK. If dlib must compile, install
 CMake and the Visual C++ build tools.
 
-1. Install dependencies and the checksum-verified liveness model. The model
+1. Install dependencies and the checksum-verified hand and anti-spoofing models. The model
    command does not load database settings or initialize a schema.
 
    ```powershell
@@ -82,14 +84,16 @@ or [disposable MySQL guide](docs/MYSQL_TESTING.md). Verify the schema and a
 consistent backup before applying reviewed migrations. Keep `backend/.env`,
 database credentials, biometric encryption keys and admin credentials local.
 Setup scripts for fresh profiles should not be run against an existing schema.
+The new runtime does not need the legacy face_liveness_state column. If
+retiring it or older device_hash columns, review backend/migrate.py and
+run it explicitly only against the backed-up intended schema.
 
-## Realistic sample data for testing
+## Synthetic sample data
 
-Run `./seed-sample-data.ps1` to add 36 fictional students with realistic names and
-academic IDs, courses, weekly timetables and varied attendance history. See
-[SAMPLE_DATA.md](SAMPLE_DATA.md) for accounts, class PINs, the 2 November testing
-schedule, and the current student-only role limitation. The generated account
-list is `.work/testing-accounts.txt`.
+Use the disposable setup above for normal testing. The legacy seed-sample-data.ps1
+script is intended only for a reviewed synthetic database. Keep generated
+account lists and data exports private. Choose a unique initial password at
+the interactive prompt. Existing sample account passwords are preserved.
 
 ## Original single-account demonstration
 
@@ -138,7 +142,7 @@ The eight main entities are `programmes`, `student_groups`, `students`, `courses
 
 `backend/setup.py` creates the ignored `backend/.env` from `.env.example` with a random Fernet key. Back up this key securely with the database; changing or losing it makes existing biometric templates unreadable. Do not commit it.
 
-- `DB_NAME=attendance_proposal_xampp` is the active schema. Obsolete prototype databases were archived and removed during the 29 October 2026 cleanup; see [CLEANUP.md](CLEANUP.md).
+- `DB_NAME=attendance_proposal_xampp` is the active schema. The guarded original launcher verifies this target before use.
 - `DEMO_MODE=true` enables legacy demo fixtures and self-registration. Leave it
   disabled for real accounts. The separate `FYP_ACCOUNT_BOUND_ENROLLMENT` option
   accepts only the genuine first enrollment of a school-provisioned account.
@@ -206,59 +210,25 @@ flutter build apk --debug
 
 Backend tests use an isolated in-memory SQL database and synthetic biometric responses for deterministic workflow checks. Additional tests run the actual face detector and MediaPipe model on blank images and verify rejection. These tests establish workflow behavior, not real-world biometric accuracy. Real face/gesture acceptance, device compatibility and spoof resistance still require consented camera testing.
 
-Historical implementation notes are in [CLEANUP.md](CLEANUP.md). Local backups,
+Local backups,
 logs, build artifacts and test evidence are kept outside the shared source.
 
 Implementation references: [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/python), [Flutter camera plugin](https://pub.dev/packages/camera), [FastAPI security](https://fastapi.tiangolo.com/tutorial/security/).
 
-## Historical device registration milestones
+## Android device registration and replacement
 
-Student → Account & Sign Out → **My Device** registers one Android installation
-using an Android Keystore public key and signed server challenge. Apply the
-additive migration with `backend\venv\Scripts\python.exe backend\migrate_devices.py`.
-See [device registration setup, REST contracts and USB testing](docs/DEVICE_REGISTRATION.md).
-This was the Phase 1 behavior. The current attendance boundary requires an
-attempt-bound device signature.
+Open Student → Account & Sign Out → My Device. The app generates a
+Keystore key and proves possession to register or verify an installation.
+The account can have two active slots. Adding a second device or replacing
+one requires fresh bound face/liveness and key proof against an eligible
+enrollment. See [device management](docs/SELF_SERVICE_DEVICE_MANAGEMENT.md)
+and the [approval contract](docs/TRUSTED_BIOMETRIC_PROVIDER_CONTRACT.md).
 
-## Automatic device verification — Phase 2
-
-My Device now checks the registered installation automatically on entry and app
-resume, using the existing Android Keystore key. It shows status without a manual
-verification button. Enrollment is available on a separate registration screen.
-Apply `backend\venv\Scripts\python.exe backend\migrate_device_verification.py`.
-See [automatic verification API and USB testing](docs/DEVICE_VERIFICATION.md).
-This standalone check does not authorize or gate attendance.
-
-## Stage A — two-device foundation
-
-Stage A introduced two ACTIVE device slots and automatic verification by
-local public-key fingerprint. Second-device enrollment and replacement were
-disabled at that milestone. Existing
-Samsung keys/registration and attendance are preserved. See
-[Stage A policy, migration evidence and phone testing](docs/TWO_DEVICE_STAGE_A.md).
-
-## Stage B2 — pending second-device preparation
-
-Stage B2 added Slot 2 candidate key proof before the activation integration. See
-[the B2 guide](docs/SECOND_DEVICE_STAGE_B2.md) for migration and safe tablet testing.
-
-## Stage B3 — device biometric tests
-
-Second-device face/liveness checks run through separate device APIs. An
-untrusted scan result alone cannot activate Slot 2. See
-[the B3 guide](docs/SECOND_DEVICE_STAGE_B3.md) for contracts, migration and webcam testing.
-
-Current device-management policy: the built-in server now authorizes Slot 2 and
-replacement after fresh bound face/liveness and key proof against a previously
-eligible enrollment. No faculty approval is requested per operation. The opt-in
-[ACCOUNT_BOUND_FYP policy](docs/FYP_ACCOUNT_BOUND_ENROLLMENT.md) records only the
-first face of a school-provisioned account; it does not claim institution-verified
-identity or upgrade legacy templates. See [self-service implementation](docs/SELF_SERVICE_DEVICE_MANAGEMENT.md).
-
-The [LOCAL FYP DEMO workflow](docs/SUPERVISED_ENROLLMENT_VERIFICATION.md#local-fyp-demo-on-the-original-server)
-is an explicit operator-run test for the original profile. Institutional
-assurance remains `UNVERIFIED`. Never copy its private credential, an enrolled
-face or a device binding to a teammate's environment.
+The opt-in [ACCOUNT_BOUND_FYP policy](docs/FYP_ACCOUNT_BOUND_ENROLLMENT.md)
+records the first enrollment of a school-provisioned account. The explicit
+[LOCAL FYP DEMO workflow](docs/SUPERVISED_ENROLLMENT_VERIFICATION.md#local-fyp-demo-on-the-original-server)
+is test-only and leaves institutional assurance UNVERIFIED. Keep the
+demo credential, enrolled faces and device bindings on their original installation.
 
 ## Phase 4 network verification
 

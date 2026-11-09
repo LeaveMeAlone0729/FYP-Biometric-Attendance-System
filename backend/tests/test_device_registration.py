@@ -21,7 +21,7 @@ from app import create_app
 from config import Settings
 from database import make_sessions
 from demo import seed_demo
-from models import AuthSession, Base, Student, Attendance
+from models import Base, Student, Attendance
 from modules.devices.migration import upgrade_device_schema
 from modules.devices.models import DEVICE_TABLES, DeviceRegistrationChallenge, DeviceRegistrationEvent, RegisteredDevice
 from security import hash_password

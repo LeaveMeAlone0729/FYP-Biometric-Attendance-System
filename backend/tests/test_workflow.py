@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app import create_app
-from biometrics import BiometricError
+from modules.biometrics.inference import BiometricError
 from config import Settings
 from database import make_sessions
 from demo import seed_demo
@@ -68,6 +68,15 @@ class SyntheticBiometrics:
         if image.value.startswith(b"no-hand"):
             raise BiometricError("Show one hand next to your face.")
         return self.gesture
+
+    def face_evidence(self, image):
+        if image.value.startswith((b"photo", b"screen", b"video")):
+            raise BiometricError("Photo or screen presentation detected.")
+        if image.value.startswith(b"pad-unavailable"):
+            raise RuntimeError("PAD model unavailable")
+        if image.value.startswith(b"pad-invalid"):
+            return {"real_scores": [float("nan"), 0.99]}
+        return {"real_scores": [0.99, 0.99]}
 
     def distance(self, value, reference):
         return float(np.linalg.norm(np.array(value) - np.array(reference)))
@@ -566,16 +575,39 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(response.json()["valid_frames"], 0)
         self.assertEqual(self.count_attendance(), 0)
 
-    def test_face_substitution_closes_challenge(self):
+    def test_liveness_face_mismatch_resets_progress_but_allows_a_fresh_genuine_streak(self):
         identifier = self.start()
         self.face(identifier)
-        self.assertEqual(
-            self.image("/liveness/frame", identifier, b"other-face-live").status_code,
-            400,
-        )
-        self.assertEqual(
-            self.image("/liveness/frame", identifier, b"legit-frame").status_code, 409
-        )
+        for index in range(2):
+            self.image("/liveness/frame", identifier, f"before-mismatch-{index}".encode())
+        with patch.object(self.bio, "hand", wraps=self.bio.hand) as hand:
+            response = self.image("/liveness/frame", identifier, b"other-face-live")
+            hand.assert_not_called()
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertFalse(response.json()["complete"])
+        self.assertEqual(response.json()["valid_frames"], 0)
+        self.assertEqual(self.count_attendance(), 0)
+        with self.sessions() as db:
+            self.assertFalse(db.get(Challenge, identifier).consumed)
+        for index in range(3):
+            response = self.image("/liveness/frame", identifier, f"after-mismatch-{index}".encode())
+            self.assertEqual(response.json()["complete"], index == 2)
+            self.assertEqual(self.count_attendance(), int(index == 2))
+
+    def test_repeated_wrong_faces_and_nonfinite_distances_never_advance_liveness(self):
+        identifier = self.start()
+        self.face(identifier)
+        for index in range(4):
+            response = self.image("/liveness/frame", identifier, f"other-face-{index}".encode())
+            self.assertFalse(response.json()["complete"])
+            self.assertEqual(response.json()["valid_frames"], 0)
+        with patch.object(self.bio, "distance", return_value=float("nan")):
+            response = self.image("/liveness/frame", identifier, b"invalid-distance")
+            self.assertFalse(response.json()["complete"])
+            self.assertEqual(response.json()["valid_frames"], 0)
+        self.assertEqual(self.count_attendance(), 0)
+        self.current += timedelta(seconds=91)
+        self.assertEqual(self.image("/liveness/frame", identifier, b"too-late").status_code, 410)
 
     def test_same_frame_cannot_be_replayed(self):
         identifier = self.start()

@@ -15,7 +15,7 @@ from modules.devices.activation_router import router as activation_router
 from modules.devices.replacement_router import router as replacement_router
 from modules.networks.router import router as networks_router
 from modules.authorization.router import router as attendance_authorization_router
-from biometrics import Biometrics
+from modules.biometrics.inference import Biometrics
 from config import Settings, local_now
 from database import make_engine
 from fastapi import FastAPI
@@ -42,6 +42,7 @@ def create_app(settings=None, engine=None, biometrics=None, clock=None, startup_
                 startup_validator(engine, settings)
             yield
         finally:
+            context.runtime_liveness.clear()
             context.bio.close()
             engine.dispose()
 
@@ -78,4 +79,3 @@ def create_app(settings=None, engine=None, biometrics=None, clock=None, startup_
         context.classroom_attendance = AttendanceClassroomService(context)
         # BLE deliberately has no attendance authorization adapter.
     return app
-

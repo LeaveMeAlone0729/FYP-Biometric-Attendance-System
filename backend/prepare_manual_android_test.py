@@ -305,7 +305,7 @@ def prepare():
         import httpx
         with httpx.Client(base_url='http://127.0.0.1:'+str(HTTP_PORT),timeout=10,trust_env=False) as client:
             check=client.get('/manual-test/isolation');require(check.status_code==200 and check.json()['production_port_blocked'] is True,'LIVE_PROCESS_ISOLATION_FAILED')
-            bad=client.post('/login',json={'student_id':'FYPTEST001','password':'incorrect-synthetic-password'});require(bad.status_code==401,'BAD_PASSWORD_NOT_REJECTED')
+            bad=client.post('/login',json={'student_id':'FYPTEST001','password':secrets.token_urlsafe(32)});require(bad.status_code==401,'BAD_PASSWORD_NOT_REJECTED')
             login=client.post('/login',json={'student_id':'FYPTEST001','password':a['student_password']});require(login.status_code==200,'SYNTHETIC_LOGIN_FAILED')
             headers={'Authorization':'Bearer '+login.json()['access_token']}
             require(client.get('/me',headers=headers).json()['student_id']=='FYPTEST001','PROFILE_MISMATCH')

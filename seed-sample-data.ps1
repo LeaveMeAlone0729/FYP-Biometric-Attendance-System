@@ -1,29 +1,14 @@
-param([string]$AsOf)
+param([string]$AsOf, [string]$AccountsFile)
 $ErrorActionPreference = 'Stop'
 $attendancePython = Join-Path $PSScriptRoot 'backend\venv\Scripts\python.exe'
-$seedRuntime = Join-Path $PSScriptRoot '.work\seed-runtime'
-$previousPythonPath = $env:PYTHONPATH
-try {
-    $usableVenv = $false
-    if (Test-Path -LiteralPath $attendancePython) {
-        try {
-            & $attendancePython --version 2>$null | Out-Null
-            $usableVenv = $LASTEXITCODE -eq 0
-        }
-        catch { $usableVenv = $false }
-    }
-    if (-not $usableVenv) {
-        if (-not (Test-Path -LiteralPath $seedRuntime)) {
-            throw 'The backend Python environment is unavailable. Restore it, or install sqlalchemy mysql-connector-python cryptography tzdata into .work\seed-runtime using a working Python.'
-        }
-        $attendancePython = (Get-Command python -ErrorAction Stop).Source
-        $env:PYTHONPATH = $seedRuntime
-    }
-    $seedArguments = @((Join-Path $PSScriptRoot 'backend\seed_sample.py'))
-    if ($AsOf) { $seedArguments += @('--as-of', $AsOf) }
-    & $attendancePython @seedArguments
-    if ($LASTEXITCODE -ne 0) { throw 'Sample data seeding failed; check the error above.' }
+if (-not (Test-Path -LiteralPath $attendancePython)) {
+    throw 'Create backend\venv with Python 3.12 and install backend\requirements.txt first.'
 }
-finally {
-    $env:PYTHONPATH = $previousPythonPath
+if (-not $AccountsFile) {
+    $downloadSetting = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders').'{374DE290-123F-4565-9164-39C4925E467B}'
+    $AccountsFile = Join-Path ([Environment]::ExpandEnvironmentVariables($downloadSetting)) 'FYP_Biometric_Test_Accounts.txt'
 }
+$seedArguments = @((Join-Path $PSScriptRoot 'backend\seed_sample.py'), '--accounts-file', $AccountsFile)
+if ($AsOf) { $seedArguments += @('--as-of', $AsOf) }
+& $attendancePython @seedArguments
+if ($LASTEXITCODE -ne 0) { throw 'Sample data seeding failed; check the error above.' }

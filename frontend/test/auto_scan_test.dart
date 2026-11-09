@@ -5,7 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/screens/camera_screen.dart';
+import 'package:frontend/modules/biometrics/screens/camera_screen.dart';
 import 'package:frontend/services/api_client.dart';
 import 'package:frontend/theme.dart';
 
@@ -295,6 +295,107 @@ void main() {
       await advance(tester, 900);
       await advance(tester, 900);
       expect(find.text('Attendance accepted'), findsOneWidget);
+      expect(api.cancellations, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'A missed hand check shows guidance and recovers without restarting',
+    (tester) async {
+      var gestures = 0;
+      final api = ScanApi((path, fields) async {
+        if (path == '/liveness/frame') {
+          gestures++;
+          if (gestures == 1) {
+            return {
+              'complete': false,
+              'valid_frames': 0,
+              'message': 'Move your whole hand into view.',
+            };
+          }
+          return {
+            'complete': gestures == 4,
+            'valid_frames': gestures - 1,
+            'message': 'Correct gesture. Hold steady.',
+          };
+        }
+        if (fields['preview_only'] == 'true') {
+          return {
+            'ready': true,
+            'preview_only': true,
+            'message': 'Hold still.',
+          };
+        }
+        return {'ready': true, 'face_verified': true, 'fingers': 2};
+      });
+      await mountScan(tester, api);
+      await advance(tester, 1200);
+      await advance(tester, 900);
+      await tester.tap(find.text('Start liveness challenge'));
+      await tester.pump();
+      await advance(tester, 1600);
+      expect(find.text('Move your whole hand into view.'), findsOneWidget);
+      expect(find.text('Verification incomplete'), findsNothing);
+      for (var i = 0; i < 3; i++) {
+        await advance(tester, 500);
+      }
+      expect(find.text('Attendance accepted'), findsOneWidget);
+      expect(api.cancellations, 0);
+      expect(api.maximumInFlight, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Passive checks run during the finger challenge without facial actions',
+    (tester) async {
+      var frames = 0;
+      final api = ScanApi((path, fields) async {
+        if (path == '/liveness/frame') {
+          frames++;
+          return {
+            'complete': frames == 3,
+            'ready': true,
+            'valid_frames': frames,
+            'liveness_step': 'hand',
+            'message': 'Correct gesture. Hold steady.',
+          };
+        }
+        if (fields['preview_only'] == 'true') {
+          return {
+            'ready': true,
+            'preview_only': true,
+            'message': 'Hold still.',
+          };
+        }
+        return {
+          'ready': true,
+          'face_verified': true,
+          'fingers': 3,
+          'liveness_step': 'hand',
+          'anti_spoof_verified': true,
+          'message': 'Face and anti-spoof checks passed.',
+        };
+      });
+      await mountScan(tester, api, size: const Size(360, 800));
+      await advance(tester, 1200);
+      await advance(tester, 900);
+      expect(find.text('Next: show 3 fingers'), findsOneWidget);
+      expect(find.text('Close your eyes'), findsNothing);
+      expect(find.text('Open your mouth'), findsNothing);
+      await advance(tester, 1500);
+      expect(frames, 0);
+      await tester.tap(find.text('Start liveness challenge'));
+      await tester.pump();
+      await advance(tester, 1600);
+      expect(frames, 1);
+      expect(find.text('Facial actions verified'), findsNothing);
+      await advance(tester, 500);
+      await advance(tester, 500);
+      expect(find.text('Attendance accepted'), findsOneWidget);
+      expect(find.text('Photo and screen check'), findsOneWidget);
+      expect(api.maximumInFlight, 1);
       expect(api.cancellations, 0);
       expect(tester.takeException(), isNull);
     },

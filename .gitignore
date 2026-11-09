@@ -4,11 +4,15 @@
 /backups/
 /docs/ORIGINAL_FYP_COMPLETION_20261109.md
 .pytest_cache/
+.ruff_cache/
+.vscode/
 
 # Backend secrets and generated files
 backend/.env
 backend/venv/
 backend/models/*.task
+backend/models/*.onnx
+backend/models/*.download
 **/__pycache__/
 *.py[cod]
 *.log
@@ -61,6 +65,10 @@ backend/models/*.task
 
 # Flutter generated files
 frontend/android/.gradle/
+frontend/linux/flutter/generated_plugin_registrant.*
+frontend/linux/flutter/generated_plugins.cmake
+frontend/macos/Flutter/GeneratedPluginRegistrant.swift
+frontend/macos/Flutter/ephemeral/
 .dart_tool/
 build/
 .flutter-plugins-dependencies

@@ -16,12 +16,12 @@ class SetupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with patch.object(installer, 'ROOT', root), \
-                    patch.object(installer, 'install_hand_model', return_value=root / 'hand.task') as model, \
+                    patch.object(installer, 'download_models') as model, \
                     patch('mysql.connector.connect') as connect, \
                     patch.object(sys, 'argv', ['setup.py', '--model-only']), \
                     contextlib.redirect_stdout(io.StringIO()):
                 installer.main()
-            model.assert_called_once_with()
+            model.assert_called_once_with(root / 'models')
             connect.assert_not_called()
             self.assertFalse((root / '.env').exists())
 

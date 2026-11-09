@@ -16,7 +16,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from config import Settings
 from modules.devices.crypto import canonical_public_key
 from modules.devices.models import RegisteredDevice, DeviceRegistrationChallenge
-from modules.devices.two_device_migration import upgrade_two_device_schema, verify_guards
+from modules.devices.two_device_migration import upgrade_two_device_schema
 from models import Attendance
 from security import digest, hash_password
 import test_device_verification as verification
