@@ -144,11 +144,7 @@ void main() {
     final checked = expectLater(
       f.service.check(),
       throwsA(
-        isA<ApiException>().having(
-          (e) => e.code,
-          'code',
-          'NETWORK_CHECK_TIMEOUT',
-        ),
+        isA<ApiException>().having((e) => e.code, 'code', 'REQUEST_TIMEOUT'),
       ),
     );
     await tester.pump();

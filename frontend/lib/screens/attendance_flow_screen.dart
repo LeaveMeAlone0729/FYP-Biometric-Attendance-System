@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../theme.dart';
 import '../modules/networks/services/network_verification_failure.dart';
+import '../modules/networks/services/classroom_ble_api.dart';
+import '../modules/networks/services/network_ble_test_api.dart';
+import '../modules/networks/screens/network_ble_test_screen.dart';
 import '../modules/biometrics/screens/camera_screen.dart';
 import '../modules/devices/services/authorized_attendance_biometric_api.dart';
 import '../modules/devices/services/attendance_device_authorization.dart';
@@ -14,10 +18,12 @@ class AttendanceFlowScreen extends StatefulWidget {
     this.client,
     this.authorization,
     this.cameraBuilder,
+    this.classroomBle,
   });
   final ApiClient? client;
   final AttendanceDeviceAuthorization? authorization;
   final Widget Function(Map<String, dynamic>)? cameraBuilder;
+  final ClassroomBleApi? classroomBle;
   final VoidCallback? onRecorded;
   @override
   State<AttendanceFlowScreen> createState() => _AttendanceFlowScreenState();
@@ -27,6 +33,59 @@ class _AttendanceFlowScreenState extends State<AttendanceFlowScreen> {
   String _pin = '';
   String? _error;
   bool _busy = false;
+  ClassroomBleApi? _activeBle;
+
+  void _cancelBle() {
+    final ble = _activeBle;
+    _activeBle = null;
+    if (ble != null) unawaited(ble.cancel().catchError((Object _) {}));
+  }
+
+  @override
+  void dispose() {
+    _cancelBle();
+    super.dispose();
+  }
+
+  Future<String> _checkBle(
+    String classroom,
+    String attempt,
+    String proof,
+  ) async {
+    final ble = widget.classroomBle ?? ClassroomBleApi(client: widget.client);
+    _activeBle = ble;
+    try {
+      final report = await ble
+          .verifyAttendance(classroom, attempt, proof)
+          .timeout(const Duration(seconds: 18));
+      return switch ((report['result'], report['reason_code'])) {
+        ('PASS', 'BLE_APPROVED') => 'BLE verified',
+        ('FAIL', 'BLE_BEACON_NOT_FOUND') => 'BLE not detected',
+        ('UNCERTAIN', _) => 'BLE unavailable',
+        _ => 'BLE verification error',
+      };
+    } on TimeoutException {
+      _cancelBle();
+      return 'BLE unavailable';
+    } on ApiException catch (error) {
+      if (error.code == 'NO_ENABLED_BLE_POLICY') {
+        return 'BLE not configured for this classroom';
+      }
+      return error.status == 404 ||
+              const {
+                'BLE_CHECK_TIMEOUT',
+                'BLE_ANDROID_UNAVAILABLE',
+                'BLE_CHALLENGE_EXPIRED',
+                'BLE_SHADOW_ATTEMPT_ENDED',
+                'NETWORK_ERROR',
+                'REQUEST_TIMEOUT',
+              }.contains(error.code)
+          ? 'BLE unavailable'
+          : 'BLE verification error';
+    } catch (_) {
+      return 'BLE verification error';
+    }
+  }
 
   void _key(String key) {
     if (_busy) return;
@@ -55,27 +114,58 @@ class _AttendanceFlowScreenState extends State<AttendanceFlowScreen> {
       );
       if (!mounted) return;
       String? preflightFailure;
+      Future<String>? bleStatus;
       try {
-        await (widget.authorization ??
-                AttendanceDeviceAuthorization(client: widget.client))
-            .preflight(challenge['challenge_id'] as String)
-            .timeout(const Duration(seconds: 40));
+        final attempt = challenge['challenge_id'] as String;
+        final preflight =
+            await (widget.authorization ??
+                    AttendanceDeviceAuthorization(client: widget.client))
+                .preflight(attempt)
+                .timeout(const Duration(seconds: 40));
+        if (!mounted) return;
+        final classroom = preflight.classroom;
+        if (classroom != null) {
+          bleStatus = _checkBle(classroom, attempt, preflight.proofId);
+        }
       } catch (error) {
         preflightFailure = NetworkVerificationFailure.from(
           error,
         ).attendanceMessage;
       }
       if (!mounted) return;
+      final camera = preflightFailure == null && widget.cameraBuilder != null
+          ? widget.cameraBuilder!(challenge)
+          : CameraScreen(
+              initialFailure: preflightFailure,
+              challenge: challenge,
+              api: AuthorizedAttendanceBiometricApi(),
+            );
       final result = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              preflightFailure == null && widget.cameraBuilder != null
-              ? widget.cameraBuilder!(challenge)
-              : CameraScreen(
-                  initialFailure: preflightFailure,
-                  challenge: challenge,
-                  api: AuthorizedAttendanceBiometricApi(),
+          builder: (_) => bleStatus == null
+              ? camera
+              : Scaffold(
+                  body: Column(
+                    children: [
+                      Expanded(child: camera),
+                      SafeArea(
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: FutureBuilder<String>(
+                            future: bleStatus,
+                            builder: (context, snapshot) => Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                snapshot.data ?? 'Checking classroom BLE…',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
         ),
       );
@@ -88,6 +178,7 @@ class _AttendanceFlowScreenState extends State<AttendanceFlowScreen> {
         );
       }
     } finally {
+      _cancelBle();
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -230,6 +321,24 @@ class _AttendanceFlowScreenState extends State<AttendanceFlowScreen> {
                 ),
                 SizedBox(height: gap),
               ],
+              if ((widget.client ?? ApiClient.instance)
+                      .config['network_ble_test_mode'] ==
+                  true)
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.science_outlined),
+                  onPressed: _busy
+                      ? null
+                      : () => Navigator.push<void>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => NetworkBleTestScreen(
+                              initialPin: _pin,
+                              api: NetworkBleTestApi(client: widget.client),
+                            ),
+                          ),
+                        ),
+                  label: const Text('Network + BLE Test'),
+                ),
               if (_error != null) ...[
                 const SizedBox(height: 10),
                 InfoNotice(_error!, warning: true),

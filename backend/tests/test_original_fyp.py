@@ -109,6 +109,18 @@ class OriginalPanelIntegration(admin.AdminPanelTests):
                 if area == 'sessions':
                     self.assertIn('Students (read-only', response.text)
                     self.assertIn('DEVICE001', response.text)
+            from modules.classroom_ble.models import BleEvent
+            with self.f.sessions.begin() as db:
+                db.add(BleEvent(student_id='DEVICE001', classroom_id='A', result='FAIL',
+                    reason_code='BLE_SIGNAL_WEAK', sample_count=8, median_rssi='-78.5',
+                    occurred_at=self.f.now))
+            result = self.action('ble', action='add', id='lab-beacon', classroom='A',
+                uuid=admin.UUID, label='Lab beacon', minimum_samples='5', threshold='-65',
+                max_age_seconds='15')
+            self.assertEqual(result.status_code, 200, result.text)
+            page = client.get('/ble')
+            self.assertIn('Detected · 8 samples · -78.5 dBm', page.text)
+            self.assertNotIn('DEVICE001', page.text)
             result = self.action('networks', action='add', id='real-format', name='Local LAN', cidr='192.0.2.0/24')
             self.assertEqual(result.status_code, 200, result.text)
             result = self.action('networks', action='disable', id='real-format')

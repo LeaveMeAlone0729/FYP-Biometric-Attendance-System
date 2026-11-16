@@ -319,7 +319,7 @@ void main() {
     final checked = expectLater(
       f.service.activate('pending'),
       throwsA(
-        isA<ApiException>().having((e) => e.code, 'code', 'ACTIVATION_TIMEOUT'),
+        isA<ApiException>().having((e) => e.code, 'code', 'REQUEST_TIMEOUT'),
       ),
     );
     await tester.pump();

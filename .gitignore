@@ -24,6 +24,7 @@ backend/models/*.download
 **/.venv/
 
 # Local environment configuration
+/runtime/
 .env
 .env.*
 !.env.example
@@ -64,6 +65,13 @@ backend/models/*.download
 *.aab
 
 # Flutter generated files
+frontend/ios/Flutter/Generated.xcconfig
+frontend/ios/Flutter/ephemeral/
+frontend/ios/Flutter/flutter_export_environment.sh
+frontend/ios/Runner/GeneratedPluginRegistrant.h
+frontend/ios/Runner/GeneratedPluginRegistrant.m
+**/.kotlin/
+**/.cloudflared/
 frontend/android/.gradle/
 frontend/linux/flutter/generated_plugin_registrant.*
 frontend/linux/flutter/generated_plugins.cmake

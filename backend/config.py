@@ -23,6 +23,7 @@ class Settings:
     db_password: str = os.getenv('DB_PASSWORD', '')
     db_name: str = os.getenv('DB_NAME', 'attendance_proposal_xampp')
     demo_mode: bool = os.getenv('DEMO_MODE', 'false').lower() == 'true'
+    network_ble_test_mode: bool = os.getenv('NETWORK_BLE_TEST_MODE', 'false').lower() == 'true'
     # Explicit lower-assurance FYP policy, independent of legacy DEMO_MODE.
     fyp_account_bound_enrollment: bool = os.getenv('FYP_ACCOUNT_BOUND_ENROLLMENT', 'false').lower() == 'true'
     timezone: str = os.getenv('APP_TIMEZONE', 'Asia/Kuala_Lumpur')

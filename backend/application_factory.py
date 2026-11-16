@@ -74,9 +74,11 @@ def create_app(settings=None, engine=None, biometrics=None, clock=None, startup_
     if classroom_features:
         from modules.classroom_wifi.router import router as wifi_router
         from modules.classroom_ble.router import router as ble_router
+        from modules.classroom_ble.diagnostic_mode import router as network_ble_test_router
         from modules.classroom_wifi.attendance import AttendanceClassroomService
         app.include_router(wifi_router)
         app.include_router(ble_router)
+        app.include_router(network_ble_test_router)
         context.classroom_attendance = AttendanceClassroomService(context)
         # BLE deliberately has no attendance authorization adapter.
     return app

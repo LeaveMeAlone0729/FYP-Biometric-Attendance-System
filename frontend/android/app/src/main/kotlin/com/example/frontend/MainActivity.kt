@@ -6,12 +6,14 @@ import io.flutter.embedding.engine.FlutterEngine
 class MainActivity : FlutterActivity() {
     private var wifiDiagnostics: WifiDiagnosticsChannel? = null
     private var bleDiagnostics: BleDiagnosticsChannel? = null
+    private var networkChanges: NetworkChangesChannel? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         DeviceKeyStoreChannel.register(flutterEngine.dartExecutor.binaryMessenger)
         DeviceCameraChannel.register(flutterEngine.dartExecutor.binaryMessenger)
         wifiDiagnostics = WifiDiagnosticsChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         bleDiagnostics = BleDiagnosticsChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+        networkChanges = NetworkChangesChannel(this, flutterEngine.dartExecutor.binaryMessenger)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -21,6 +23,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        networkChanges?.dispose()
+        networkChanges = null
         bleDiagnostics?.dispose()
         bleDiagnostics = null
         wifiDiagnostics?.dispose()

@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
-from sqlalchemy import inspect, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -81,6 +81,23 @@ def table(rows, columns, controls=None):
     if not body:
         body = f'<tr><td class="empty" colspan="{len(columns) + bool(controls)}">No records yet.</td></tr>'
     return '<div class="scroll"><table><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>'
+
+def ble_observation_summaries(db, classroom_ids):
+    from modules.classroom_ble.models import BleEvent
+    from modules.classroom_ble.service import observation_status
+
+    latest = select(func.max(BleEvent.event_id)).where(
+        BleEvent.classroom_id.in_(classroom_ids), BleEvent.result != 'ISSUED',
+    ).group_by(BleEvent.classroom_id)
+    summaries = {}
+    for room, reason, count, median, occurred in db.execute(select(
+        BleEvent.classroom_id, BleEvent.reason_code, BleEvent.sample_count,
+        BleEvent.median_rssi, BleEvent.occurred_at,
+    ).where(BleEvent.event_id.in_(latest))):
+        status = observation_status(reason).replace('_', ' ').capitalize()
+        signal = f' · {count} samples · {median} dBm' if count is not None and median is not None else ''
+        summaries[room] = f'{status}{signal} · {occurred:%Y-%m-%d %H:%M}'
+    return summaries
 
 
 def document(title, body, csrf=None, *, description=''):
@@ -311,13 +328,23 @@ def create_panel(engine, *, username, password_hash, ready, timezone='Asia/Kuala
                        field('minimum_samples', 'Minimum samples', 'number', 5) + field('threshold', 'Experimental median threshold dBm', 'number', -65) +
                        field('max_age_seconds', 'Maximum sample age, seconds', 'number', 15))
             detail = ('New Wi-Fi policies are enabled immediately and apply when a session is assigned that classroom.'
-                      if area == 'wifi' else 'Experimental. New policies are disabled and are NOT enforced by attendance.')
+                      if area == 'wifi' else 'Observation only. New policies are disabled and are NOT enforced by attendance.')
             body = card('Add Wi-Fi policy' if area == 'wifi' else 'Add beacon policy', detail,
                 form('/actions/' + area, csrf, inputs, 'Add Policy', variant='primary', grid=True, action='add'))
             columns = [('id', 'ID'), ('classroom_id', 'Classroom'),
                        ('bssid', 'BSSID'), ('ssid', 'SSID'), ('policy_state', 'Status')] if area == 'wifi' else [
                        ('id', 'ID'), ('classroom_id', 'Classroom'), ('service_uuid', 'UUID'), ('minimum_samples', 'Samples'),
                        ('rssi_threshold', 'Threshold'), ('max_age_seconds', 'Age (s)'), ('policy_state', 'Status')]
+            if area == 'ble':
+                columns.append(('last_observation', 'Last signed-check result'))
+                summaries = None
+                if not simulation_only and inspect(db.connection()).has_table('classroom_ble_events'):
+                    summaries = ble_observation_summaries(db, {row['classroom_id'] for row in rows})
+                for row in rows:
+                    row['last_observation'] = (
+                        'Unavailable in this panel' if summaries is None
+                        else summaries.get(row['classroom_id'], 'No signed check')
+                    )
         for policy in rows:
             policy['policy_state'] = ('Retired' if policy.get('retired') else
                                       'Enabled' if policy['enabled'] else 'Disabled')
@@ -330,8 +357,29 @@ def create_panel(engine, *, username, password_hash, ready, timezone='Asia/Kuala
             return form('/actions/' + area, csrf, '', action.capitalize(), action=action, id=r['id'],
                 confirmation=(title, f'Apply this change to policy {r["id"]}?'),
                 variant='danger-outline' if action == 'disable' else 'secondary')
-        return body + card('Policies', 'Review the current policy status and available actions.',
+        body += card('Policies', 'Review the current policy status and available actions.',
             '<div id="management-table">' + table(rows, columns, controls) + '</div>')
+        if area == 'ble':
+            from modules.classroom_ble.shadow import recent_outcomes
+
+            inspector = inspect(db.connection())
+            can_read = not simulation_only and all(inspector.has_table(name) for name in (
+                'verification_challenges', 'attempt_classroom_requirements', 'classroom_ble_challenges',
+                'classroom_ble_events', 'classroom_wifi_events', 'attendance_wifi_bindings',
+            ))
+            detail = ('Latest 50 classroom attempt snapshots. BLE has no effect on attendance.' if can_read
+                      else 'Attempt monitoring is unavailable for this panel profile.')
+            body += card('Attendance BLE shadow results', detail, table(
+                recent_outcomes(db, current_time()),
+                [('attempt', 'Attempt'), ('session', 'Session'), ('classroom', 'Classroom'),
+                 ('occurred', 'Local time'), ('result', 'BLE result'), ('reason', 'Reason (BLE or Wi-Fi preflight)')],
+            ) if can_read else '')
+            if can_read:
+                from modules.classroom_ble.diagnostic_mode import recent_test_outcomes
+                body += card('Temporary Network + BLE Tests', 'Diagnostic simulations. No attendance recorded.',
+                    table(recent_test_outcomes(db), [('session', 'Session'), ('classroom', 'Classroom'),
+                        ('occurred', 'Local time'), ('result', 'Test result'), ('reason', 'Reason')]))
+        return body
 
     @app.get('/admin-testing.js')
     def panel_script():

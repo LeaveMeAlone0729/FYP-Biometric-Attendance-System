@@ -1,0 +1,10 @@
+{
+  "db_host": "127.0.0.1",
+  "db_port": 3306,
+  "db_name": "fyp_partner_local",
+  "db_user": "fyp_partner_app",
+  "db_password": "",
+  "biometric_key": "",
+  "fyp_account_bound_enrollment": false,
+  "ble_executable": ""
+}
