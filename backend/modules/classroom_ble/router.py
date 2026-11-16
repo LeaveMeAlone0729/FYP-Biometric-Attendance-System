@@ -1,5 +1,5 @@
 from fastapi import APIRouter,Depends
-from pydantic import BaseModel,ConfigDict,Field
+from pydantic import BaseModel,ConfigDict,Field,model_validator
 from sqlalchemy import select
 from api.dependencies import authenticated,get_context,get_db
 from modules.devices.router import registration_response
@@ -13,6 +13,14 @@ class Begin(BaseModel):
     model_config=ConfigDict(extra='forbid',strict=True)
     classroom_id:str=Field(pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$')
     public_key_fingerprint:str=Field(pattern=r'^[0-9a-f]{64}$')
+    attendance_attempt_id: str | None = Field(default=None, min_length=40, max_length=64)
+    preflight_proof_id: str | None = Field(default=None, min_length=40, max_length=64)
+
+    @model_validator(mode='after')
+    def require_complete_binding(self):
+        if (self.attendance_attempt_id is None) != (self.preflight_proof_id is None):
+            raise ValueError('Both attendance attempt and preflight proof are required for a BLE shadow check.')
+        return self
 
 class Confirm(BaseModel):
     model_config=ConfigDict(extra='forbid',strict=True)

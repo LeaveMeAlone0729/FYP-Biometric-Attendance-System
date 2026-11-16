@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
+import 'package:flutter/services.dart';
+import 'api_routes.dart';
 
 class ApiException implements Exception {
   const ApiException(this.message, [this.status = 0, this.code]);
@@ -14,16 +17,81 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
-  ApiClient({http.Client? client, String? url})
-    : _client = client ?? http.Client(),
-      baseUrl = url ?? defaultUrl;
+  ApiClient({
+    http.Client? client,
+    String? url,
+    String? publicUrl,
+    bool localMode = defaultLocalMode,
+    Stream<dynamic>? networkChanges,
+    this.generalTimeout = const Duration(seconds: 10),
+    this.classroomTimeout = const Duration(seconds: 10),
+  }) : _injected = client,
+       baseUrl = url ?? defaultLanUrl,
+       routes = ApiRoutes(
+         lan: url ?? defaultLanUrl,
+         public: publicUrl ?? (url == null ? defaultPublicUrl : ''),
+         localMode: localMode,
+       ) {
+    if (networkChanges != null) {
+      _networkSubscription = networkChanges.listen((_) => networkChanged());
+    } else if (client == null && !kIsWeb && Platform.isAndroid) {
+      _networkSubscription = const EventChannel('fyp/network_changes')
+          .receiveBroadcastStream()
+          .listen((_) => networkChanged(), onError: (Object _) {});
+    }
+  }
+  static const defaultLanUrl = String.fromEnvironment(
+    'CLASSROOM_API_BASE_URL',
+    defaultValue: defaultUrl,
+  );
+  static const defaultPublicUrl = String.fromEnvironment('PUBLIC_API_BASE_URL');
+  static const defaultLocalMode = bool.fromEnvironment('FYP_LOCAL_MODE');
   static const defaultUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'http://127.0.0.1:8000',
   );
   static ApiClient instance = ApiClient();
   static int _diagnosticSequence = 0;
-  final http.Client _client;
+  final http.Client? _injected;
+  final ApiRoutes routes;
+  final Duration generalTimeout;
+  final Duration classroomTimeout;
+  final Map<bool, http.Client> _transports = {};
+  StreamSubscription<dynamic>? _networkSubscription;
+  int _networkRevision = 0;
+  int? _attendanceRevision;
+  void networkChanged() {
+    _networkRevision++;
+    // Existing signing/scan clients abandon old work on sessionRevision change.
+    // The bearer, student and authenticated state remain intact.
+    _sessionRevision++;
+    for (final client in _transports.values) {
+      client.close();
+    }
+    _transports.clear();
+  }
+
+  void dispose() {
+    _networkSubscription?.cancel();
+    for (final client in _transports.values) {
+      client.close();
+    }
+    _transports.clear();
+  }
+
+  http.Client transport(bool general) =>
+      _injected ??
+      _transports.putIfAbsent(
+        general,
+        () => IOClient(
+          HttpClient()..connectionTimeout = Duration(seconds: general ? 5 : 3),
+        ),
+      );
+  static const changed = ApiException(
+    'Network changed during verification. Please retry.',
+    0,
+    'NETWORK_CHANGED',
+  );
   final String baseUrl;
   final ValueNotifier<bool> authenticated = ValueNotifier(false);
   String? _token;
@@ -65,18 +133,52 @@ class ApiClient {
   Future<dynamic> get(String path) => _send('GET', path);
   Future<dynamic> post(String path, Map<String, dynamic> body) =>
       _send('POST', path, body: body);
+  Future<dynamic> postDiagnostic(String path, Map<String, dynamic> body) =>
+      _send('POST', path, body: body, invalidateSessionOnUnauthorized: false);
   Future<dynamic> delete(String path) => _send('DELETE', path);
 
   Future<dynamic> _send(
     String method,
     String path, {
     Map<String, dynamic>? body,
+    bool invalidateSessionOnUnauthorized = true,
   }) async {
-    final request = http.Request(method, Uri.parse('$baseUrl$path'));
-    request.headers['Content-Type'] = 'application/json';
-    if (_token != null) request.headers['Authorization'] = 'Bearer $_token';
-    if (body != null) request.body = jsonEncode(body);
-    return _perform(request);
+    if (ApiRoutes.attendanceProof(path) &&
+        _attendanceRevision != null &&
+        _attendanceRevision != _networkRevision) {
+      throw changed;
+    }
+    final networkRevision = _networkRevision;
+    Future<dynamic> attempt() async {
+      final request = http.Request(method, routes.uri(path));
+      request.headers['Content-Type'] = 'application/json';
+      if (_token != null) request.headers['Authorization'] = 'Bearer $_token';
+      if (body != null) request.body = jsonEncode(body);
+      final result = await _perform(
+        request,
+        invalidateSessionOnUnauthorized: invalidateSessionOnUnauthorized,
+      );
+      if (path == '/attendance/start') {
+        _attendanceRevision = networkRevision;
+      }
+      return result;
+    }
+
+    try {
+      return await attempt();
+    } on ApiException catch (error) {
+      // At most one retry, GET-only, general routes only. Never replay a proof/upload.
+      if (method == 'GET' &&
+          ApiRoutes.general(path) &&
+          [
+            'NETWORK_ERROR',
+            'REQUEST_TIMEOUT',
+            'NETWORK_CHANGED',
+          ].contains(error.code)) {
+        return attempt();
+      }
+      rethrow;
+    }
   }
 
   Future<dynamic> image(
@@ -84,7 +186,12 @@ class ApiClient {
     Uint8List bytes,
     Map<String, String> fields,
   ) async {
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl$path'));
+    if (ApiRoutes.attendanceProof(path) &&
+        _attendanceRevision != null &&
+        _attendanceRevision != _networkRevision) {
+      throw changed;
+    }
+    final request = http.MultipartRequest('POST', routes.uri(path));
     if (_token != null) request.headers['Authorization'] = 'Bearer $_token';
     request.fields.addAll(fields);
     request.files.add(
@@ -93,7 +200,17 @@ class ApiClient {
     return _perform(request);
   }
 
-  Future<dynamic> _perform(http.BaseRequest request) async {
+  Future<dynamic> _perform(
+    http.BaseRequest request, {
+    bool invalidateSessionOnUnauthorized = true,
+  }) async {
+    final generation = _networkRevision;
+    final session = _sessionRevision;
+    final general = ApiRoutes.general(request.url.path);
+    final imageUpload = request is http.MultipartRequest;
+    final timeout = imageUpload
+        ? const Duration(seconds: 25)
+        : (general ? generalTimeout : classroomTimeout);
     final deviceBiometric = request.url.path.startsWith(
       '/api/v1/device-approvals',
     );
@@ -116,9 +233,19 @@ class ApiClient {
     }
     try {
       final response = await (() async {
-        final streamed = await _client.send(request);
+        final streamed = await transport(general).send(request);
         return http.Response.fromStream(streamed);
-      })().timeout(const Duration(seconds: 25));
+      })().timeout(timeout);
+      if (generation != _networkRevision) {
+        throw changed;
+      }
+      if (session != _sessionRevision) {
+        throw const ApiException(
+          'Your login changed. Retry the request.',
+          0,
+          'SESSION_CHANGED',
+        );
+      }
       diagnosticStatus = response.statusCode;
       dynamic data;
       try {
@@ -129,7 +256,9 @@ class ApiClient {
         );
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        if (response.statusCode == 401 && _token != null) {
+        if (invalidateSessionOnUnauthorized &&
+            response.statusCode == 401 &&
+            _token != null) {
           _token = null;
           _sessionRevision++;
           student = null;
@@ -153,6 +282,9 @@ class ApiClient {
       }
       return data;
     } on TimeoutException {
+      if (generation != _networkRevision) {
+        throw changed;
+      }
       if (deviceBiometric) {
         throw const ApiException(
           'Device biometric request timed out. Check USB reverse and restart the scan.',
@@ -160,12 +292,17 @@ class ApiClient {
           'REQUEST_TIMEOUT',
         );
       }
-      throw const ApiException(
-        'The server is taking too long. Check your connection and try again.',
+      throw ApiException(
+        general
+            ? 'Unable to connect to server. Please check your internet connection.'
+            : 'Cannot reach the classroom verification server. Classroom Wi-Fi is required for attendance.',
         0,
         'REQUEST_TIMEOUT',
       );
     } on SocketException {
+      if (generation != _networkRevision) {
+        throw changed;
+      }
       if (deviceBiometric) {
         throw const ApiException(
           'Cannot reach the device verification server. Check USB reverse and API_BASE_URL.',
@@ -173,12 +310,17 @@ class ApiClient {
           'NETWORK_ERROR',
         );
       }
-      throw const ApiException(
-        'Cannot reach the attendance server. Check the server and your network.',
+      throw ApiException(
+        general
+            ? 'Cannot reach the server. Please check your internet connection.'
+            : 'Cannot reach the classroom verification server. Classroom Wi-Fi is required for attendance.',
         0,
         'NETWORK_ERROR',
       );
     } on http.ClientException {
+      if (generation != _networkRevision) {
+        throw changed;
+      }
       if (deviceBiometric) {
         throw const ApiException(
           'Cannot reach the device verification server. Check USB reverse and API_BASE_URL.',
@@ -186,8 +328,10 @@ class ApiClient {
           'NETWORK_ERROR',
         );
       }
-      throw const ApiException(
-        'Cannot reach the attendance server. Check the server and your network.',
+      throw ApiException(
+        general
+            ? 'Cannot reach the server. Please check your internet connection.'
+            : 'Cannot reach the classroom verification server. Classroom Wi-Fi is required for attendance.',
         0,
         'NETWORK_ERROR',
       );

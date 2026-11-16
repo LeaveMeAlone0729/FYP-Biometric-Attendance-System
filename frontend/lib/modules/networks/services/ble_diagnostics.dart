@@ -2,6 +2,14 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'wifi_diagnostics.dart';
 
+double medianBleRssi(Iterable<int> samples) {
+  final values = samples.toList()..sort();
+  final mid = values.length ~/ 2;
+  return values.length.isOdd
+      ? values[mid].toDouble()
+      : (values[mid - 1] + values[mid]) / 2.0;
+}
+
 /// Ephemeral local scan data only. No MAC addresses, backend client or storage.
 class BleAdvertisement {
   BleAdvertisement.fromMap(Map data, {int Function()? elapsedMilliseconds})
@@ -55,13 +63,7 @@ class BleAdvertisement {
       (initialAgeMs +
           (_elapsed?.call() ?? _clock.elapsedMilliseconds).clamp(0, 1 << 62)) /
       1000.0;
-  double get medianRssi {
-    final values = [...samples]..sort();
-    final mid = values.length ~/ 2;
-    return values.length.isOdd
-        ? values[mid].toDouble()
-        : (values[mid - 1] + values[mid]) / 2.0;
-  }
+  double get medianRssi => medianBleRssi(samples);
 }
 
 class BleSnapshot {

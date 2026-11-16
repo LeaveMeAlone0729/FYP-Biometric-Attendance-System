@@ -4,8 +4,9 @@ import 'package:flutter/services.dart';
 import '../../../services/api_client.dart';
 import '../../devices/services/device_key_store.dart';
 import 'ble_diagnostics.dart';
+import 'classroom_ble_observation.dart';
 
-/// Explicit standalone checks only. No receipt can authorize attendance.
+/// Standalone and attendance shadow checks. No receipt authorizes attendance.
 class ClassroomBleApi {
   ClassroomBleApi({
     ApiClient? client,
@@ -18,13 +19,81 @@ class ClassroomBleApi {
   final DeviceKeyStore _keys;
   final BleDiagnostics _scanner;
   static const path = '/api/v1/classroom-ble',
-      operation = 'classroom_ble_verification';
+      operation = 'classroom_ble_verification',
+      shadowOperation = 'attendance_ble_shadow';
   bool _inFlight = false, _scanning = false;
   String? _scanOwner;
   int _generation = 0;
   Future<void> cancel() async {
     _generation++;
     if (_scanning) await _scanner.cancel(requestId: _scanOwner);
+  }
+
+  Future<BleSnapshot> _freshScan(String owner, void Function() current) async {
+    final status = await _scanner.status();
+    current();
+    if (!status.ready) return status;
+    _scanning = true;
+    _scanOwner = owner;
+    try {
+      final scan = await _scanner.scan(requestId: owner);
+      current();
+      return scan;
+    } finally {
+      _scanning = false;
+      _scanOwner = null;
+    }
+  }
+
+  Future<ClassroomBleObservation> observe(Map<String, int> thresholds) async {
+    if (_inFlight || thresholds.isEmpty) {
+      return ClassroomBleObservation(
+        BleObservationStatus.unavailable,
+        _inFlight ? 'BLE_CHECK_IN_PROGRESS' : 'NO_ENABLED_BLE_POLICY',
+      );
+    }
+    _inFlight = true;
+    final gen = ++_generation;
+    final student = _client.student?['student_id'] as String?;
+    final revision = _client.sessionRevision;
+    void current() {
+      session(student, revision);
+      if (gen != _generation) {
+        throw const ApiException('Scan cancelled.', 0, 'BLE_CHECK_CANCELLED');
+      }
+    }
+
+    try {
+      current();
+      final started = DateTime.now().millisecondsSinceEpoch;
+      final scan = await _freshScan(
+        'observe-${identityHashCode(this)}-$gen',
+        current,
+      );
+      return ClassroomBleObservation.fromScan(
+        scan,
+        thresholds,
+        requestedAtMs: started,
+        nowMs: DateTime.now().millisecondsSinceEpoch,
+      );
+    } on TimeoutException {
+      return const ClassroomBleObservation(
+        BleObservationStatus.unavailable,
+        'BLE_SCAN_TIMEOUT',
+      );
+    } on PlatformException {
+      return const ClassroomBleObservation(
+        BleObservationStatus.unavailable,
+        'BLE_UNAVAILABLE',
+      );
+    } on MissingPluginException {
+      return const ClassroomBleObservation(
+        BleObservationStatus.unavailable,
+        'BLE_UNSUPPORTED',
+      );
+    } finally {
+      _inFlight = false;
+    }
   }
 
   void session(String? student, int revision) {
@@ -84,30 +153,8 @@ class ClassroomBleApi {
       );
     }
     final found = <String, Map<int, int>>{};
-    for (final ad in scan.advertisements) {
-      for (final group in ad.beaconObservations) {
-        final uuid = (group['service_uuid'] as String?)?.toLowerCase();
-        if (uuid == null || !approved.contains(uuid)) continue;
-        final samples = group['samples'];
-        if (samples is! List) {
-          throw const FormatException('Invalid timestamped BLE samples.');
-        }
-        for (final raw in samples) {
-          if (raw is! Map ||
-              raw['offset_us'] is! int ||
-              raw['rssi_dbm'] is! int) {
-            throw const FormatException('Invalid BLE sample.');
-          }
-          final offset = raw['offset_us'] as int, rssi = raw['rssi_dbm'] as int;
-          if (offset < 0 ||
-              offset > scan.scanDurationMs * 1000 ||
-              rssi < -127 ||
-              rssi > 126) {
-            throw const FormatException('BLE sample outside scan bounds.');
-          }
-          (found[uuid] ??= <int, int>{})[offset] = rssi;
-        }
-      }
+    for (final group in matchingBleSamples(scan, approved)) {
+      (found[group.uuid] ??= <int, int>{}).addAll(group.samples);
     }
     final flattened = <Map<String, dynamic>>[];
     for (final entry in found.entries) {
@@ -149,7 +196,19 @@ class ClassroomBleApi {
     };
   }
 
-  Future<Map<String, dynamic>> verify(String classroom) async {
+  Future<Map<String, dynamic>> verify(String classroom) => _verify(classroom);
+
+  Future<Map<String, dynamic>> verifyAttendance(
+    String classroom,
+    String attempt,
+    String preflightProof,
+  ) => _verify(classroom, attempt: attempt, preflightProof: preflightProof);
+
+  Future<Map<String, dynamic>> _verify(
+    String classroom, {
+    String? attempt,
+    String? preflightProof,
+  }) async {
     if (_inFlight) {
       throw const ApiException(
         'A BLE check is already finishing. Wait before retrying.',
@@ -161,6 +220,10 @@ class ClassroomBleApi {
     final gen = ++_generation;
     final student = _client.student?['student_id'] as String?;
     final revision = _client.sessionRevision;
+    final shadow = attempt != null;
+    final expectedOperation = shadow ? shadowOperation : operation;
+    final post = shadow ? _client.postDiagnostic : _client.post;
+    final requestTimeout = Duration(seconds: shadow ? 4 : 15);
     void current() {
       session(student, revision);
       if (gen != _generation) {
@@ -185,16 +248,20 @@ class ClassroomBleApi {
           'LOCAL_KEY_MISSING',
         );
       }
-      final ch = await _client
-          .post('$path/challenges', {
-            'classroom_id': classroom,
-            'public_key_fingerprint': key['public_key_fingerprint'],
-          })
-          .timeout(const Duration(seconds: 15));
+      final ch = await post('$path/challenges', {
+        'classroom_id': classroom,
+        'public_key_fingerprint': key['public_key_fingerprint'],
+        if (shadow) 'attendance_attempt_id': attempt,
+        if (shadow) 'preflight_proof_id': preflightProof,
+      }).timeout(requestTimeout);
       current();
       if (ch is! Map ||
           ch['success'] != true ||
-          ch['operation'] != operation ||
+          ch['operation'] != expectedOperation ||
+          (shadow &&
+              (ch['attendance_attempt_id'] != attempt ||
+                  ch['preflight_proof_id'] != preflightProof ||
+                  ch['attendance_session_id'] is! int)) ||
           ch['classroom_id'] != classroom ||
           ch['public_key_fingerprint'] != key['public_key_fingerprint'] ||
           ch['device_id'] is! String ||
@@ -221,19 +288,7 @@ class ClassroomBleApi {
       if (approved.isEmpty || approved.length > 4) {
         throw const FormatException('Invalid beacon policy count.');
       }
-      var scan = await _scanner.status();
-      current();
-      if (scan.ready) {
-        _scanning = true;
-        _scanOwner = ch['challenge_id'] as String;
-        try {
-          scan = await _scanner.scan(requestId: _scanOwner);
-        } finally {
-          _scanning = false;
-          _scanOwner = null;
-        }
-        current();
-      }
+      final scan = await _freshScan(ch['challenge_id'] as String, current);
       final raw = utf8.encode(jsonEncode(evidence(scan, approved)));
       final bytes = [...base64Decode(ch['signing_payload']), 10, ...raw];
       final payload = base64Encode(bytes);
@@ -248,18 +303,21 @@ class ClassroomBleApi {
           .sign(student, payload)
           .timeout(const Duration(seconds: 8));
       current();
-      final result = await _client
-          .post('$path/verifications', {
-            'challenge_id': ch['challenge_id'],
-            'evidence_payload': base64Encode(raw),
-            'signature': signature,
-          })
-          .timeout(const Duration(seconds: 15));
+      final result = await post('$path/verifications', {
+        'challenge_id': ch['challenge_id'],
+        'evidence_payload': base64Encode(raw),
+        'signature': signature,
+      }).timeout(requestTimeout);
       current();
       if (result is! Map ||
           result['success'] != true ||
           !['PASS', 'FAIL', 'UNCERTAIN'].contains(result['result']) ||
-          result['operation'] != operation ||
+          result['operation'] != expectedOperation ||
+          (shadow &&
+              (result['attendance_attempt_id'] != attempt ||
+                  result['preflight_proof_id'] != preflightProof ||
+                  result['attendance_session_id'] !=
+                      ch['attendance_session_id'])) ||
           result['classroom_id'] != classroom ||
           result['device_id'] != ch['device_id'] ||
           result['challenge_id'] != ch['challenge_id'] ||

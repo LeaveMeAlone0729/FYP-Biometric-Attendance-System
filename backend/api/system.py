@@ -25,6 +25,7 @@ def config(context: AppContext = Depends(get_context)):
     return {
         "demo_mode": context.settings.demo_mode,
         "server_time": iso_time(context.now(), context.settings),
+        "network_ble_test_mode": context.settings.network_ble_test_mode,
         "verification_seconds": context.settings.challenge_seconds,
         "required_frames": REQUIRED_LIVENESS_FRAMES,
     }

@@ -46,6 +46,7 @@ internal class BleDiagnosticsChannel(private val activity: Activity, messenger: 
         var count = 0
         val samples = mutableListOf<Int>()
         val beaconSamples = linkedMapOf<String, MutableList<Map<String, Long>>>()
+        val beaconCounts = mutableMapOf<String, Int>()
     }
 
     init {
@@ -199,10 +200,12 @@ internal class BleDiagnosticsChannel(private val activity: Activity, messenger: 
         // Samples are tagged only with UUIDs in THIS received packet, not cached
         // metadata from earlier packets. Distinct offsets survive to verification.
         ad.serviceUuids?.take(8)?.forEach { uuid ->
-            if (uuid.toString() !in record.beaconSamples && record.beaconSamples.size >= 8) return@forEach
-            val observations = record.beaconSamples.getOrPut(uuid.toString()) { mutableListOf() }
+            val id = uuid.toString()
+            if (id !in record.beaconSamples && record.beaconSamples.size >= 8) return@forEach
+            val observations = record.beaconSamples.getOrPut(id) { mutableListOf() }
             val offset = (item.timestampNanos - started) / 1000
             if (observations.lastOrNull()?.get("offset_us") != offset) {
+                record.beaconCounts[id] = (record.beaconCounts[id] ?: 0) + 1
                 observations.add(mapOf("offset_us" to offset, "rssi_dbm" to item.rssi.toLong()))
                 if (observations.size > 50) observations.removeAt(0)
             }
@@ -231,7 +234,9 @@ internal class BleDiagnosticsChannel(private val activity: Activity, messenger: 
                 "service_data" to ad.serviceData, "manufacturer_data" to ad.manufacturerData,
                 "rssi_dbm" to ad.samples.last(), "rssi_samples" to ad.samples.toList(), "median_rssi_dbm" to median,
                 "advertisement_count" to ad.count, "last_seen_age_ms" to age,
-                "beacon_observations" to ad.beaconSamples.map { (uuid, samples) -> mapOf("service_uuid" to uuid, "samples" to samples.toList()) },
+                "beacon_observations" to ad.beaconSamples.map { (uuid, samples) ->
+                    mapOf("service_uuid" to uuid, "samples" to samples.toList(), "advertisement_count" to ad.beaconCounts.getValue(uuid))
+                },
                 "last_seen_at_ms" to (System.currentTimeMillis() - age))
         } else emptyList()
         val response = status(effectiveCode) + mapOf("devices" to devices, "scan_duration_ms" to ((now - started) / 1_000_000),

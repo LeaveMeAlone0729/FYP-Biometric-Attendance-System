@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../services/api_client.dart';
 import '../services/classroom_ble_api.dart';
+import '../services/classroom_ble_observation.dart';
 
 class ClassroomBleCard extends StatefulWidget {
   const ClassroomBleCard({super.key, this.api});
@@ -17,6 +18,7 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
   String? _room, _error, _code;
   String _errorResult = 'UNCERTAIN';
   Map<String, dynamic>? _result;
+  ClassroomBleObservation? _observation;
   bool _busy = false;
   int _generation = 0;
   @override
@@ -29,7 +31,7 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
   String explanation(Object e) {
     if (e is ApiException) {
       if (e.status == 404 && e.code == null) {
-        return 'Classroom BLE is unavailable on this backend. Use the isolated backend on port 8002.';
+        return 'Classroom BLE observation is unavailable on this backend.';
       }
       if (['NETWORK_ERROR', 'REQUEST_TIMEOUT'].contains(e.code)) {
         return 'Unable to reach the verification server. No BLE policy decision was confirmed.';
@@ -45,6 +47,7 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
     setState(() {
       _busy = true;
       _result = null;
+      _observation = null;
       _error = null;
       _code = null;
       _errorResult = 'UNCERTAIN';
@@ -60,8 +63,39 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
     } catch (e) {
       if (mounted && gen == _generation) {
         setState(() {
+          _rooms = [];
+          _room = null;
           _error = explanation(e);
           _code = e is ApiException ? e.code : 'BLE_UNAVAILABLE';
+        });
+      }
+    } finally {
+      if (mounted && gen == _generation) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _observe(Map<String, int> thresholds) async {
+    if (_busy || thresholds.isEmpty) return;
+    final gen = ++_generation;
+    setState(() {
+      _busy = true;
+      _observation = null;
+      _result = null;
+      _error = null;
+      _code = null;
+    });
+    try {
+      final observation = await _api.observe(thresholds);
+      if (mounted && gen == _generation) {
+        setState(() => _observation = observation);
+      }
+    } catch (_) {
+      if (mounted && gen == _generation) {
+        setState(() {
+          _observation = const ClassroomBleObservation(
+            BleObservationStatus.unavailable,
+            'BLE_UNAVAILABLE',
+          );
         });
       }
     } finally {
@@ -74,6 +108,7 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
     final gen = ++_generation;
     setState(() {
       _busy = true;
+      _observation = null;
       _result = null;
       _error = null;
       _code = null;
@@ -111,6 +146,7 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
       setState(() {
         _busy = false;
         _result = null;
+        _observation = null;
         _error = null;
       });
     }
@@ -129,6 +165,17 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
     final selected = _rooms
         .where((r) => r['classroom_id'] == _room)
         .firstOrNull;
+    final policies = selected?['policies'] as List? ?? const [];
+    final thresholds = <String, int>{
+      for (final p in policies)
+        if (p is Map &&
+            p['enabled'] == true &&
+            p['service_uuid'] is String &&
+            p['rssi_threshold'] is int)
+          (p['service_uuid'] as String).toLowerCase():
+              p['rssi_threshold'] as int,
+    };
+    final observation = _observation;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -136,11 +183,11 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Classroom BLE Verification',
+              'Classroom BLE Observation',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const Text(
-              'Experimental signed observations. Static UUID/RSSI does not prove physical presence or authorize attendance.',
+              'Scan for a configured classroom beacon. UUID and RSSI are diagnostic observations only and do not authorize attendance.',
             ),
             if (_rooms.isNotEmpty)
               DropdownButtonFormField<String>(
@@ -163,20 +210,19 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
                     : (v) => setState(() {
                         _room = v;
                         _result = null;
+                        _observation = null;
                         _error = null;
                         _code = null;
                       }),
               ),
             if (selected != null)
-              ...((selected['policies'] as List).map(
+              ...(policies.map(
                 (p) => Text(
-                  '${p['label'] ?? p['policy_id']}: ${p['service_uuid']}\n${p['enabled'] == true ? 'Enabled' : 'Disabled'} · ≥${p['minimum_samples']} samples · median ≥${p['rssi_threshold']} dBm · max age ${p['max_age_seconds']} s',
+                  '${p['label'] ?? p['policy_id']}: ${p['service_uuid']}\n${p['enabled'] == true ? 'Enabled' : 'Disabled'} · signal reference ${p['rssi_threshold']} dBm',
                 ),
               )),
-            if (!_busy &&
-                selected != null &&
-                (selected['policies'] as List).isEmpty)
-              const Text('No BLE policy configured for this classroom.'),
+            if (!_busy && selected != null && thresholds.isEmpty)
+              const Text('No enabled BLE policy for this classroom.'),
             if (_busy)
               const Padding(
                 padding: EdgeInsets.all(12),
@@ -190,12 +236,51 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
                       ),
                     ),
                     SizedBox(width: 12),
-                    Flexible(
-                      child: Text('Checking beacon policy and scanning…'),
-                    ),
+                    Flexible(child: Text('Checking classroom beacon…')),
                   ],
                 ),
               ),
+            if (observation != null) ...[
+              Text(switch (observation.status) {
+                BleObservationStatus.detected => 'Beacon detected',
+                BleObservationStatus.notDetected =>
+                  'Configured beacon not detected',
+                BleObservationStatus.unavailable =>
+                  'BLE observation unavailable',
+              }, style: const TextStyle(fontWeight: FontWeight.bold)),
+              if (observation.durationMs > 0)
+                Text(
+                  'Scan duration: ${(observation.durationMs / 1000).toStringAsFixed(1)} s',
+                ),
+              if (observation.status == BleObservationStatus.notDetected)
+                const Text('Matching advertisements: 0'),
+              for (final beacon in observation.beacons) ...[
+                Text(beacon.uuid),
+                Text('Matching advertisements: ${beacon.advertisements}'),
+                Text('Median RSSI: ${beacon.medianRssi} dBm'),
+                if (beacon.weak)
+                  const Text(
+                    'Weak signal relative to the configured reference.',
+                  ),
+              ],
+              if (observation.status == BleObservationStatus.unavailable)
+                Text(switch (observation.reason) {
+                  'BLUETOOTH_OFF' => 'Turn Bluetooth on and retry.',
+                  'BLE_PERMISSION_REQUIRED' =>
+                    'Allow Nearby Devices in BLE Diagnostics.',
+                  'LOCATION_PERMISSION_REQUIRED' =>
+                    'Allow precise location in BLE Diagnostics.',
+                  'LOCATION_DISABLED' => 'Turn on Android Location Services.',
+                  'BLE_SCAN_TIMEOUT' =>
+                    'The scan timed out. Start a fresh scan.',
+                  'BLE_EVIDENCE_STALE' =>
+                    'The scan was stale or the clock changed. Scan again.',
+                  'BLE_SCAN_INCOMPLETE' || 'STOPPED' || 'CANCELLED' =>
+                    'The scan did not finish. Run the full eight-second scan.',
+                  _ =>
+                    'The scanner could not complete the observation. Check BLE Diagnostics and retry.',
+                }),
+            ],
             if (_result != null) ...[
               Text(
                 'Classroom BLE verification: ${_result!['result']}',
@@ -211,6 +296,10 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
               Text('Reason: ${_result!['reason_code']}'),
               Text(_result!['message'] as String),
               Text('Approved-beacon samples: ${_result!['sample_count']}'),
+              if (_result!['scan_duration_ms'] is int)
+                Text(
+                  'Scan duration: ${(_result!['scan_duration_ms'] / 1000).toStringAsFixed(1)} s',
+                ),
               if (_result!['median_rssi_dbm'] != null)
                 Text('Server median: ${_result!['median_rssi_dbm']} dBm'),
               if (_result!['rssi_threshold'] != null)
@@ -231,7 +320,13 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
               runSpacing: 8,
               children: [
                 FilledButton(
-                  onPressed: _busy || _room == null ? null : _verify,
+                  onPressed: _busy || thresholds.isEmpty
+                      ? null
+                      : () => _observe(thresholds),
+                  child: const Text('Observe classroom beacon (8 seconds)'),
+                ),
+                OutlinedButton(
+                  onPressed: _busy || thresholds.isEmpty ? null : _verify,
                   child: const Text('Verify classroom BLE'),
                 ),
                 TextButton(
@@ -241,7 +336,7 @@ class _ClassroomBleCardState extends State<ClassroomBleCard>
               ],
             ),
             const Text(
-              'For permission or Bluetooth changes, use BLE Diagnostics above. Verification scans only after this explicit action.',
+              'Observe scans locally. Verify runs a separate fresh scan and submits a signed diagnostic report. Manage permissions in BLE Diagnostics.',
             ),
           ],
         ),

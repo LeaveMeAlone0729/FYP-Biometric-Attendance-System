@@ -1,10 +1,37 @@
+import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/modules/devices/services/attendance_device_authorization.dart';
 import 'package:frontend/modules/devices/services/authorized_attendance_biometric_api.dart';
 import 'package:frontend/modules/networks/services/classroom_wifi_api.dart';
+import 'package:frontend/modules/networks/services/classroom_ble_api.dart';
+import 'package:frontend/screens/attendance_flow_screen.dart';
 import 'package:frontend/services/api_client.dart';
 import 'attendance_authorization_test.dart' show AttendanceFixture;
+import 'attendance_preflight_test.dart' show enterPin;
+
+class PendingBle extends ClassroomBleApi {
+  final result = Completer<Map<String, dynamic>>();
+  int calls = 0;
+  int cancellations = 0;
+
+  @override
+  Future<Map<String, dynamic>> verifyAttendance(
+    String classroom,
+    String attempt,
+    String preflightProof,
+  ) {
+    expect(classroom, 'A');
+    expect(attempt, 'attempt');
+    expect(preflightProof, isNotEmpty);
+    calls++;
+    return result.future;
+  }
+
+  @override
+  Future<void> cancel() async => cancellations++;
+}
 
 class AttendanceWifi extends ClassroomWifiApi {
   final calls = <String>[];
@@ -29,6 +56,98 @@ class AttendanceWifi extends ClassroomWifiApi {
 }
 
 void main() {
+  for (final (code, verdict, label) in [
+    ('BLE_APPROVED', 'PASS', 'BLE verified'),
+    ('BLE_BEACON_NOT_FOUND', 'FAIL', 'BLE not detected'),
+    ('BLUETOOTH_OFF', 'UNCERTAIN', 'BLE unavailable'),
+    ('INVALID_DEVICE_SIGNATURE', 'FAIL', 'BLE verification error'),
+    ('timeout', '', 'BLE unavailable'),
+    ('NO_ENABLED_BLE_POLICY', '', 'BLE not configured for this classroom'),
+  ]) {
+    testWidgets('Shadow BLE $code never waits before opening camera', (
+      tester,
+    ) async {
+      final f = AttendanceFixture()..classroomRequired = true;
+      await f.login();
+      final ble = PendingBle();
+      final devices = AttendanceDeviceAuthorization(
+        client: f.client,
+        keys: f.keys,
+        now: () => f.now,
+        classroomWifi: AttendanceWifi(),
+      );
+      var recorded = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AttendanceFlowScreen(
+              client: f.client,
+              authorization: devices,
+              classroomBle: ble,
+              onRecorded: () => recorded++,
+              cameraBuilder: (_) => Builder(
+                builder: (context) => Scaffold(
+                  body: TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Finish camera fixture'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await enterPin(tester);
+      expect(find.text('Finish camera fixture'), findsOneWidget);
+      expect(find.text('Checking classroom BLE…'), findsOneWidget);
+      expect(ble.calls, 1);
+      if (code == 'timeout') {
+        await tester.pump(const Duration(seconds: 18));
+      } else if (code == 'NO_ENABLED_BLE_POLICY') {
+        ble.result.completeError(
+          const ApiException('No BLE policy', 409, 'NO_ENABLED_BLE_POLICY'),
+        );
+      } else {
+        ble.result.complete({'result': verdict, 'reason_code': code});
+      }
+      await tester.pumpAndSettle();
+      expect(find.text(label), findsOneWidget);
+      await tester.tap(find.text('Finish camera fixture'));
+      await tester.pumpAndSettle();
+      expect(recorded, 1);
+      expect(ble.calls, 1);
+      expect(ble.cancellations, 1);
+    });
+  }
+  testWidgets('No classroom Wi-Fi policy stops preflight before optional BLE', (
+    tester,
+  ) async {
+    final f = AttendanceFixture()..classroomRequired = true;
+    await f.login();
+    final ble = PendingBle();
+    final devices = AttendanceDeviceAuthorization(
+      client: f.client,
+      keys: f.keys,
+      now: () => f.now,
+      classroomWifi: AttendanceWifi()..code = 'NO_ENABLED_CLASSROOM_POLICY',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AttendanceFlowScreen(
+            client: f.client,
+            authorization: devices,
+            classroomBle: ble,
+            cameraBuilder: (_) => const Text('Camera fixture opened'),
+          ),
+        ),
+      ),
+    );
+    await enterPin(tester);
+    expect(ble.calls, 0);
+    expect(find.text('Camera fixture opened'), findsNothing);
+    expect(find.text('Verification result'), findsOneWidget);
+  });
   test(
     'required preflight and each liveness frame get distinct fresh Wi-Fi receipts',
     () async {

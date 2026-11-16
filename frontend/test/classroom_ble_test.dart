@@ -8,6 +8,7 @@ import 'package:frontend/services/api_client.dart';
 import 'package:frontend/modules/devices/services/device_key_store.dart';
 import 'package:frontend/modules/networks/services/ble_diagnostics.dart';
 import 'package:frontend/modules/networks/services/classroom_ble_api.dart';
+import 'package:frontend/modules/networks/services/classroom_ble_observation.dart';
 import 'package:frontend/modules/networks/widgets/classroom_ble_card.dart';
 
 const uuid = '7d9a6c10-326a-4c60-9e01-1ef000000001';
@@ -66,6 +67,8 @@ class Scanner extends BleDiagnostics {
   int scans = 0, cancels = 0;
   String? owner;
   Completer<BleSnapshot>? waiting;
+  bool timeout = false;
+  int? scanStartMs;
   Map<String, dynamic> metadata() => {
     'status': enabled ? 'READY' : 'BLUETOOTH_OFF',
     'supported': true,
@@ -81,8 +84,9 @@ class Scanner extends BleDiagnostics {
   Future<BleSnapshot> scan({String? requestId}) async {
     scans++;
     owner = requestId;
+    if (timeout) throw TimeoutException('Native scan did not finish');
     if (waiting != null) return waiting!.future;
-    final start = DateTime.now().millisecondsSinceEpoch;
+    final start = scanStartMs ?? DateTime.now().millisecondsSinceEpoch;
     Map<String, dynamic> advertiser(String id) => {
       'scan_id': id == uuid ? 1 : 2,
       'name': 'private-advertised-name',
@@ -127,6 +131,16 @@ class Fixture {
   String code = 'BLE_APPROVED';
   Object? error;
   int confirms = 0;
+  bool shadow = false;
+  bool shadowUnauthorized = false;
+  Map<String, dynamic> get binding => shadow
+      ? {
+          'operation': ClassroomBleApi.shadowOperation,
+          'attendance_attempt_id': 'attempt',
+          'attendance_session_id': 7,
+          'preflight_proof_id': 'preflight',
+        }
+      : {};
   late final client = ApiClient(
     client: MockClient((r) async {
       http.Response answer(Object data, [int status = 200]) =>
@@ -154,6 +168,14 @@ class Fixture {
       }
       if (r.url.path.endsWith('/challenges')) {
         expect(scanner.scans, 0);
+        if (shadow) {
+          final body = jsonDecode(r.body) as Map;
+          expect(body['attendance_attempt_id'], 'attempt');
+          expect(body['preflight_proof_id'], 'preflight');
+          if (shadowUnauthorized) {
+            return answer({'code': 'SESSION_EXPIRED'}, 401);
+          }
+        }
         return answer({
           'success': true,
           'operation': ClassroomBleApi.operation,
@@ -168,6 +190,7 @@ class Fixture {
               .add(const Duration(seconds: 45))
               .toUtc()
               .toIso8601String(),
+          ...binding,
         }, 201);
       }
       confirms++;
@@ -180,6 +203,12 @@ class Fixture {
       final raw = utf8.decode(base64Decode(body['evidence_payload']));
       expect(utf8.decode(base64Decode(keys.signed!)), 'server-nonce\n$raw');
       final evidence = jsonDecode(raw) as Map;
+      final scanStartMs = scanner.scanStartMs;
+      if (scanStartMs != null) {
+        expect(evidence['scan_started_at_ms'], scanStartMs);
+        expect(evidence['scan_completed_at_ms'], scanStartMs + 8000);
+        expect(evidence['scan_duration_ms'], 8000);
+      }
       expect(raw, isNot(contains('private-advertised-name')));
       expect(raw, isNot(contains(unrelated)));
       expect(evidence, isNot(contains('median_rssi_dbm')));
@@ -188,7 +217,7 @@ class Fixture {
       } else {
         expect(evidence['beacons'], isEmpty);
       }
-      return answer(result(code));
+      return answer({...result(code), ...binding});
     }),
   );
   late final api = ClassroomBleApi(
@@ -203,6 +232,18 @@ class ScreenApi extends ClassroomBleApi {
   String code = 'BLE_APPROVED';
   Object? error;
   int verifies = 0;
+  ClassroomBleObservation observation = const ClassroomBleObservation(
+    BleObservationStatus.detected,
+    'BLE_BEACON_DETECTED',
+    durationMs: 8000,
+    beacons: [(uuid: uuid, advertisements: 10, medianRssi: -72, weak: true)],
+  );
+  @override
+  Future<ClassroomBleObservation> observe(Map<String, int> thresholds) async {
+    expect(thresholds, {uuid: -65});
+    return observation;
+  }
+
   @override
   Future<List<Map<String, dynamic>>> classrooms() async => [
     {
@@ -224,9 +265,87 @@ class ScreenApi extends ClassroomBleApi {
 
 void main() {
   test(
+    'shadow reuses the signed scanner and binds both server responses',
+    () async {
+      final f = Fixture()..shadow = true;
+      await f.login();
+      final response = await f.api.verifyAttendance(
+        'A',
+        'attempt',
+        'preflight',
+      );
+      expect(response['attendance_authorized'], false);
+      expect(response['attendance_attempt_id'], 'attempt');
+      expect(f.confirms, 1);
+    },
+  );
+  test('optional shadow HTTP 401 never clears the attendance login', () async {
+    final f = Fixture()
+      ..shadow = true
+      ..shadowUnauthorized = true;
+    await f.login();
+    await expectLater(
+      f.api.verifyAttendance('A', 'attempt', 'preflight'),
+      throwsA(isA<ApiException>()),
+    );
+    expect(f.client.authenticated.value, true);
+    expect(f.scanner.scans, 0);
+  });
+  test('local scan timeout and Bluetooth off do not submit evidence', () async {
+    final f = Fixture();
+    await f.login();
+    f.scanner.enabled = false;
+    expect((await f.api.observe({uuid: -65})).reason, 'BLUETOOTH_OFF');
+    f.scanner.enabled = true;
+    f.scanner.timeout = true;
+    final outcome = await f.api.observe({uuid: -65});
+    expect(outcome.status, BleObservationStatus.unavailable);
+    expect(outcome.reason, 'BLE_SCAN_TIMEOUT');
+    expect(f.confirms, 0);
+    expect(f.keys.signed, isNull);
+  });
+  testWidgets(
+    'local observation shows duration, count, median and weak signal',
+    (tester) async {
+      final api = ScreenApi();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(child: ClassroomBleCard(api: api)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final button = find.text('Observe classroom beacon (8 seconds)');
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.text('Beacon detected'), findsOneWidget);
+      expect(find.text('Matching advertisements: 10'), findsOneWidget);
+      expect(find.text('Scan duration: 8.0 s'), findsOneWidget);
+      expect(find.text('Median RSSI: -72.0 dBm'), findsOneWidget);
+      expect(find.textContaining('Weak signal'), findsOneWidget);
+      expect(api.verifies, 0);
+      api.observation = const ClassroomBleObservation(
+        BleObservationStatus.unavailable,
+        'BLE_SCAN_TIMEOUT',
+      );
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.text('BLE observation unavailable'), findsOneWidget);
+      expect(find.textContaining('The scan timed out'), findsOneWidget);
+      expect(find.text('Beacon detected'), findsNothing);
+    },
+  );
+  test(
     'nonce precedes scan, existing key signs exact filtered timestamped observations',
     () async {
       final f = Fixture();
+      final utc = DateTime.parse('2026-10-30T04:00:00.123Z');
+      final myt = DateTime.parse('2026-10-30T12:00:00.123+08:00');
+      expect(myt.millisecondsSinceEpoch, utc.millisecondsSinceEpoch);
+      f.scanner.scanStartMs = myt.millisecondsSinceEpoch;
       await f.login();
       final r = await f.api.verify('A');
       expect(r['result'], 'PASS');
@@ -251,6 +370,7 @@ void main() {
     'BLE_SIGNAL_WEAK',
     'BLE_INSUFFICIENT_SAMPLES',
     'BLE_EVIDENCE_STALE',
+    'BLE_EVIDENCE_FUTURE',
     'BLE_POLICY_CHANGED',
   ]) {
     test('actual backend decision preserved: $code', () async {

@@ -1,6 +1,30 @@
 # FYP Biometric Attendance System
 
-For the preferred **new isolated MySQL teammate setup**, use
+## Original laptop demonstration — three commands
+
+On branch **SH**, use PowerShell from `C:\FYP\FYP-Biometric-Attendance-System`:
+
+```powershell
+.\fyp-start.ps1
+.\fyp-install.ps1
+.\fyp-stop.ps1
+```
+
+This uses the **original database on 3306**, backend 8000, local admin 8003,
+restricted public gateway 8004 and existing named Cloudflare service. Current
+Wi-Fi addressing is detected automatically. Installation defaults only to the
+connected Xiaomi; multiple devices require explicit selection. Shutdown stops
+only processes launched by this workflow and preserves MariaDB/Cloudflared.
+See [three-command setup, safeguards and troubleshooting](docs/FYP_THREE_COMMANDS.md)
+for one-time prerequisites and the scope of mocked validation. No database is
+created or migrated by these commands.
+
+Partners without Cloudflare credentials can use the same three commands with
+`-Mode Local`. See [partner Local setup](docs/PARTNER_LOCAL_MODE.md) for the
+separate private database profile, same-LAN APK routing and mode-safe shutdown.
+Full remains the default; Local never starts a public gateway.
+
+For an optional **new isolated MySQL teammate setup**, use
 [MySQL testing setup](docs/MYSQL_TESTING.md). It preserves the existing MariaDB
 environment and does not change the original database or port 8000 defaults.
 

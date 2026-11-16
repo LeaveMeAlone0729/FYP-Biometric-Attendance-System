@@ -1,6 +1,8 @@
 # Phase 4B — standalone experimental classroom BLE verification
 
-Branch SH, isolated backend 8002 / MariaDB 3322 only. Phase 4C attendance
+This document records the original isolated Phase 4B rollout on backend 8002
+and MariaDB 3322. See **Phase 1 classroom observation** below for the current
+diagnostic workflow. Phase 4C attendance
 integration is **not enabled**. Existing attendance, IP/CIDR, Wi-Fi BSSID,
 PIN/session, Keystore, face/liveness and duplicate rules are unchanged.
 
@@ -166,10 +168,41 @@ issuance fail closed. Concurrent confirmations produce at most one successful us
 RSSI values must be integer -127–126 dBm. Offsets must be unique, increasing and
 inside the scan. Duration is bounded to ten seconds; a COMPLETE window shorter
 than seven seconds is UNCERTAIN. STOPPED/CANCELLED is UNCERTAIN even if some
-samples arrived. Future wall timestamps are rejected, scan start must not predate
-the exact server issuance time, and every matched sample must meet policy age.
-Android/Windows automatic clocks must be aligned; clock skew can legitimately
-cause BLE_EVIDENCE_FUTURE/STALE. There is no clock-bypass mode.
+samples arrived.
+
+The server compares the later of reported completion and scan start plus
+duration with its current time at validation. A lead of more than 2,000 ms
+returns `BLE_EVIDENCE_FUTURE`. A lead within the cap is subtracted from the
+reported start for the challenge issuance check only. A start before issuance
+after that adjustment returns `BLE_EVIDENCE_STALE`.
+
+For freshness, the server uses the later of challenge issuance and the
+reported start minus 2,000 ms as the earliest plausible start. The 30-second
+scan-age limit and each policy's sample-age limit use that start. This prevents
+an apparently newer wall-clock reading from extending freshness. Signed bytes,
+the replay hash, and server-side session and challenge expiry are unchanged.
+The 2,000 ms cap covers the measured 1,500 ms tablet clock lead with 500 ms of
+headroom. It applies only to the standalone BLE diagnostic.
+
+If local observation succeeds but the signed check reports a future timestamp,
+compare Android's `adb -s <serial> shell date '+%s%3N'` with Windows'
+`[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()`. Read Windows before and
+after the ADB call to bound the delay. Both readings are epoch milliseconds.
+Android uses elapsed real time for the scan duration and packet offsets, and
+wall time for scan start and completion. A tablet ahead of the backend can
+produce a completion time later than server receipt. Check automatic date and
+time on the tablet and sync Windows under **Settings → Time & language → Date
+& time → Sync now**, then run a new **Verify classroom BLE** check. A timezone
+label change alone does not synchronize the clocks.
+
+A successful NTP refresh can leave a subsecond difference in the operating
+system clock. Recheck the measured offset after synchronization. On Windows,
+`w32tm /stripchart /computer:time.windows.com /dataonly /samples:5` compares
+the host with its time source. On Android, `adb shell dumpsys time_detector`
+reports the time source and configured system-clock update threshold. A local
+beacon detection still works when these clocks disagree. The signed check may
+reject skew above the cap or a scan whose timestamps fail the challenge or
+freshness checks.
 
 Backend computes the median from distinct submitted observations for approved
 UUIDs only. No beacon => FAIL. Enough fresh samples and median >= threshold =>
@@ -278,3 +311,164 @@ the existing final writer. Never reuse this standalone PASS or replace current
 device/IP/Wi-Fi/PIN/biometric checks. Static beacons/relay and fabricated signed
 reports need an explicit threat model; stronger assurance may require authenticated
 rotating or challenge-response beacon hardware. No 4C endpoint/adapter is enabled.
+
+## Phase 1 classroom observation
+
+On **Network Verification → Classroom BLE Observation**, select a classroom
+with an enabled service UUID and choose **Observe classroom beacon (8 seconds)**.
+The existing Android scanner accepts packets timestamped inside that scan,
+counts packets that actually carried the configured UUID and calculates median
+RSSI over retained matching samples. It never pairs. A weak observation still
+means detected. An empty completed scan means not detected. Bluetooth,
+permissions, timeout and stale or incomplete data produce an unavailable result.
+
+Local observation works with the existing authenticated classroom policy list.
+It does not submit a record or need a new backend version. **Verify classroom
+BLE** remains an optional fresh, signed server check through the existing
+challenge and verification endpoints. Its response adds observation status,
+scan duration and the observed configured UUID when detected. The existing
+policy verdict and freshness checks still apply. Audit records bind to the
+classroom, student and registered installation, with no attendance session
+binding. The original admin panel can show the last signed-check result per
+classroom without exposing student or device identifiers. Scoped panels without
+access to the BLE event table only show policy configuration.
+
+Use the existing **Experimental BLE** admin form to add and enable a test
+policy. UUIDs are validated and canonicalized. An enabled UUID cannot be
+assigned a second active policy, and a classroom can enable up to four UUIDs.
+Previously stored policies remain untouched. These guards and the signed
+observation summary require the updated backend or panel process respectively.
+No schema migration or attendance authorization change is needed.
+
+For a physical check, use an explicitly configured test policy for the
+Windows beacon UUID and, for the wrong-UUID control, a different enabled
+test policy in another classroom. Scan at 1–2 metres, repeat after stopping
+the beacon, then repeat at a greater distance. Record detection, duration,
+advertisement count and median RSSI. Use a fresh scan for each comparison.
+RSSI depends on distance, obstructions and radio conditions. The reported
+UUID and RSSI are untrusted diagnostic observations.
+
+## Attendance shadow mode and Chapter 5 evidence
+
+The student enters the PIN and completes the existing signed device and
+network preflight, including classroom Wi-Fi when required. When that
+preflight identifies a classroom, Flutter opens the existing biometric camera
+and independently requests a BLE challenge. The BLE panel in the camera
+route displays progress and the diagnostic result. It never waits before
+opening the camera, requests no new permissions, and does not retry the scan.
+It cancels a pending scan on leaving the route or after an 18-second UI budget.
+Classrooms without an enabled BLE policy get no scan. Sessions without a
+classroom skip the BLE request altogether.
+
+The existing `POST /api/v1/classroom-ble/challenges` accepts the optional pair
+`attendance_attempt_id` and `preflight_proof_id` alongside `classroom_id` and
+`public_key_fingerprint`. With the pair present the server chooses operation
+`attendance_ble_shadow`, checks the classroom snapshot and a consumed PASS
+preflight for the same login, attempt and device, and limits issuance to one
+challenge per attempt. The same nonce and evidence-signing protocol and
+`POST /api/v1/classroom-ble/verifications` endpoint apply. Confirm revalidates
+the live attempt binding and ACTIVE key. Shadow results always contain
+`attendance_authorized: false`. Final attendance uses its own device proof,
+Wi-Fi and CIDR checks, and genuine face and liveness completion. It neither
+reads nor consumes BLE receipts. Old Flutter builds can continue taking
+attendance without shadow checks.
+
+No schema migration is needed. The existing BLE challenge stores the signed
+attempt binding. Its server-derived primary key limits duplicate issuance and
+lets the admin panel join results to the existing attendance attempt snapshot.
+The existing BLE event table retains its diagnostic audit. The authenticated
+original panel's **Experimental BLE** page lists the last 50 attempt snapshots
+with local time, classroom, numeric verification attempt, session, result and
+reason. It displays PASS, FAIL, UNAVAILABLE or NOT CHECKED. An issued check
+without a result is pending until the attempt ends or the BLE deadline expires,
+then it becomes UNAVAILABLE. A request that never reaches issuance leaves
+NOT CHECKED. When a bound request has no enabled BLE policy, the app displays
+**BLE not configured for this classroom** and the panel records
+`NO_ENABLED_BLE_POLICY` without issuing a scan. A logged Wi-Fi preflight
+failure can also explain NOT CHECKED in the panel. Client timeouts cannot be inferred from the server alone, and a
+committed result may appear in the panel even if the client never received it.
+This panel shows the device used for preflight only through the associated
+result. It does not expose device identifiers, signed payloads, or templates.
+Scoped simulation panel profiles retain their existing permissions and show
+attempt monitoring as unavailable.
+
+The 2,000 ms future cap and conservative scan and sample ages above also
+apply to shadow checks. A client with access to its own signing key can still
+report observations that the server cannot independently confirm. Static
+service UUIDs can be copied or relayed, and RSSI varies with hardware,
+orientation, obstructions and radio interference. Report the BLE result as
+classroom diagnostic evidence and keep attendance enforcement independent.
+
+### Deployment and rollback
+
+Run the original read-only startup check. After separate service approval,
+stop only the identified port 8000 listener and start the existing launcher.
+If the current live backend is loopback-only, use `--lan` for the Xiaomi.
+Leave MariaDB running. Restart the existing panel separately after approval
+to load its new view. Run these in separate PowerShell terminals.
+
+```powershell
+$repo = 'C:\FYP\FYP-Biometric-Attendance-System'
+& "$repo\start-fyp.ps1" check
+& "$repo\backend\venv\Scripts\python.exe" "$repo\backend\original_fyp.py" serve-backend --lan --local-demo-slot2
+```
+
+```powershell
+$repo = 'C:\FYP\FYP-Biometric-Attendance-System'
+& "$repo\backend\venv\Scripts\python.exe" "$repo\backend\original_fyp.py" serve-panel
+```
+
+Check loopback `/local-fyp/identity`, loopback and LAN `/config`, and
+`http://127.0.0.1:8003/ble` through the existing admin login. Verify the current
+Wi-Fi IPv4 and Xiaomi serial before running the LAN installer. For a laptop
+still using `192.168.0.162`, the install command is:
+
+```powershell
+& 'C:\FYP\FYP-Biometric-Attendance-System\install-fyp-android.ps1' -Serial 7732690b -LanIp 192.168.0.162
+```
+
+For rollback, use the previous source and APK checkpoint and the same approved
+backend and panel launchers. There is no schema rollback and existing BLE audit
+rows can be retained. The old APK skips shadow requests. The new APK treats a
+missing or incompatible shadow endpoint as an optional diagnostic failure and
+continues the existing attendance flow.
+
+### Physical test checklist
+
+Use the existing authorized Wi-Fi, enrolled Xiaomi and approved FYP class
+sessions. Use a fresh legitimate attendance session for each case so duplicate
+prevention cannot obscure the diagnostic outcome.
+
+Check the actual classroom IDs in all three places before testing: the
+session assignment, the enabled Wi-Fi policy's classroom, and the enabled BLE
+policy's classroom. A policy's own ID is independent of the classroom it is
+assigned to. In the original test configuration, `ClASSROOM_A` and
+`ClASSROOM_B` had BLE policies, while the Wi-Fi policies were assigned to
+`Classrooom_A` and `Classs_B`. Configure approved Wi-Fi for the exact BLE
+classrooms before using them in a test session. A Wi-Fi preflight rejection
+does not start the optional BLE scan. A completed, healthy scan with no
+matching UUID returns `BLE_BEACON_NOT_FOUND`.
+
+| Scenario | Expected BLE outcome | Attendance expectation |
+|---|---|---|
+| Classroom A, `SENGHIN` running | `BLE_APPROVED` if count and RSSI meet policy | One record if all existing checks pass |
+| Classroom A, beacon stopped | `BLE_BEACON_NOT_FOUND` | One record if all existing checks pass |
+| Classroom B, only Classroom A UUID transmitting | `BLE_BEACON_NOT_FOUND` | One record if all existing checks pass, including B's Wi-Fi |
+| Bluetooth off with Wi-Fi available | `BLUETOOTH_OFF` or unavailable | Camera and attendance remain usable under existing checks |
+| Repeat a completed session | Existing duplicate rejection | No additional attendance record |
+| Valid BLE, then an unauthorized final network or Wi-Fi | Independent BLE result | No attendance record |
+
+For Chapter 5, record the APK/backend version, attempt and session numbers,
+admin status and reason, and attendance count before and after each case.
+Use redacted screenshots. Record the earlier standalone Xiaomi results as
+standalone evidence. Mark physical attendance shadow cases **NOT RUN** until
+the new APK and both services are deployed and the Xiaomi tests are executed.
+
+Automated evidence for this implementation run on `SH`: the focused backend
+BLE, attendance, classroom Wi-Fi and original panel suites reported 104 passed
+and two skips for real MariaDB row-lock tests. They used in-memory fixtures,
+real ECDSA signatures and the actual attendance writer with synthetic inputs.
+The focused Flutter suites reported 54 passed, Flutter analysis reported no
+issues, and the LAN-configured Android debug APK built successfully. The
+tablet attendance shadow flow and live admin view still require deployment
+and physical verification.

@@ -1,6 +1,6 @@
 from database_compat import shared_read
 import hashlib,json,re,uuid
-from sqlalchemy import select
+from sqlalchemy import func, select
 from modules.classroom_wifi.models import Classroom
 from modules.classroom_wifi.policies import identifier
 from .models import BlePolicy,BlePolicyEvent
@@ -41,6 +41,21 @@ def change(db,action,*,policy_id,now,actor,classroom=None,service_uuid=None,labe
         if label is not None and (not isinstance(label,str) or not label.strip() or len(label)>100):raise ValueError('BLE_POLICY_LABEL_INVALID')
         room=db.get(Classroom,classroom,with_for_update=True)
         if room is None:db.add(Classroom(classroom_id=classroom,name=classroom,created_at=now));db.flush()
+    else:
+        existing = db.get(BlePolicy, policy_id)
+        if existing is None: raise ValueError('BLE_POLICY_NOT_FOUND')
+        # Serialize changes within a classroom. Also lock disabled candidates
+        # with this UUID before enabling, including candidates in other rooms.
+        db.get(Classroom, existing.classroom_id, with_for_update=True)
+        if action == 'enable':
+            same_uuid = db.scalars(select(BlePolicy).where(
+                func.lower(BlePolicy.service_uuid) == canonical_uuid(existing.service_uuid),
+                BlePolicy.retired_at.is_(None),
+            ).order_by(BlePolicy.policy_id).with_for_update().execution_options(populate_existing=True))
+            if any(other.enabled and other.policy_id != policy_id for other in same_uuid):
+                raise ValueError('BLE_UUID_ALREADY_ENABLED')
+            if not existing.enabled and len(enabled(db, existing.classroom_id)) >= 4:
+                raise ValueError('BLE_ENABLED_POLICY_LIMIT')
     p=db.get(BlePolicy,policy_id,with_for_update=True,populate_existing=True)
     if action=='add':
         if p is not None:raise ValueError('BLE_POLICY_ALREADY_EXISTS')

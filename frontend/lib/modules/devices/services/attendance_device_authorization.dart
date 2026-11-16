@@ -24,7 +24,9 @@ class AttendanceDeviceAuthorization {
   final Map<String, Future<Map<String, String>>> _flights = {};
 
   /// Fresh server check only; the final writer requires another signed nonce.
-  Future<void> preflight(String attendanceId) async {
+  Future<({String proofId, String? classroom})> preflight(
+    String attendanceId,
+  ) async {
     final revision = _client.sessionRevision;
     final fields = await _proof(attendanceId, '', preflight: true);
     final response = await _client
@@ -49,6 +51,10 @@ class AttendanceDeviceAuthorization {
         'ATTENDANCE_PREFLIGHT_FAILED',
       );
     }
+    return (
+      proofId: fields['device_challenge_id']!,
+      classroom: fields['shadow_classroom'],
+    );
   }
 
   Future<Map<String, String>> proof(String attendanceId) {
@@ -257,6 +263,7 @@ class AttendanceDeviceAuthorization {
     return {
       ...fields,
       'classroom_wifi_proof_id': result['classroom_wifi_proof_id'] as String,
+      if (preflight) 'shadow_classroom': classroom,
     };
   }
 
