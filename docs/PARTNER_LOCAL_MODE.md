@@ -1,6 +1,7 @@
 # Partner LOCAL mode
 
-After one-time setup, use PowerShell on branch SH in your own Windows clone:
+After one-time setup, use PowerShell in your own Windows clone on any named
+branch (including Chew-Zhexuan). Full mode retains its original SH/path checks.
 
 ```powershell
 .\fyp-start.ps1 -Mode Local
@@ -14,8 +15,10 @@ discovery is added: only this laptop's current Wi-Fi IPv4 is detected.
 
 ## Prerequisites
 
-Use Python 3.12/backend requirements, XAMPP MariaDB, compatible Flutter/Dart and
-Android SDK/ADB. Set your own SDK paths in ignored android/local.properties.
+Use Python 3.12/backend requirements, MySQL 8.4.x (for example Laragon) or MariaDB,
+compatible Flutter/Dart and Android SDK/ADB. Set your own SDK paths in ignored
+android/local.properties. Start the database separately. Apache is optional and
+is only needed if you use a PHP database administration page served through it.
 
 ```powershell
 py -3.12 -m venv backend\venv
@@ -33,8 +36,9 @@ the author's laptop are needed or safe to copy.
 
 ## Own database and private settings
 
-Create a dedicated development schema/account using your local DB administration
-tool. Example names: fyp_partner_local/fyp_partner_app (not supplied credentials).
+Use your successfully restored application schema, or create a dedicated
+development schema/account using your local DB administration tool. Example
+names: biometric_attendance/fyp_local_app (not supplied credentials).
 Grant only your schema: runtime SELECT/INSERT/UPDATE and metadata visibility;
 initial empty-table creation also needs temporary CREATE/INDEX/REFERENCES. Revoke
 DDL after setup. Never grant global administration or original-schema access.
@@ -45,7 +49,56 @@ DB credentials. Use a dedicated own schema if an old schema has that name.
 Compatible own existing schemas can be used without initialization. Existing
 face data requires its original matching encryption key, never a replacement.
 
-Prepare per-clone private settings outside Git, separate from Full's files:
+### Configure an existing restored Laragon database
+
+In your Laragon database tool, confirm the actual server before changing accounts:
+
+```sql
+SELECT VERSION(), @@port, @@datadir;
+```
+
+Use MySQL 8.4.x and the port shown here (the configure command defaults to 3306).
+The restored schema must contain all application tables and its original data.
+Do not run init-empty or seed/setup commands on that schema.
+
+Create a dedicated application account for that schema through your database
+administration tool. MySQL 8.4 accounts should use caching_sha2_password and a
+unique password of at least 12 characters. Grant SELECT, INSERT and UPDATE only
+on the application schema; use your separate administrator for migration/DDL.
+Do not import the XAMPP mysql system schema. Error 1524 generally indicates an
+account still requesting the disabled mysql_native_password plugin; address the
+account authentication through a working administrator session rather than
+disabling authentication or changing application data.
+
+Create the Local connection profile in an interactive terminal:
+
+```powershell
+.\backend\venv\Scripts\python.exe -B .\backend\local_fyp.py configure
+```
+
+Enter the actual port, restored schema, dedicated username and password. Secret
+input is hidden. At the biometric-key prompt, Enter reuses BIOMETRIC_KEY from
+this checkout's backend/.env; use this only when it is the key corresponding to
+the restored templates. Alternatively enter that existing key privately. No
+new key is generated. The command creates only the private settings.json with
+restricted Windows permissions; it performs no SQL and never overwrites an
+existing profile or identity. ACCOUNT_BOUND_FYP starts disabled; review it in
+the private profile before first pinning if your own deployment requires it.
+
+Validate the configured server and every application table definition:
+
+```powershell
+.\backend\venv\Scripts\python.exe -B .\backend\local_fyp.py check
+```
+
+Review the server/schema, then type PIN once to save its verified identity. This
+command does not change the database. Later version, port, account, paths, key
+or policy changes are rejected rather than silently adopting a different target.
+If the profile already exists, review that private file instead of rerunning
+configure or deleting an identity pin.
+
+For manual configuration or a new empty database, prepare per-clone private
+settings outside Git, separate from Full's files (skip this if configure ran):
 
 ```powershell
 $python = Join-Path (Get-Location) 'backend\venv\Scripts\python.exe'
@@ -87,7 +140,7 @@ wraps existing application_tables definitions/Table.create operations:
 .\backend\venv\Scripts\python.exe .\backend\local_fyp.py init-empty
 ```
 
-It validates the configured MariaDB identity, requires EMPTY confirmation and
+It validates the configured supported database identity, requires EMPTY confirmation and
 refuses ANY existing table. It creates no database, modifies no existing table,
 and seeds no account, face, device or attendance records. Startup/install never
 call it. A partial failure requires schema-owner review, not automatic reset.
@@ -102,9 +155,9 @@ author's records are needed. Existing own schemas must pass read-only validation
 
 ## Start and connect
 
-Start your XAMPP database normally, then run Local start. A stopped DB gives an
+Start your Laragon MySQL or MariaDB normally, then run Local start. A stopped DB gives an
 actionable error; it is not started/reset automatically. The launcher checks
-MariaDB, configured schema/port/account/datadir/key and all application tables.
+the supported vendor/version, configured schema/port/account/datadir/key and all application tables.
 Type PIN once to bind the verified own database. Later identity/policy/key drift
 blocks startup; do not delete the pin to conceal an unexplained change.
 First start can initialize your own Local panel password interactively using
@@ -139,8 +192,11 @@ uninstall, data clear or key regeneration.
 
 State/logs are separated: Local runtime/local, Full existing runtime. Both use a
 common lifecycle lock because ports overlap. Local stop touches only verified
-Local-owned processes, not Full, shared/reused publishers, MariaDB or Cloudflared.
-Modes cannot own the same ports simultaneously. Local also refuses an active
+Local-owned processes, not Full, shared/reused publishers, the database or Cloudflared.
+Modes cannot own the same ports simultaneously. An existing original backend
+on 8000 or panel on 8003 must first be stopped using its original terminal or
+verified owning launcher. Local never adopts it or terminates an unknown PID.
+Local also refuses an active
 gateway on 8004 so an existing Full proxy cannot expose Local data; it reports
 the conflict and never stops that proxy automatically.
 
@@ -152,29 +208,5 @@ replay/freshness, ASGI-source CIDR, Wi-Fi, face, liveness and duplicate protecti
 remain authoritative; BLE remains shadow-only.
 
 Never commit private settings/.env, Cloudflare credentials, DB dumps, passwords,
-biometric records, signing keys or runtime artifacts. Commit source, the empty
-example, tests and this guide only. Live partner setup/testing is separate from
-mocked/in-memory validation; no live services or APKs were started/installed by
-this implementation work.
-
-## Validation — 16 November 2026
-
-* Backend Local/Full operator, BLE bundle, public gateway, original launcher,
-  attendance authorization, CIDR, classroom Wi-Fi, replacement, enrollment and
-  device-management regressions: **218 passed, 3 skipped**. Opt-in database
-  integration/concurrency cases remain skipped; no live MariaDB migration ran.
-* Full Flutter suite: **307 passed, 1 skipped**. This includes explicit Local
-  HTTP/same-origin cases and existing Full HTTPS/preflight/security regressions.
-* Flutter analyze: clean. PowerShell parser checks for the three commands and
-  existing installer: PASS. Python compilation and Git whitespace checks: PASS.
-* Empty initialization was tested only on disposable in-memory SQLite, including
-  zero student/attendance/device/revision rows and refusal of existing tables.
-* Local startup/install/shutdown effects were mocked. No live services were
-  started/stopped/restarted, APKs installed, or original DB/policy records changed.
-  No partner private settings or new local MariaDB schema were created here.
-* No Cloudflare routes/settings, Full-mode credentials, original keys, biometric
-  algorithms, attendance rules, commits or pushes were changed.
-
-Evidence: `%TEMP%\fyp-partner-local-backend-tests.log` and
-`%TEMP%\fyp-partner-local-flutter-tests.log`. Real partner setup, LAN/device
-installation and physical attendance testing remain pending explicit execution.
+biometric records, signing keys or runtime artifacts. Keep database backups
+outside the repository.

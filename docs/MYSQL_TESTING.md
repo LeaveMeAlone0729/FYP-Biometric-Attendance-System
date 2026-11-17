@@ -30,10 +30,10 @@ Install the liveness model separately. This command makes no database connection
 
 ```powershell
 $mysqlHome = Read-Host 'Full MySQL 8.4.3 installation folder containing bin, lib and share'
-.\fyp-mysql.ps1 setup --mysql-home $mysqlHome
-.\fyp-mysql.ps1 admin-init
-.\fyp-mysql.ps1 start
-.\fyp-mysql.ps1 status
+.\scripts\fyp-mysql.ps1 setup --mysql-home $mysqlHome
+.\scripts\fyp-mysql.ps1 admin-init
+.\scripts\fyp-mysql.ps1 start
+.\scripts\fyp-mysql.ps1 status
 ```
 
 Admin-init prompts for a username and unique 12-128-character password twice.
@@ -45,7 +45,7 @@ On an existing profile, use `start` without repeating setup or admin-init.
 If default ports are occupied, choose unused ports on first setup:
 
 ```powershell
-.\fyp-mysql.ps1 setup --mysql-home $mysqlHome --db-port 3342 --backend-port 8032 --panel-port 8033
+.\scripts\fyp-mysql.ps1 setup --mysql-home $mysqlHome --db-port 3342 --backend-port 8032 --panel-port 8033
 ```
 
 Later commands use the saved profile, not assumed ports. Reserved existing ports
@@ -55,9 +55,9 @@ the database range. Busy listeners are never killed or adopted as a new server.
 ## Daily lifecycle
 
 ```powershell
-.\fyp-mysql.ps1 start
-.\fyp-mysql.ps1 status
-.\fyp-mysql.ps1 stop
+.\scripts\fyp-mysql.ps1 start
+.\scripts\fyp-mysql.ps1 status
+.\scripts\fyp-mysql.ps1 stop
 ```
 
 Startup waits for database identity/readiness, validates schema, then starts the
@@ -71,15 +71,15 @@ Setup prints a private environment path under `%USERPROFILE%\FYP-MySQL-Testing`.
 The MySQL-only selector is current.json there. Explicit environments are supported:
 
 ```powershell
-.\fyp-mysql.ps1 start --environment '<PRIVATE_ENVIRONMENT_PATH>'
-.\fyp-mysql.ps1 stop --environment '<PRIVATE_ENVIRONMENT_PATH>'
+.\scripts\fyp-mysql.ps1 start --environment '<PRIVATE_ENVIRONMENT_PATH>'
+.\scripts\fyp-mysql.ps1 stop --environment '<PRIVATE_ENVIRONMENT_PATH>'
 ```
 
 To create an additional environment, explicitly use setup --new-environment with
 unused ports. Add --no-select to leave the current MySQL selector unchanged.
 Existing environments are never deleted/overwritten. No reset command is exposed.
 
-MariaDB keeps its existing fyp-test.ps1 and start-admin-testing.ps1 commands.
+MariaDB keeps its existing scripts\fyp-test.ps1 and scripts\start-admin-testing.ps1 commands.
 The current port 8000 source also registers classroom Wi-Fi and BLE routes.
 Route registration does not migrate the database or add requirements to existing sessions.
 
@@ -145,18 +145,7 @@ is NOT attendance network proof. Physical attendance requires separately reviewe
 private-LAN transport; new ports were not exposed to LAN/public networks. No APK
 or original Samsung installation/key was modified.
 
-## Tests and troubleshooting
-
-```powershell
-.\backend\venv\Scripts\python.exe -B -m unittest discover -s backend\tests -p test_mysql_profiles.py -v
-.\backend\venv\Scripts\python.exe -B backend\tests\run_mysql_acceptance.py --output .work\mysql-new-run
-.\backend\venv\Scripts\python.exe -B backend\tests\run_mysql_acceptance.py --suite admin --output .work\mysql-admin-new-run
-```
-
-Output directories must be new. Acceptance uses fresh fypmysqlcase_<random>
-schemas, synthetic inference and disposable signing keys; test schemas are
-cleaned afterward. This does not prove physical camera/Keystore/campus behavior.
-Account-bound tests use the actual local approval provider, not a mock grant.
+## Troubleshooting
 
 Unsupported version: supply tested 8.4.3 Community; do not fake version checks.
 Busy/protected port: select unused ports, never terminate the original server.

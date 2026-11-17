@@ -49,9 +49,9 @@ class HeadMovementProgress(BaseModel):
     complete: Literal[False]
     stage: Literal["face"]
     liveness_step: Literal["head"]
-    head_action: Literal["look_straight", "turn_left", "turn_right", "look_up", "look_down", "blink"]
-    head_step: int = Field(ge=1, le=7)
-    head_steps: Literal[7]
+    head_action: Literal["turn_left", "turn_right", "blink"]
+    head_step: int = Field(ge=1, le=2)
+    head_steps: Literal[2]
     held_frames: int = Field(ge=0, le=1)
     required_hold_frames: Literal[2]
     message: str

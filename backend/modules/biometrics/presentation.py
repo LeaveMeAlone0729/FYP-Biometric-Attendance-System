@@ -6,7 +6,7 @@ import numpy as np
 from .inference import BiometricError
 from .model_assets import verified_model
 
-MIN_REAL_SCORE = 0.80
+MIN_REAL_SCORE = 0.95
 
 
 def validate_scores(scores):

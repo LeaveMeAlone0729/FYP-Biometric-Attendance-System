@@ -9,20 +9,18 @@ from collections import OrderedDict
 HOLD_FRAMES = 2
 MIN_FRAME_SECONDS = 0.25
 MAX_BLINK_SECONDS = 1.5
-RANDOM_ACTIONS = ("turn_left", "turn_right", "look_up", "look_down", "blink")
+RANDOM_ACTION_COUNT = 2
+RANDOM_ACTIONS = ("turn_left", "turn_right", "blink")
 MESSAGES = {
-    "look_straight": "Look straight at the camera with your eyes open.",
     "turn_left": "Slowly turn your head slightly to your left and hold briefly.",
     "turn_right": "Slowly turn your head slightly to your right and hold briefly.",
-    "look_up": "Gently tilt your head slightly upward and hold briefly.",
-    "look_down": "Gently tilt your head slightly downward and hold briefly.",
-    "blink": "Blink naturally once, then look at the camera with your eyes open.",
+    "blink": "Blink once normally, then look at the camera with both eyes open.",
 }
 
 
 def challenge_actions():
-    """Three distinct actions, selected without exposing future instructions."""
-    return secrets.SystemRandom().sample(RANDOM_ACTIONS, 3)
+    """Two distinct actions, selected without exposing future instructions."""
+    return secrets.SystemRandom().sample(RANDOM_ACTIONS, RANDOM_ACTION_COUNT)
 
 
 def observation(pose):
@@ -46,18 +44,29 @@ def pose_matches(action, pose):
     yaw, pitch, roll = (values[key] for key in ("yaw", "pitch", "roll"))
     if abs(roll) > 20:
         return False
-    eyes_open = max(values['blink_left'], values['blink_right']) <= 0.25
-    if action == "look_straight":
-        return abs(yaw) <= 8 and abs(pitch) <= 8 and eyes_open
     if action == "turn_left":
         return 18 <= yaw <= 40 and abs(pitch) <= 20
     if action == "turn_right":
         return -40 <= yaw <= -18 and abs(pitch) <= 20
-    if action == "look_up":
-        return abs(yaw) <= 12 and -30 <= pitch <= -12
-    if action == "look_down":
-        return abs(yaw) <= 12 and 12 <= pitch <= 30
     return False
+
+
+def blink_needs_identity(state, pose):
+    """Only verified evidence may establish or advance a blink transition.
+
+    Other observations can wait, expire or reset progress, but cannot contribute
+    positive evidence. This is an inference filter, never a client pose flag.
+    """
+    values = observation(pose)
+    if values is None or abs(values['yaw']) > 8 or abs(values['pitch']) > 12 or abs(values['roll']) > 20:
+        return False
+    opened = max(values['blink_left'], values['blink_right']) <= 0.25
+    blinked = min(values['blink_left'], values['blink_right']) >= 0.6
+    phase = state['blink_phase']
+    return ((phase == 'open' and opened)
+            or (phase == 'blink' and blinked)
+            or (phase == 'reopen' and opened)
+            or phase not in ('open', 'blink', 'reopen'))
 
 
 class RuntimeHeadMovement:
@@ -87,11 +96,10 @@ class RuntimeHeadMovement:
                 del self._entries[key]
 
     def start(self, challenge):
-        actions = ["look_straight"]
-        for action in challenge_actions():
-            actions.extend((action, "look_straight"))
+        actions = challenge_actions()
         state = {"actions": actions, "step": 0, "held": 0, "progress": 0,
-                 "last_at": None, "blink_phase": "open", "blink_at": None, "blink_closed_frames": 0}
+                 "last_at": None, "blink_phase": "open", "blink_at": None,
+                 "blink_processing_seconds": 0, "blink_closed_frames": 0}
         with self._lock:
             self._prune()
             if challenge.expires_at <= self._clock():
@@ -109,7 +117,7 @@ class RuntimeHeadMovement:
                 return None
             return copy.deepcopy(entry[1])
 
-    def advance(self, challenge, pose=None):
+    def advance(self, challenge, pose=None, *, processing_started_at=None):
         with self._lock:
             self._prune()
             entry = self._entries.get(challenge.challenge_id)
@@ -123,7 +131,11 @@ class RuntimeHeadMovement:
             now = self._clock()
             action = state["actions"][state["step"]]
             if action == "blink":
-                self._blink(state, pose, now)
+                # This timestamp comes only from the service, never the client.
+                # Inference on queued burst frames must not consume idle time.
+                processing_seconds = (max(0, (now-processing_started_at).total_seconds())
+                                      if processing_started_at is not None else 0)
+                self._blink(state, pose, now, processing_seconds)
                 state["progress"] = state["step"] * HOLD_FRAMES + state["held"]
                 return copy.deepcopy(state)
             if not pose_matches(action, pose):
@@ -139,20 +151,29 @@ class RuntimeHeadMovement:
             if state["held"] >= HOLD_FRAMES:
                 state["step"] += 1
                 state["held"] = 0
+                if (state["step"] < len(state["actions"])
+                        and state["actions"][state["step"]] == "blink"):
+                    # A verified turn can supply the open-eye baseline too;
+                    # there is no intervening recenter or look-straight hold.
+                    values = observation(pose)
+                    if max(values['blink_left'], values['blink_right']) <= 0.25:
+                        state["blink_phase"] = "blink"
             state["progress"] = state["step"] * HOLD_FRAMES + state["held"]
             return copy.deepcopy(state)
 
     @staticmethod
-    def _blink(state, pose, now):
+    def _blink(state, pose, now, processing_seconds=0):
         """Require open -> brief bilateral blink -> reopened, never a closed-eye hold.
 
         Burst frames are ordered and each passes face/PAD/replay checks in the
-        service. Server time and a frame limit bound the observed closed phase.
+        service. A frame limit and server idle time bound the closed phase;
+        processing time is excluded and challenge expiry still applies.
         """
         values = observation(pose)
         frontal = values is not None and abs(values['yaw']) <= 8 and abs(values['pitch']) <= 12 and abs(values['roll']) <= 20
         if not frontal:
-            state.update(blink_phase='open', blink_at=None, blink_closed_frames=0, held=0)
+            state.update(blink_phase='open', blink_at=None, blink_processing_seconds=0,
+                         blink_closed_frames=0, held=0)
             return
         opened = max(values['blink_left'], values['blink_right']) <= 0.25
         blinked = min(values['blink_left'], values['blink_right']) >= 0.6
@@ -160,17 +181,26 @@ class RuntimeHeadMovement:
         if phase == 'open' and opened:
             state['blink_phase'] = 'blink'
         elif phase == 'blink' and blinked:
-            state.update(blink_phase='reopen', blink_at=now, blink_closed_frames=1, held=1)
+            state.update(blink_phase='reopen', blink_at=now, blink_processing_seconds=0,
+                         blink_closed_frames=1, held=1)
         elif phase == 'reopen':
-            if (now-state['blink_at']).total_seconds() > MAX_BLINK_SECONDS:
-                state.update(blink_phase='open', blink_at=None, blink_closed_frames=0, held=0)
+            state['blink_processing_seconds'] += processing_seconds
+            idle_seconds = ((now-state['blink_at']).total_seconds()
+                            - state['blink_processing_seconds'])
+            if idle_seconds > MAX_BLINK_SECONDS:
+                state.update(blink_phase='open', blink_at=None, blink_processing_seconds=0,
+                             blink_closed_frames=0, held=0)
             elif opened:
                 state['step'] += 1
-                state.update(blink_phase='open', blink_at=None, blink_closed_frames=0, held=0, last_at=now)
-            else:
+                state.update(blink_phase='open', blink_at=None, blink_processing_seconds=0,
+                             blink_closed_frames=0, held=0, last_at=now)
+            elif blinked:
+                # Partly reopening eyes are transitional, not another closed
+                # frame. Keep the existing hold cap and server time bound.
                 state['blink_closed_frames'] += 1
                 if state['blink_closed_frames'] > 3:
-                    state.update(blink_phase='open', blink_at=None, blink_closed_frames=0, held=0)
+                    state.update(blink_phase='open', blink_at=None, blink_processing_seconds=0,
+                                 blink_closed_frames=0, held=0)
 
     def discard(self, challenge):
         with self._lock:

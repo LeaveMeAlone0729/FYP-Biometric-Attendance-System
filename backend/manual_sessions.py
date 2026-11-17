@@ -12,12 +12,12 @@ from manual_android_test import require,DB_PORT
 def require_backend_ready(env):
     from prepare_manual_android_test import verified_pid
     import httpx
-    require(verified_pid(env,'backend') is not None,'BACKEND_NOT_RUNNING: run fyp-test.ps1 start --lan')
+    require(verified_pid(env,'backend') is not None,'BACKEND_NOT_RUNNING: run scripts/fyp-test.ps1 start --lan')
     try:
         response=httpx.get('http://127.0.0.1:8002/manual-test/isolation',timeout=3,trust_env=False)
         response.raise_for_status();data=response.json()
     except (httpx.HTTPError,ValueError):
-        require(False,'BACKEND_NOT_READY: run fyp-test.ps1 status and inspect isolated logs')
+        require(False,'BACKEND_NOT_READY: run scripts/fyp-test.ps1 status and inspect isolated logs')
     require(data.get('disposable') is True and data.get('db_port')==DB_PORT
         and data.get('production_port_blocked') is True,'BACKEND_ISOLATION_CHECK_FAILED')
 

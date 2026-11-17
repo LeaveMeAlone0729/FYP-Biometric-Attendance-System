@@ -86,7 +86,7 @@ def failure(stage, exc):
     else:
         code = 'STARTUP_STEP_FAILED'
     hints = {
-        'ADMIN_CREDENTIALS_MISSING': 'Run start-admin-testing.ps1 -InitAdmin once in an interactive PowerShell terminal.',
+        'ADMIN_CREDENTIALS_MISSING': 'Run scripts/start-admin-testing.ps1 -InitAdmin once in an interactive PowerShell terminal.',
         'INTERACTIVE_INPUT_REQUIRED': 'Run -InitAdmin directly in an interactive terminal, without piping input.',
         'INTERACTIVE_SECRET_INPUT_REQUIRED': 'Use an interactive PowerShell terminal supporting hidden password input; do not pipe passwords.',
         'ADMIN_ALREADY_EXISTS': 'Existing credentials were preserved. Start without -InitAdmin.',
@@ -164,7 +164,7 @@ def main(argv=None):
             print(json.dumps(dict(result='PASS' if auth else 'SETUP_REQUIRED', db_port=3322, backend_port=args.backend_port,
                 classroom_wifi=capabilities['classroom_wifi'], ble_schema='classroom_ble_policies' in tables,
                 backend_and_database='PASS', admin_credentials='PRESENT' if auth else 'MISSING',
-                next_action='Start panel' if auth else 'Run start-admin-testing.ps1 -InitAdmin',
+                next_action='Start panel' if auth else 'Run scripts/start-admin-testing.ps1 -InitAdmin',
                 panel_url='http://127.0.0.1:8003', production_fallback=False)))
             return 0 if auth else 1
         stage = 'panel_composition'
