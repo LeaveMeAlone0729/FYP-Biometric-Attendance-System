@@ -256,10 +256,11 @@ class DeviceActivationService(PendingEnrollmentService):
                     demo = pending.candidate_device_id.startswith(PREFIX)
                     device=RegisteredDevice(device_id=pending.candidate_device_id,student_id=student.student_id,
                         slot_number=pending.slot_number,public_key_spki=pending.public_key_spki,public_key_fingerprint=pending.public_key_fingerprint,
-                        device_name=("[LOCAL FYP DEMO] " + pending.device_name)[:100] if demo else pending.device_name,
+                        device_name=pending.device_name,
                         device_model=pending.device_model,platform="android",status="ACTIVE",registered_at=self.context.now())
                     db.add(device);pending.status="ACTIVATED";pending.consumed_at=self.context.now()
-                    code = ("LOCAL_FYP_DEMO_SLOT2_ACTIVATED" if demo else
+                    code = ("LOCAL_FYP_DEMO_DEVICE_REPLACED" if demo and pending.operation=="replace_device" else
+                            "LOCAL_FYP_DEMO_SLOT2_ACTIVATED" if demo else
                             "DEVICE_REPLACED" if pending.operation=="replace_device" else "SECOND_DEVICE_ACTIVATED")
                     self.audit(db,student,"activation","PASS",code,pending)
                     self._event(db,student,"activate","PASS",code,state)

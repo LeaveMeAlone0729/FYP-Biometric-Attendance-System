@@ -1,3 +1,5 @@
+> Historical phased rollout and diagnostic reference. Earlier isolated-only route and deployment descriptions below are not a current environment inventory. BLE is now also observed in attendance shadow mode; it cannot independently authorize or reject attendance. The temporary Network + BLE test mode remains disabled. See the [SH module guide](SH_MODULE_GUIDE.md) and dated acceptance evidence.
+
 # Phase 4B — standalone experimental classroom BLE verification
 
 This document records the original isolated Phase 4B rollout on backend 8002

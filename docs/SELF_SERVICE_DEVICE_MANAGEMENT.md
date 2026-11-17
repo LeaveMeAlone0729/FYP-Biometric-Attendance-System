@@ -1,3 +1,5 @@
+> Historical self-service implementation evidence. For the current reusable BOTH-slot workflow and the explicit LOCAL FYP / UNVERIFIED legacy-account policy, use [Reusable device replacement](REUSABLE_DEVICE_REPLACEMENT.md). No historical or self-enrolled template is silently promoted to institutional assurance.
+
 # Self-service Slot 2 and device replacement
 
 6 November 2026, branch SH. The newer [ACCOUNT_BOUND_FYP policy](FYP_ACCOUNT_BOUND_ENROLLMENT.md) supersedes initial-enrollment and MariaDB validation limitations below. Device-owned implementation under the confirmed FYP

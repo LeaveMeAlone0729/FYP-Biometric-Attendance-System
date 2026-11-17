@@ -186,6 +186,32 @@ void largeView(WidgetTester tester) {
 
 void main() {
   test(
+    'Native candidate signing timeout is not a network error or replay',
+    () async {
+      final f = PendingFixture();
+      await f.login();
+      f.keys.waitForSignature = Completer<String>();
+      final result = expectLater(
+        f.service.prepare('My tablet'),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.code,
+            'code',
+            'DEVICE_KEY_TIMEOUT',
+          ),
+        ),
+      );
+      await f.keys.signing.future;
+      await result;
+      f.keys.waitForSignature!.complete('late-signature');
+      expect(f.keys.signed, 1);
+      expect(f.begun, 1);
+      expect(f.proved, 0);
+      f.client.dispose();
+    },
+  );
+
+  test(
     'Preparation signs a fresh challenge and never activates or uploads frames',
     () async {
       final f = PendingFixture();

@@ -166,6 +166,94 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+  testWidgets(
+    'Failed camera attempt returns to PIN and obtains a new preflight signature',
+    (tester) async {
+      final f = AttendanceFixture();
+      await f.login();
+      var cameras = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AttendanceFlowScreen(
+              client: f.client,
+              authorization: f.signing,
+              cameraBuilder: (_) {
+                cameras++;
+                return Builder(
+                  builder: (context) => Scaffold(
+                    body: TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Simulated biometric failure: back'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await enterPin(tester);
+      await tester.tap(find.text('Simulated biometric failure: back'));
+      await tester.pumpAndSettle();
+      await enterPin(tester);
+      expect(cameras, 2);
+      expect(f.issued, 2);
+      expect(
+        f.keys.signs,
+        2,
+        reason: 'Fresh signature for each PIN submission',
+      );
+      expect(f.frames, 0);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'Native signing timeout reports DEVICE_KEY_TIMEOUT rather than network failure',
+    (tester) async {
+      final f = AttendanceFixture();
+      await f.login();
+      f.keys.wait = Completer<String>();
+      final result = expectLater(
+        f.signing.preflight('attempt'),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.code,
+            'code',
+            'DEVICE_KEY_TIMEOUT',
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 9));
+      await result;
+      f.keys.wait!.complete('too-late-signature');
+      await tester.pump();
+      expect(f.frames, 0);
+      f.client.dispose();
+    },
+  );
+
+  test(
+    'Key and biometric errors are not presented as a server connection failure',
+    () {
+      for (final code in [
+        'DEVICE_KEY_TIMEOUT',
+        'FACE_NOT_MATCHED',
+        'ATTENDANCE_DEVICE_NOT_ACTIVE',
+        'ATTENDANCE_DEVICE_PROOF_REPLAYED',
+      ]) {
+        final failure = NetworkVerificationFailure.from(
+          ApiException('Actual verification reason', 0, code),
+        );
+        expect(failure.unreachable, false);
+        expect(failure.code, code);
+        expect(failure.attendanceMessage, 'Actual verification reason');
+      }
+    },
+  );
+
   testWidgets('Failure result never initializes camera even on resume', (
     tester,
   ) async {

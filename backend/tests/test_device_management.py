@@ -241,7 +241,12 @@ class ManagementTests(unittest.TestCase):
         challenge = self.issue(ready)
         response = self.confirm(ready, challenge)
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertTrue(response.json()['device']['device_name'].startswith('[LOCAL FYP DEMO]'))
+        self.assertEqual(response.json()['device']['device_name'], self.h.p.body['device_name'])
+        self.assertTrue(response.json()['device']['device_id'].startswith(local_demo.PREFIX))
+        with self.f.sessions() as db:
+            revision = db.get(EnrollmentRevision, revision_id)
+            self.assertEqual(revision.assurance_level, 'UNVERIFIED')
+            self.assertTrue(revision.evidence_reference.startswith('LOCAL_FYP_DEMO|'))
         self.assertEqual(self.rows()[self.f.device_id], self.original[self.f.device_id])
         fingerprint = self.pending['public_key_fingerprint']
         proof = self.f.issue(fingerprint=fingerprint)

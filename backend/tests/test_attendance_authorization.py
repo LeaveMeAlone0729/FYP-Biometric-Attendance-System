@@ -175,6 +175,26 @@ class AttendanceAuthorizationTests(unittest.TestCase):
         self.f.face(identifier)
         for i in range(2):self.frame(identifier,image=('preflight-'+str(i)).encode())
         self.denied(self.frame(identifier,proof),'ATTENDANCE_DEVICE_PROOF_REPLAYED')
+    def test_diagnostic_pass_failed_face_then_same_pin_uses_fresh_preflight_and_final_proof(self):
+        diagnostic=self.f.client.post('/api/v1/networks/verifications',headers=self.f.headers,json={})
+        self.assertEqual(diagnostic.status_code,200);self.assertEqual(diagnostic.json()['result'],'PASS')
+        old=self.f.start();old_proof=self.preflight_issue(old).json()
+        self.assertEqual(self.preflight_confirm(old,old_proof).status_code,200)
+        failed=self.f.image('/verify-face',old,b'other-face-retry')
+        self.assertGreaterEqual(failed.status_code,400);self.assertEqual(self.count(Attendance),0)
+        current=self.f.start('123456');self.assertNotEqual(current,old)
+        proof=self.preflight_issue(current).json();self.assertNotEqual(proof['challenge_id'],old_proof['challenge_id'])
+        self.assertEqual(self.preflight_confirm(current,proof).status_code,200)
+        self.assertGreaterEqual(self.preflight_confirm(current,old_proof).status_code,400)
+        self.assertEqual(self.count(Attendance),0)
+        self.f.face(current);final=self.issue(current).json()
+        self.assertNotEqual(final['challenge_id'],proof['challenge_id'])
+        for i in range(3):response=self.frame(current,final,image=('fresh-retry-'+str(i)).encode())
+        self.assertEqual(response.status_code,200,response.text);self.assertTrue(response.json()['complete'])
+        self.assertEqual(self.count(Attendance),1)
+        duplicate=self.f.client.post('/attendance/start',headers=self.f.headers,json={'pin':'123456'})
+        self.assertEqual(duplicate.status_code,409);self.assertEqual(self.count(Attendance),1)
+
     def test_preflight_disabled_missing_invalid_policies_reject_before_camera(self):
         for mode in ['disabled','missing','invalid']:
             if mode!='disabled':self.tearDown();self.setUp()

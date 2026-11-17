@@ -3,6 +3,7 @@ package com.example.frontend
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
+import android.net.LinkProperties
 import android.os.Handler
 import android.os.Looper
 import io.flutter.plugin.common.BinaryMessenger
@@ -16,6 +17,7 @@ class NetworkChangesChannel(context: Context, messenger: BinaryMessenger) : Even
     private var sink: EventChannel.EventSink? = null
     private var last: Network? = manager.activeNetwork
     private var registered = false
+    private var addresses: List<String> = emptyList()
     private val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             if (network != last) { last = network; changed() }
@@ -23,12 +25,20 @@ class NetworkChangesChannel(context: Context, messenger: BinaryMessenger) : Even
         override fun onLost(network: Network) {
             if (network == last) { last = null; changed() }
         }
+        override fun onLinkPropertiesChanged(network: Network, properties: LinkProperties) {
+            if (network == last) {
+                val next = properties.linkAddresses.map { it.toString() }.sorted()
+                if (addresses.isNotEmpty() && next != addresses) changed()
+                addresses = next
+            }
+        }
     }
     private fun changed() { handler.post { sink?.success("changed") } }
     init { channel.setStreamHandler(this) }
     override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
         sink = events
         last = manager.activeNetwork
+        addresses = emptyList()
         if (!registered) { manager.registerDefaultNetworkCallback(callback); registered = true }
     }
     override fun onCancel(arguments: Any?) {

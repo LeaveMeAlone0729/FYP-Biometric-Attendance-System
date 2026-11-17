@@ -10,6 +10,7 @@ import '../services/ble_diagnostics.dart';
 import '../widgets/ble_diagnostics_card.dart';
 import '../services/classroom_ble_api.dart';
 import '../widgets/classroom_ble_card.dart';
+import '../widgets/classroom_connection_card.dart';
 
 /// Independent FR-06 diagnostic. Attendance workflow is intentionally unchanged.
 class NetworkVerificationScreen extends StatefulWidget {
@@ -107,6 +108,7 @@ class _NetworkVerificationScreenState extends State<NetworkVerificationScreen>
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
+              const ClassroomConnectionCard(),
               Text(
                 'Current connection',
                 style: Theme.of(context).textTheme.headlineSmall,

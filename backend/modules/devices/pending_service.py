@@ -111,9 +111,9 @@ class PendingEnrollmentService(DeviceRegistrationService):
             DeviceEnrollmentEvent.occurred_at > now - timedelta(minutes=5)))
         if recent >= 5:
             self.refuse(db, student, "prepare", 429, "ENROLLMENT_RATE_LIMITED", "Too many enrollment attempts. Try again in five minutes.")
-        from .local_demo import PREFIX, enabled
+        from .local_demo import PREFIX, enabled, local_candidate
         identifier, candidate = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
-        if enabled(db, student.student_id):
+        if enabled(db, student.student_id) or local_candidate(db, student.student_id):
             candidate = PREFIX + candidate
         expires = min(now + timedelta(minutes=5), auth.expires_at)
         challenge_expires = min(now + timedelta(seconds=120), expires)

@@ -1,3 +1,5 @@
+> Historical Phase 4 implementation report. Statements below about attendance not yet being network-gated describe that phase only. The later [final authorization contract](ATTENDANCE_AUTHORIZATION_PHASE5.md) supersedes them. Start with the [SH module guide](SH_MODULE_GUIDE.md); no attendance rule is changed by this note.
+
 # Phase 4 network verification FR-06
 
 Implemented on SH for the controlled FYP simulation, 1 November 2026. The backend compares the current ASGI connection source IP with enabled database CIDR policies, persists PASS/FAIL evidence and returns a diagnostic to Flutter. No real campus network was assumed or tested. Attendance recording is unchanged and is not yet gated by network verification; the combined final decision belongs to Phase 5.
