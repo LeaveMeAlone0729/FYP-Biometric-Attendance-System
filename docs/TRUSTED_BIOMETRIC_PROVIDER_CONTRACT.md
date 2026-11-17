@@ -1,7 +1,7 @@
 # Device biometric authorization contract
 
 Current confirmed FYP scope, 6 November 2026. See
-[implementation, migration, tests and demo](SELF_SERVICE_DEVICE_MANAGEMENT.md).
+[device workflow](SELF_SERVICE_DEVICE_MANAGEMENT.md).
 
 ## Composition and ownership
 
@@ -14,7 +14,7 @@ activation transaction checks and dataclass bindings remain mandatory.
 The opt-in FYP policy establishes ACCOUNT_BOUND_FYP assurance during first face
 enrollment for an offline school-provisioned account. This proves account binding,
 not institutional identity. It is not INSTITUTION_VERIFIED. Legacy templates are
-never backfilled. See [policy, tests and demo](FYP_ACCOUNT_BOUND_ENROLLMENT.md).
+never backfilled. See [enrollment policy](FYP_ACCOUNT_BOUND_ENROLLMENT.md).
 Face deletion/replacement, faculty approval and identity recovery remain outside
 the app. No faculty approval is requested per ordinary device operation.
 

@@ -6,6 +6,8 @@ import '../../../services/api_client.dart';
 
 /// Biometric HTTP calls; authentication and transport remain in the shared client.
 class BiometricApi {
+  static const maxBlinkFrames = 16;
+
   BiometricApi([ApiClient? client]) : _client = client ?? ApiClient.instance;
 
   final ApiClient _client;
@@ -27,11 +29,13 @@ class BiometricApi {
     String challengeId,
     Uint8List image, {
     bool previewOnly = false,
+    bool blinkBurst = false,
   }) async => Map<String, dynamic>.from(
     await _client.image('/verify-face', image, {
           'challenge_id': challengeId,
           'auto_capture': 'true',
           'preview_only': previewOnly.toString(),
+          if (blinkBurst) 'blink_burst': 'true',
         })
         as Map,
   );
@@ -45,19 +49,24 @@ class BiometricApi {
   );
 
   /// Process a short pre-captured burst so network inference cannot hide a blink.
-  /// Each frame still goes through the server's identity, PAD and replay checks.
+  /// Server inference filters unchanged eyes; all blink transitions still need
+  /// identity and PAD evidence. Every submitted frame retains replay checks.
   Future<Map<String, dynamic>> verifyBlink(
     String challengeId,
-    List<Uint8List> frames,
-  ) async {
-    if (frames.isEmpty || frames.length > 8) {
+    List<Uint8List> frames, {
+    void Function(Map<String, dynamic>)? onProgress,
+    bool Function()? shouldContinue,
+  }) async {
+    if (frames.isEmpty || frames.length > maxBlinkFrames) {
       throw ArgumentError(
-        'Blink capture requires between one and eight frames.',
+        'Blink capture requires between one and $maxBlinkFrames frames.',
       );
     }
     Map<String, dynamic> result = {};
     for (final frame in frames) {
-      result = await verifyFace(challengeId, frame);
+      if (shouldContinue != null && !shouldContinue()) break;
+      result = await verifyFace(challengeId, frame, blinkBurst: true);
+      onProgress?.call(result);
       if (result['liveness_step'] != 'head' ||
           result['head_action'] != 'blink') {
         break;

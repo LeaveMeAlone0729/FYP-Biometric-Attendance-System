@@ -350,7 +350,7 @@ class Host:
         # MachinePolicy/UserPolicy (Group Policy) still take precedence; never
         # change persistent settings, elevate or retry around an enforced denial.
         arguments = ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass',
-            '-File', self.root / 'install-fyp-android.ps1',
+            '-File', self.root / 'scripts' / 'install-fyp-android.ps1',
             '-Serial', serial, '-LanIp', lan, '-PublicApiUrl',
             'http://' + lan + ':8000' if local_identity is not None else PUBLIC]
         if local_identity is not None:
@@ -404,7 +404,7 @@ class LocalHost(Host):
         top=self.command(['git','rev-parse','--show-toplevel'])
         require(top.returncode==0 and canonical_path(top.stdout.strip())==canonical_path(self.root.resolve()),'WRONG_REPOSITORY')
         branch=self.command(['git','branch','--show-current'])
-        require(branch.returncode==0 and branch.stdout.strip()=='SH','EXPECTED_BRANCH_SH')
+        require(branch.returncode==0 and bool(branch.stdout.strip()),'LOCAL_NAMED_BRANCH_REQUIRED')
 
     def database(self):
         from local_fyp import probe,private,LocalError
@@ -414,7 +414,7 @@ class LocalHost(Host):
             raise Blocked(str(exc)) from None
 
     def db_start(self, logs, prompt):
-        raise Blocked('LOCAL_DATABASE_NOT_RUNNING_START_PARTNER_XAMPP_MANUALLY')
+        raise Blocked('LOCAL_DATABASE_NOT_RUNNING_START_MYSQL_OR_MARIADB_MANUALLY')
 
     def http(self,path,*,public=False,gateway=False,lan=None):
         require(not public and not gateway,'LOCAL_MODE_NEVER_USES_CLOUDFLARE')
@@ -567,10 +567,11 @@ class Workflow:
         self.db_port = getattr(self.host,'db_port',3306)
         self.lan = self.host.lan()
         self.inventory()  # Detect conflicts before launching anything.
-        self.stage = 'MariaDB'
+        database_label = 'Database' if self.mode=='Local' else 'MariaDB'
+        self.stage = database_label
         if not any(r['LocalPort'] == self.db_port for r in self.host.listeners()):
             self.host.db_start(self.logs, self.prompt)
-            self.wait(lambda: any(r['LocalPort'] == self.db_port for r in self.host.listeners()), 'MariaDB')
+            self.wait(lambda: any(r['LocalPort'] == self.db_port for r in self.host.listeners()), database_label)
         self.identity = self.host.database()
         ensure_identity(self.identity,self.mode)
         if self.mode=='Full':
@@ -597,7 +598,7 @@ class Workflow:
         require(self.host.lan() == self.lan, 'WIFI_CHANGED_DURING_START_RETRY')
         self.inventory()
         if self.mode=='Local':
-            print('Mode: LOCAL\nMariaDB: READY\nFastAPI: READY\nAdmin: READY\nPublic Gateway: NOT USED\nCloudflare: NOT USED')
+            print('Mode: LOCAL\nDatabase: READY\nFastAPI: READY\nAdmin: READY\nPublic Gateway: NOT USED\nCloudflare: NOT USED')
             print('BLE Beacon: '+self.beacon_status+'\nLaptop LAN IP: '+self.lan+
                   '\nGeneral/Classroom URL: http://'+self.lan+':8000\nDiagnostic Mode: OFF\nLogs: '+str(self.logs))
             return
@@ -673,7 +674,7 @@ class Workflow:
             else:
                 self.state.pop(role)
             save_json(self.state_path, self.state)
-        print('MariaDB: PRESERVED\nCloudflared Windows service: PRESERVED')
+        print(('Database' if self.mode=='Local' else 'MariaDB') + ': PRESERVED\nCloudflared Windows service: PRESERVED')
         require(not failures, 'SOME_OWNED_PROCESSES_COULD_NOT_BE_VERIFIED_NO_UNSAFE_STOP')
 
     def install(self, serial=None):

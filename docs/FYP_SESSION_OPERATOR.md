@@ -10,10 +10,10 @@ Do not use the generic manage.py CLI with production .env defaults for this test
 
 ```powershell
 cd C:\FYP\FYP-Biometric-Attendance-System
-.\fyp-test.ps1 start --lan
-.\fyp-test.ps1 status
-.\fyp-test.ps1 session list
-.\fyp-test.ps1 session list --class FYPATT01 --all
+.\scripts\fyp-test.ps1 start --lan
+.\scripts\fyp-test.ps1 status
+.\scripts\fyp-test.ps1 session list
+.\scripts\fyp-test.ps1 session list --class FYPATT01 --all
 ```
 
 Normal list shows sessions open **now**. `--all` also shows closed, elapsed and
@@ -27,8 +27,8 @@ Use the session list to identify any overlapping open session. If you have
 finished it, close it explicitly before creating a new one:
 
 ```powershell
-.\fyp-test.ps1 session close --id (Read-Host 'Existing session ID to close')
-.\fyp-test.ps1 session create --class FYPATT01 --minutes 30
+.\scripts\fyp-test.ps1 session close --id (Read-Host 'Existing session ID to close')
+.\scripts\fyp-test.ps1 session create --class FYPATT01 --minutes 30
 ```
 
 Creation prints the new **session_id**, start/expiry and generated six-digit
@@ -44,7 +44,7 @@ an absolute expiry (this is an alternative create command, not an extension):
 
 ```powershell
 # Choose a future time on the current MYT date; replace this example as needed.
-.\fyp-test.ps1 session create --class FYPATT01 --expires-at '2026-11-06T18:00:00+08:00'
+.\scripts\fyp-test.ps1 session create --class FYPATT01 --expires-at '2026-11-06T18:00:00+08:00'
 ```
 
 Do not run both creation examples back-to-back without closing the first: their
@@ -52,7 +52,7 @@ windows overlap. Existing course and group data are required; the wrapper does
 not auto-create an unknown class. If the course belongs to multiple groups:
 
 ```powershell
-.\fyp-test.ps1 session create --class FYPATT01 --group-id 1 --minutes 45
+.\scripts\fyp-test.ps1 session create --class FYPATT01 --group-id 1 --minutes 45
 ```
 
 Each creation uses the existing workflow to add a dated schedule/session for that
@@ -72,9 +72,9 @@ Use an ID from session list. These commands prompt for it so they can be copied
 without assuming which auto-generated ID you received:
 
 ```powershell
-.\fyp-test.ps1 session close --id (Read-Host 'Session ID to close')
-.\fyp-test.ps1 session expire --id (Read-Host 'Session ID to expire now')
-.\fyp-test.ps1 session list --all
+.\scripts\fyp-test.ps1 session close --id (Read-Host 'Session ID to close')
+.\scripts\fyp-test.ps1 session expire --id (Read-Host 'Session ID to expire now')
+.\scripts\fyp-test.ps1 session list --all
 ```
 
 `close` and `expire` both immediately set an active session's existing status to
@@ -92,8 +92,8 @@ is intentionally completing a test unless you want to test that rejection.
 
 | Error | Meaning / action |
 |---|---|
-| BACKEND_NOT_RUNNING | Run fyp-test.ps1 start --lan. |
-| BACKEND_NOT_READY | Inspect fyp-test.ps1 status and isolated logs. No production fallback. |
+| BACKEND_NOT_RUNNING | Run scripts\fyp-test.ps1 start --lan. |
+| BACKEND_NOT_READY | Inspect scripts\fyp-test.ps1 status and isolated logs. No production fallback. |
 | CLASS_NOT_FOUND | Use an existing course code, e.g. FYPATT01. |
 | CLASS_HAS_NO_EXISTING_GROUP_SCHEDULE | Class/group provisioning is missing; this command does not invent it. |
 | CLASS_GROUP_AMBIGUOUS | Choose --group-id from the existing class data. |

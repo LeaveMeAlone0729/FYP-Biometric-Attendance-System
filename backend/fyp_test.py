@@ -183,7 +183,7 @@ def main(argv=None):
             import httpx
             from prepare_manual_android_test import verified_pid
             if not verified_pid(env,'backend'):
-                print(json.dumps(dict(result='STOPPED',code='BACKEND_NOT_RUNNING',message='Run fyp-test.ps1 start --lan.')));return 1
+                print(json.dumps(dict(result='STOPPED',code='BACKEND_NOT_RUNNING',message='Run scripts/fyp-test.ps1 start --lan.')));return 1
             try:response=httpx.get('http://127.0.0.1:8002/manual-test/isolation',timeout=3,trust_env=False)
             except httpx.RequestError:
                 print(json.dumps(dict(result='UNAVAILABLE',code='BACKEND_NOT_READY',message='Owned process exists but API is not ready.')));return 1

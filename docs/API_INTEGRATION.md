@@ -9,12 +9,11 @@ class PINs and attendance storage currently supply the demo context.
 
 ## API files and interactive documentation
 
-- Run the backend with `./start-backend.ps1` from the repository root.
+- Run the backend with `./scripts\start-backend.ps1` from the repository root.
 - Swagger UI: `http://localhost:8000/docs`.
 - Live OpenAPI specification: `http://localhost:8000/openapi.json`.
-- Handoff specification: [openapi.json](openapi.json). Import it into Postman
-  using **Import → File** to create the requests and inspect response schemas.
-- Regenerate the handoff specification after changing a public contract:
+- Import the live OpenAPI URL into Postman, or export a temporary file.
+- Export a specification outside the project when needed:
 
   ```powershell
   .\backend\venv\Scripts\python.exe backend\export_openapi.py --output "$env:TEMP\fyp-openapi.json"
@@ -24,7 +23,7 @@ For a physical phone, use the PC's reachable address as the API base URL. The
 Flutter entry point remains:
 
 ```powershell
-.\start-frontend.ps1 -ApiBaseUrl http://YOUR_PC_IPV4:8000
+.\scripts\start-frontend.ps1 -ApiBaseUrl http://YOUR_PC_IPV4:8000
 ```
 
 ## Authentication and identifiers
@@ -64,7 +63,7 @@ image-upload request.
 | --- | --- | --- | --- |
 | Register face once | `POST /register-face` | Multipart: `file`, `consent`; optional `auto_capture`, `preview_only` | Retry feedback, ready preview, or encrypted template saved; 409 if already registered or inactive |
 | Start demo verification | `POST /attendance/start` | JSON: `{"pin":"123456"}` | `challenge_id`, `session_id`, expiry and stage `face` |
-| Match face | `POST /verify-face` | Multipart: `challenge_id`, `file`; optional `auto_capture`, `preview_only` | Retry feedback, ready preview, or random `fingers` and stage `liveness` |
+| Match face and complete facial actions | `POST /verify-face` | Multipart: `challenge_id`, `file`; optional `auto_capture`, `preview_only` | Retry feedback, ready preview, facial-action progress, or random `fingers` and stage `liveness` |
 | Check gesture | `POST /liveness/frame` | Multipart: `challenge_id`, fresh `file` | Progress, or completed demo attendance |
 | Read result | `GET /verification/{challenge_id}` | Original bearer token | Stored verification state; no mutation |
 | Cancel | `POST /attendance/cancel/{challenge_id}` | Original bearer token | Cancels pending verification |
@@ -73,6 +72,29 @@ image-upload request.
 The demo start endpoint validates the student's class PIN, group and attendance
 window. Its response includes `expires_in` (currently 90 seconds). Enrollment
 does not require a class PIN. `GET /me` reports `biometric_status`.
+
+After matching the face, the server selects two distinct random actions from
+`turn_left`, `turn_right`, and `blink`. Looking upward and downward is not part
+of the challenge. There are no separate look-straight steps: the two selected
+actions are the two progress steps. Blink detection observes open, closed and
+reopened eyes within that action. Continue uploading fresh frames to
+`/verify-face` while `liveness_step=head`; use its `head_action`, `head_step`,
+`head_steps` and `message` for guidance. The finger challenge starts only after
+both actions pass. Every frame used as positive verification evidence requires
+matching identity and passive anti-spoof checks.
+
+For a blink, Flutter captures open-eye baseline frames, displays a "Blink now"
+cue, then continues capturing for the blink and reopening (up to 16 frames,
+100 ms apart, with a 12 MB total burst limit). The offline demonstration shows
+a normal blink, not a closed-eye hold. Captured frames are uploaded in order;
+upload stops as soon as the server advances to the next action. Inference
+feedback must not prompt another live blink while those frames are processing.
+Flutter sends `blink_burst=true` for these frames. The server first runs pose/eye
+inference and filters observations that cannot establish or advance a blink.
+Open-eye baseline, bilateral closure and reopening transitions still run full
+identity and anti-spoof inference; unchanged or invalid observations can only
+wait or reset progress. All submitted frames retain replay, frame-count and
+expiry checks. This avoids repeating expensive recognition on unchanged eyes.
 
 ### Locked registration and department recovery
 
@@ -265,7 +287,7 @@ HTTP status and documented response fields, rather than matching message text.
 | 429 | Attempt/frame limit reached |
 | 500 / 503 | Verification or database temporarily unavailable |
 
-The automated tests validate contract, ownership and workflow behavior. Real
+Physical acceptance must validate contract, ownership and workflow behavior. Real
 face/gesture acceptance and spoof resistance still require consented camera
 evaluation; the finger challenge is a research liveness heuristic.
 
@@ -293,18 +315,18 @@ replacement commits. Neither device workflow records attendance.
 
 ## Phase 4 network verification FR-06
 
-The independent backend/modules/networks and frontend/lib/modules/networks modules own connection-source CIDR checks, policies, audit and student diagnostics. POST /api/v1/networks/verifications accepts only {} and the existing bearer login. Policies are managed only through the trusted local operator CLI; no range is seeded and localhost never implies campus trust. Uvicorn must run with --no-proxy-headers. The existing attendance writer and all partner biometric algorithms remain unchanged; Phase 5 must perform the fresh final-request check before the attendance insert. See [network contract, migration evidence and testing](NETWORK_VERIFICATION_PHASE4.md).
+The independent backend/modules/networks and frontend/lib/modules/networks modules own connection-source CIDR checks, policies, audit and student diagnostics. POST /api/v1/networks/verifications accepts only {} and the existing bearer login. Policies are managed only through the trusted local operator CLI; no range is seeded and localhost never implies campus trust. Uvicorn must run with --no-proxy-headers. The existing attendance writer and all partner biometric algorithms remain unchanged; Final authorization performs the fresh final-request check before the attendance insert. See the network module for the policy API and operator validation.
 
 ## Phase 5 mandatory final attendance authorization
 
-POST /liveness/frame still owns runtime attendance completion, through the same shared writer. It now requires an attendance-specific signed device nonce and fresh final-request network verification before insertion. Attendance also requires face matching, passive anti-spoof checks and three accepted gesture frames. The final request includes classroom Wi-Fi proof when required by the session. The shared attendance UI injects the device-owned automatic signing adapter. Existing standalone device/network PASS results cannot authorize attendance. Production policies remain empty and localhost is denied. See [complete authorization contract, changed files, restored-database evidence and safe later phone tests](ATTENDANCE_AUTHORIZATION_PHASE5.md).
+POST /liveness/frame still owns runtime attendance completion, through the same shared writer. It now requires an attendance-specific signed device nonce and fresh final-request network verification before insertion. Attendance also requires face matching, passive anti-spoof checks and three accepted gesture frames. The final request includes classroom Wi-Fi proof when required by the session. The shared attendance UI injects the device-owned automatic signing adapter. Existing standalone device/network PASS results cannot authorize attendance. Production policies remain empty and localhost is denied. See `backend/modules/authorization/` for the final proof contract.
 
 
 ### Attendance readiness before capture
 
-After `/attendance/start` validates the PIN, Flutter now signs a server-issued `/api/v1/attendance/preflight-challenges` nonce and submits it to `/api/v1/attendance/preflight`. Both use the existing bearer login and exact attendance attempt; both check the actual ASGI source network, and confirmation requires the current ACTIVE installation's ECDSA signature. On any failure/unavailability the existing verification-result view opens without initializing the camera. A successful response explicitly sets `attendance_authorized:false`; a separate fresh final nonce and fresh network verification remain mandatory at `/liveness/frame`. See [contracts, lifecycle, audit semantics and tests](ATTENDANCE_AUTHORIZATION_PHASE5.md#early-preflight-before-biometric-capture-november-2026-refinement). No client IP/PASS field or cached Profile verification is accepted.
+After `/attendance/start` validates the PIN, Flutter now signs a server-issued `/api/v1/attendance/preflight-challenges` nonce and submits it to `/api/v1/attendance/preflight`. Both use the existing bearer login and exact attendance attempt; both check the actual ASGI source network, and confirmation requires the current ACTIVE installation's ECDSA signature. On any failure/unavailability the existing verification-result view opens without initializing the camera. A successful response explicitly sets `attendance_authorized:false`; a separate fresh final nonce and fresh network verification remain mandatory at `/liveness/frame`. See `backend/modules/authorization/` for the preflight contract. No client IP/PASS field or cached Profile verification is accepted.
 
 Confirmed FYP first-enrollment policy: the only additional partner-owned changes
 are register_face authorization and atomic provenance recording, plus multipart
 identity/assurance field rejection in its router. Detection, encoding, thresholds,
-gestures and attendance algorithms are unchanged. See [policy and isolated tests](FYP_ACCOUNT_BOUND_ENROLLMENT.md).
+gestures and attendance algorithms are unchanged. See [enrollment policy](FYP_ACCOUNT_BOUND_ENROLLMENT.md).
