@@ -13,6 +13,8 @@ class DeviceActivationState {
     Map<String, dynamic> result,
   ) {
     final completed =
+        result['verification_mode'] == 'DIRECT_FACE_PAD_V1' &&
+        result['anti_spoof_verified'] == true &&
         result['stage'] == 'COMPLETED_UNTRUSTED' &&
         result['complete'] == true &&
         result['face_verified'] == true &&
@@ -34,6 +36,10 @@ class DeviceActivationState {
       livenessPassed: true,
     );
   }
+
+  // Compatibility field livenessPassed denotes server-verified passive PAD here,
+  // never attendance gesture or head-challenge completion.
+  bool get antiSpoofPassed => livenessPassed;
 
   bool get automaticActivationAvailable => false;
   bool get isActive => false;

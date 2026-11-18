@@ -24,12 +24,11 @@ class DeviceBiometricGuide extends StatelessWidget {
 
   String get label => switch (feedback) {
     DeviceGuideFeedback.checking => 'CHECKING AUTOMATICALLY',
-    DeviceGuideFeedback.adjust =>
-      liveness ? 'ADJUST YOUR GESTURE' : 'ADJUST YOUR POSITION',
+    DeviceGuideFeedback.adjust => 'ADJUST YOUR POSITION',
     DeviceGuideFeedback.confirmed =>
-      liveness && acceptedFrames > 0
-          ? 'GESTURE ACCEPTED · HOLD STEADY'
-          : 'FACE VERIFIED · SHOW YOUR GESTURE',
+      acceptedFrames > 0
+          ? 'FACE/PAD ACCEPTED · HOLD STEADY'
+          : 'FACE MATCHED · HOLD STEADY',
   };
 
   @override

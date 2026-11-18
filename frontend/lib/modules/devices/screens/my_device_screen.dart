@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../theme.dart';
+import '../../../services/api_client.dart';
+import '../../networks/widgets/classroom_connection_card.dart';
 import '../services/device_api.dart';
 import '../services/device_verification_service.dart';
 import 'device_registration_screen.dart';
@@ -24,6 +26,7 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
   bool _pendingEnrollmentAvailable = false;
   DeviceVerificationResult? _result;
   String? _error;
+  bool _connectionFailed = false;
   bool _checking = false, _again = false, _loaded = false, _foreground = true;
 
   @override
@@ -49,6 +52,7 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
       _checking = true;
       _result = null;
       _error = null;
+      _connectionFailed = false;
     });
     try {
       final listing = await _api.listDevices();
@@ -66,7 +70,24 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
       final result = await _verification.verify();
       if (mounted) setState(() => _result = result);
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) {
+        final code = error is ApiException
+            ? error.code
+            : error is DeviceVerificationException
+            ? error.code
+            : null;
+        setState(() {
+          _error = error.toString();
+          _connectionFailed = const {
+            'CLASSROOM_WIFI_REQUIRED',
+            'PAIRED_CLASSROOM_SERVER_NOT_FOUND',
+            'LAN_DISCOVERY_UNAVAILABLE',
+            'NETWORK_CHANGED',
+            'NETWORK_ERROR',
+            'REQUEST_TIMEOUT',
+          }.contains(code);
+        });
+      }
     } finally {
       if (mounted) {
         setState(() => _checking = false);
@@ -195,6 +216,7 @@ class _MyDeviceScreenState extends State<MyDeviceScreen>
             subtitle: Text('Checked: ${_result!.verifiedAt.toIso8601String()}'),
           ),
         if (_error != null) InfoNotice(_error!, warning: true),
+        if (_connectionFailed) ClassroomConnectionCard(onConnected: _check),
         const SizedBox(height: 20),
         const Text('Attendance checks your device and connection again.'),
       ],

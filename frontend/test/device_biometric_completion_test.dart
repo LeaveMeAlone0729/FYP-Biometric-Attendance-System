@@ -20,7 +20,7 @@ void main() {
       );
       for (final status in [
         'Face recognition: PASS',
-        'Liveness detection: PASS',
+        'Anti-spoofing: PASS',
         'Device key verification: PASS',
         'Registration status: NOT ACTIVE',
         'Trusted biometric approval: NOT YET AVAILABLE',

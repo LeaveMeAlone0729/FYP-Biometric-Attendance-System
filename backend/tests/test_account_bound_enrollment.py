@@ -144,11 +144,10 @@ class AccountBoundTests(unittest.TestCase):
         identifier=self.m.h.create().json()['approval_id']
         self.assertEqual(self.m.h.frame(identifier,b'other-face').json()['code'],'FACE_NOT_MATCHED')
         identifier,response=self.m.h.face()
-        self.f.fixture.app.state.context.bio.gesture=0
-        response=self.m.h.frame(identifier,b'wrong-gesture','liveness/frame').json()
+        # Device authorization now requires passive PAD, not a hand gesture.
+        response=self.m.h.frame(identifier,b'photo-spoof','liveness/frame').json()
         self.assertEqual(response['valid_frames'],0)
         self.assertEqual(self.m.post('/activation-readiness',{}).json()['code'],'FRESH_BIOMETRIC_PROOF_REQUIRED')
-        self.f.fixture.app.state.context.bio.gesture=response['fingers']
         for i in range(3): self.m.h.frame(identifier,('fresh'+str(i)).encode(),'liveness/frame')
         ready=self.m.post('/activation-readiness',{}).json();challenge=self.m.issue(ready)
         from cryptography.hazmat.primitives.asymmetric import ec

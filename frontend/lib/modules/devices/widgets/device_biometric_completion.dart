@@ -54,7 +54,7 @@ class DeviceBiometricCompletion extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Liveness detection: ${activationState.livenessPassed ? 'PASS' : 'NOT CONFIRMED'}',
+                  'Anti-spoofing: ${activationState.antiSpoofPassed ? 'PASS' : 'NOT CONFIRMED'}',
                 ),
                 const SizedBox(height: 10),
                 Text(

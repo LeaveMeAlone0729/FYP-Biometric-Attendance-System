@@ -108,7 +108,7 @@ class SecureLanDiscovery {
     _client?.close();
     _client = null;
     address = null;
-    // Any old manual candidate is discarded when the network changes.
+    // Callers may retain an address hint, never an authenticated transport.
     if (!preserveManual) _manual = null;
     _pending = null;
   }

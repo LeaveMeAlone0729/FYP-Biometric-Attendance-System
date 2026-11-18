@@ -99,7 +99,7 @@ class PendingDeviceTests(unittest.TestCase):
         self.assertEqual(self.prove(again).status_code,200)
         self.assertEqual(self.prove(again).status_code,409)
         self.f.fixture.now+=timedelta(minutes=6)
-        denied=self.f.client.post('/api/v1/device-approvals',headers=self.f.headers,json={"pending_registration_id":again["pending_registration_id"]})
+        denied=self.f.client.post('/api/v1/device-approvals',headers=self.f.headers,json={"pending_registration_id":again["pending_registration_id"],"verification_mode":"DIRECT_FACE_PAD_V1"})
         self.assertEqual(denied.status_code,410)
         self.assertEqual(self.count(RegisteredDevice),1)
 
@@ -132,7 +132,7 @@ class PendingDeviceTests(unittest.TestCase):
 
     def test_trusted_provider_remains_closed_while_untrusted_biometrics_need_template(self):
         pending=self.begin().json();identifier=pending['pending_registration_id']
-        body={'pending_registration_id':identifier}
+        body={'pending_registration_id':identifier,'verification_mode':'DIRECT_FACE_PAD_V1'}
         self.assertEqual(self.f.client.post('/api/v1/device-approvals',headers=self.f.headers,json=body).status_code,409)
         self.prove(pending)
         response=self.f.client.post('/api/v1/device-approvals',headers=self.f.headers,json=body)

@@ -143,7 +143,7 @@ class ReplacementTests(unittest.TestCase):
 
     def test_failed_face_ends_pending_replacement_without_revocation(self):
         pending=self.prepare()
-        response=self.f.client.post('/api/v1/device-approvals',headers=self.f.headers,json={'pending_registration_id':pending['pending_registration_id']})
+        response=self.f.client.post('/api/v1/device-approvals',headers=self.f.headers,json={'pending_registration_id':pending['pending_registration_id'],'verification_mode':'DIRECT_FACE_PAD_V1'})
         identifier=response.json()['approval_id']
         rejected=self.f.client.post('/api/v1/device-approvals/'+identifier+'/face',headers=self.f.headers,files={'file':('frame.jpg',b'other-face','image/jpeg')})
         self.assertEqual(rejected.json()['code'],'FACE_NOT_MATCHED')
@@ -175,7 +175,7 @@ class ReplacementTests(unittest.TestCase):
         with self.f.sessions() as db:self.assertIsNone(db.get(activation.FixtureGrant,'grant-1').consumed_at)
     def test_replacement_biometrics_reuse_untrusted_workflow(self):
         pending=self.prepare(2)
-        response=self.f.client.post('/api/v1/device-approvals',headers=self.f.headers,json={'pending_registration_id':pending['pending_registration_id']})
+        response=self.f.client.post('/api/v1/device-approvals',headers=self.f.headers,json={'pending_registration_id':pending['pending_registration_id'],'verification_mode':'DIRECT_FACE_PAD_V1'})
         self.assertEqual(response.status_code,201,response.text)
         result=response.json();self.assertEqual(result['operation'],'replace_device');self.assertEqual(result['slot_number'],2)
         self.assertFalse(result['trusted']);self.assert_unchanged()

@@ -10,6 +10,8 @@ import json
 import os
 from pathlib import Path
 import re
+import socket
+import ssl
 import subprocess
 import sys
 import time
@@ -568,14 +570,39 @@ class Workflow:
         return True
 
     def gateway_health(self, public=False):
-        status, config = self.host.http('/config', gateway=not public, public=public)
+        def read(path):
+            try:
+                return self.host.http(path, gateway=not public, public=public)
+            except httpx.HTTPError as exc:
+                # Distinguish the healthy loopback gateway from school/public
+                # DNS, TCP and TLS failures; never expose exception text/secrets.
+                scope = 'PUBLIC_HTTPS' if public else 'LOCAL_GATEWAY'
+                causes = []
+                cause = exc
+                while cause is not None and cause not in causes:
+                    causes.append(cause)
+                    cause = cause.__cause__
+                if any(isinstance(c, socket.gaierror) for c in causes):
+                    reason = 'DNS_LOOKUP_FAILED'
+                elif any(isinstance(c, ssl.SSLError) for c in causes):
+                    reason = 'TLS_VALIDATION_FAILED'
+                elif isinstance(exc, httpx.ConnectTimeout):
+                    reason = 'CONNECT_TIMEOUT'
+                elif isinstance(exc, httpx.ReadTimeout):
+                    reason = 'READ_TIMEOUT'
+                elif isinstance(exc, httpx.ConnectError):
+                    reason = 'CONNECTION_FAILED'
+                else:
+                    reason = 'TRANSPORT_FAILED'
+                raise Blocked(scope + '_' + reason) from None
+        status, config = read('/config')
         require(status == 200 and config.get('network_ble_test_mode') is False, 'GATEWAY_CONFIG_NOT_READY')
         require({k:v for k,v in config.items() if k != 'server_time'} == self.backend_config,
                 'PUBLIC_AND_ORIGINAL_CONFIG_MISMATCH')
         for path, expected in (('/me', 401), ('/docs', 404), ('/attendance/start', 404),
             ('/local-fyp/identity', 404), ('/api/v1/devices', 404),
             ('/api/v1/network-ble-tests/start', 404), ('/verify-face', 404), ('/sessions', 404)):
-            status, value = self.host.http(path, gateway=not public, public=public)
+            status, value = read(path)
             require(status == expected and (expected != 404 or value.get('code') == 'PUBLIC_ROUTE_NOT_AVAILABLE'),
                     'PUBLIC_SECURITY_CHECK_FAILED')
         return True
@@ -604,6 +631,7 @@ class Workflow:
         if self.mode=='Full':
             self.stage = 'Public Gateway'
             self.ensure('gateway', self.gateway_health)
+            self.stage = 'Cloudflare HTTPS'
             self.gateway_health(public=True)
         self.beacon_status='READY'
         try:

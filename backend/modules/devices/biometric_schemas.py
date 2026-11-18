@@ -15,6 +15,8 @@ class DeviceBiometricResult(BaseModel):
     stage: Literal["FACE","LIVENESS","COMPLETED_UNTRUSTED","FAILED","EXPIRED"]
     ready: bool = False
     feedback_code: str
+    verification_mode: Literal["DIRECT_FACE_PAD_V1"] = "DIRECT_FACE_PAD_V1"
+    anti_spoof_verified: bool
     face_verified: bool
     liveness_verified: bool
     complete: bool

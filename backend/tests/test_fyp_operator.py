@@ -8,6 +8,9 @@ from pathlib import Path
 import secrets
 import subprocess
 import sys
+import socket
+import ssl
+import httpx
 from types import SimpleNamespace
 
 import pytest
@@ -427,3 +430,56 @@ def test_enforced_child_policy_failure_stops_without_retry_or_device_commands(tm
         h.install('7732690b','192.0.2.9',tmp_path)
     assert len(calls)==1
     assert calls[0][0]=='powershell.exe'
+
+
+@pytest.mark.parametrize('public,exception,code', [
+    (True, httpx.ConnectTimeout('synthetic'), 'PUBLIC_HTTPS_CONNECT_TIMEOUT'),
+    (True, httpx.ReadTimeout('synthetic'), 'PUBLIC_HTTPS_READ_TIMEOUT'),
+    (True, httpx.ConnectError('synthetic'), 'PUBLIC_HTTPS_CONNECTION_FAILED'),
+    (False, httpx.ConnectError('synthetic'), 'LOCAL_GATEWAY_CONNECTION_FAILED'),
+])
+def test_gateway_transport_error_reports_exact_component_without_fallback(tmp_path, public, exception, code):
+    f = workflow(tmp_path)
+    calls = []
+    def unreachable(path, **kwargs):
+        calls.append((path, kwargs))
+        raise exception
+    f.host.http = unreachable
+    with pytest.raises(Blocked, match=code):
+        f.gateway_health(public=public)
+    assert calls == [('/config', {'gateway': not public, 'public': public})]
+    assert not f.state
+
+
+def test_public_connection_failure_preserves_healthy_local_services(tmp_path):
+    f = workflow(tmp_path)
+    original = f.host.http
+    def http(path, **kwargs):
+        if kwargs.get('public'):
+            raise httpx.ConnectError('synthetic')
+        return original(path, **kwargs)
+    f.host.http = http
+    with pytest.raises(Blocked, match='PUBLIC_HTTPS_CONNECTION_FAILED'):
+        f.start()
+    assert f.stage == 'Cloudflare HTTPS'
+    assert set(f.state) == {'backend', 'admin', 'gateway'}
+    assert not any(isinstance(e, tuple) and e[0] == 'stop' for e in f.host.events)
+    assert ('http', '/config', False, True, None) in f.host.events
+    assert not any(isinstance(e, tuple) and e[0] == 'http' and e[1] == '/health' for e in f.host.events)
+
+
+@pytest.mark.parametrize('cause,code', [
+    (socket.gaierror(-2, 'synthetic'), 'PUBLIC_HTTPS_DNS_LOOKUP_FAILED'),
+    (ssl.SSLCertVerificationError('synthetic'), 'PUBLIC_HTTPS_TLS_VALIDATION_FAILED'),
+])
+def test_public_dns_and_certificate_failures_still_block_startup(tmp_path, cause, code):
+    f = workflow(tmp_path)
+    def http(path, **kwargs):
+        try:
+            raise cause
+        except Exception as error:
+            raise httpx.ConnectError('synthetic') from error
+    f.host.http = http
+    with pytest.raises(Blocked, match=code):
+        f.gateway_health(public=True)
+    assert not f.state

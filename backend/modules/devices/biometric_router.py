@@ -17,6 +17,8 @@ def service(context=Depends(get_context)):return DeviceBiometricService(context)
 @router.post("",status_code=201,response_model=DeviceBiometricResult)
 def create(data:DeviceApprovalRequest,request:Request,response:Response,identity=Depends(authenticated),db=Depends(get_db,scope="function"),bio=Depends(service)):
     student,auth=identity
+    if data.verification_mode != "DIRECT_FACE_PAD_V1":
+        return dispatch(request,response,"create",lambda:bio.fail(db,student,409,"DIRECT_FACE_SCAN_REQUIRED","Update the device app to use direct face and anti-spoof verification. No scan was started."))
     return dispatch(request,response,"create",lambda:bio.create(db,student,auth,data.pending_registration_id),201)
 
 

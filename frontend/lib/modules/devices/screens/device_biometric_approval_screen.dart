@@ -12,7 +12,7 @@ import '../widgets/device_biometric_feedback.dart';
 import '../widgets/device_biometric_completion.dart';
 import '../services/device_camera_orientation.dart';
 
-/// Device-owned capture workflow. Matching/gestures are checked only by the server.
+/// Device-owned capture workflow. Matching/PAD are checked only by the server.
 /// COMPLETED_UNTRUSTED never means registered, trusted, or eligible for activation.
 class DeviceBiometricApprovalScreen extends StatefulWidget {
   const DeviceBiometricApprovalScreen({
@@ -341,7 +341,7 @@ class _DeviceBiometricApprovalScreenState
       if (_adjustments == 0) {
         _status = _result!['stage'] == 'FACE'
             ? 'Scanning face'
-            : 'Checking liveness';
+            : 'Checking anti-spoofing';
       }
     });
     try {
@@ -433,7 +433,7 @@ class _DeviceBiometricApprovalScreenState
           _guideFeedback = DeviceGuideFeedback.confirmed;
           _status = 'Face verified';
           _feedback =
-              'Face matched on the server. Follow the liveness challenge below.';
+              'Face matched. Keep your face centered while fresh anti-spoof checks finish.';
         });
       } else if (result['ready'] == false &&
           !((result['valid_frames'] as int) >
@@ -452,7 +452,7 @@ class _DeviceBiometricApprovalScreenState
             _ =>
               result['stage'] == 'FACE'
                   ? 'Adjust your face position'
-                  : 'Gesture not confirmed',
+                  : 'Anti-spoof check not confirmed',
           };
         });
         if (_adjustments >= 8) {
@@ -467,7 +467,7 @@ class _DeviceBiometricApprovalScreenState
           _guideFeedback = (result['valid_frames'] as int) > 0
               ? DeviceGuideFeedback.confirmed
               : DeviceGuideFeedback.checking;
-          _status = 'Liveness check accepted';
+          _status = 'Face/PAD frame accepted';
           _feedback = result['message'] as String;
         });
       }
@@ -553,7 +553,14 @@ class _DeviceBiometricApprovalScreenState
             _activationStatus = 'FRESH SCAN REQUIRED';
             _trustedStatus = 'NOT CONFIRMED';
           }
-          _activationError = error.toString();
+          if (error is ApiException &&
+              error.code == 'LOCAL_FYP_ACCOUNT_VERIFICATION_REQUIRED') {
+            _activationStatus = 'BLOCKED';
+            _trustedStatus = 'ACCOUNT VERIFICATION REQUIRED';
+          }
+          _activationError = error is ApiException && error.code != null
+              ? '${error.code}: $error'
+              : error.toString();
         });
       }
     } finally {
@@ -613,9 +620,7 @@ class _DeviceBiometricApprovalScreenState
         children: [
           ...[
             Text(
-              _result?['stage'] == 'LIVENESS'
-                  ? 'Step 2: Liveness challenge'
-                  : 'Step 1: Face recognition',
+              'Direct face verification',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
@@ -647,7 +652,7 @@ class _DeviceBiometricApprovalScreenState
                 previewQuarterTurns: _previewQuarterTurns,
                 overlay: DeviceBiometricGuide(
                   feedback: _guideFeedback,
-                  liveness: _result?['stage'] == 'LIVENESS',
+                  liveness: false,
                   acceptedFrames: (_result?['valid_frames'] as int?) ?? 0,
                 ),
               )
@@ -663,10 +668,22 @@ class _DeviceBiometricApprovalScreenState
             if (_result != null) ...[
               Text('Time remaining: $_remaining seconds'),
               if (_running && _result!['stage'] == 'LIVENESS')
-                DeviceLivenessPanel(
-                  fingers: _result!['fingers'] as int,
-                  acceptedFrames: _result!['valid_frames'] as int,
-                  requiredFrames: _result!['required_frames'] as int,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      '${_result!['valid_frames']}/${_result!['required_frames']} consecutive checks accepted',
+                    ),
+                    LinearProgressIndicator(
+                      key: const ValueKey('device-passive-pad-progress'),
+                      value:
+                          (_result!['valid_frames'] as int) /
+                          (_result!['required_frames'] as int),
+                    ),
+                    const Text(
+                      'Keep your face centered. Anti-spoofing is checked automatically; no gestures are required.',
+                    ),
+                  ],
                 ),
             ],
             if (!_running)
