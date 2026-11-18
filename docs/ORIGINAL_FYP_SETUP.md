@@ -8,32 +8,13 @@ Use the existing admin credentials when already initialized. For a fresh
 teammate setup, use [the disposable MySQL guide](MYSQL_TESTING.md).
 
 ```powershell
-.\start-fyp.ps1 check
-.\start-fyp.ps1
+.\scripts\start-fyp.ps1 check
+.\scripts\start-fyp.ps1
 ```
 
 Run these commands from the repository root. Application readiness checks the
 FYP schema and does not verify MariaDB system-table integrity. Keep recovery
 evidence and database backups private.
-
-## Historical pre-recovery blocker (resolved for application access)
-
-Verified on 9 November 2026: the configured server answers `SELECT VERSION(),
-@@port,DATABASE()` as MariaDB 10.4.27, port 3306, schema
-`attendance_proposal_xampp`. Metadata lists 26 application tables. However,
-bounded reads of both `students` and `attendance` time out. Several existing
-connections are stuck in `Opening tables` or `Statistics`. This identifies a
-database readiness problem; it does **not** establish its underlying cause.
-
-No original table, row, account, setting or encryption key was changed. No new
-database was created. No backup is claimed from this unhealthy running server,
-and no schema updates were attempted. Existing older backups are not substitutes
-for a fresh verified backup before this change. Database recovery, restarting
-MariaDB, terminating its sessions and replacing files are outside this change.
-
-During that earlier outage, application identity and records could not be verified.
-Never create replacement accounts or promote a legacy template to work around
-a database readiness problem.
 
 ## What changed
 
@@ -63,17 +44,17 @@ a database readiness problem.
 Run from the repository using PowerShell:
 
 ```powershell
-.\start-fyp.ps1 check
+.\scripts\start-fyp.ps1 check
 ```
 
 The health guard prints `BLOCKED` if application tables stall again. Do not
 repeatedly retry a stalled database. Start the existing local services with:
 
 ```powershell
-.\start-fyp.ps1
+.\scripts\start-fyp.ps1
 ```
 
-Only an operator who has no local admin credentials should run `start-fyp.ps1
+Only an operator who has no local admin credentials should run `scripts\start-fyp.ps1
 admin-init` once interactively.
 Passwords and hashes must not be copied into Git or chat.
 
@@ -128,9 +109,9 @@ institution-verified identity. No flag or UI can elevate an existing unknown fac
 
 ```powershell
 # Uses installed SDK paths from frontend/android/local.properties.
-.\install-fyp-android.ps1 -BuildOnly
+.\scripts\install-fyp-android.ps1 -BuildOnly
 $deviceId = Read-Host 'ADB device serial'
-.\install-fyp-android.ps1 -Serial $deviceId
+.\scripts\install-fyp-android.ps1 -Serial $deviceId
 ```
 
 The second command verifies the selected device and original backend, configures
@@ -172,58 +153,5 @@ incorrect. MySQL compatibility work is preserved, but this task did not create
 or test another MySQL environment. A different schema/port needs an explicitly
 reviewed target configuration; the original launcher will not guess a fallback.
 
-Keep all current FYP source and tests. Exclude `.env`, private profiles, logs,
+Keep application source and required schema helpers. Exclude `.env`, private profiles, logs,
 database dumps/data directories, APKs and generated build files from Git.
-
-## Evidence and preservation
-
-Pre-change source backup:
-`C:\FYP\Source-Backups\original-setup-20261109-030809`
-(500 Git-visible tracked/untracked files individually SHA-256 verified, plus
-status, binary diff and restoration instructions). The earlier full-tree backup
-at `C:\FYP\Source-Backups\mysql-support-20261109-005211` additionally preserves
-ignored local state from before the MySQL work. Neither is a fresh database backup.
-
-Local regression logs (ignored): `.work/original-setup-tests.log`,
-`.work/original-backend-regressions.log`, `.work/original-flutter-test.log`,
-`.work/original-flutter-analyze.log`, `.work/original-api-timings.json`.
-
-Measured existing-process timings: `/` 31 ms, `/config` 16 ms, both classroom
-routes 404 before restart. Database identity 90 ms; original student/attendance
-reads exceeded a four-second socket deadline. No authenticated login timing is
-claimed. Unknown account and incorrect password messages intentionally remain
-indistinguishable; PIN, enrollment, device and network failures keep their
-existing separate reason handling.
-
-## Changed files for this original-setup task
-
-* `backend/application_factory.py`, `backend/app.py`: shared app composition.
-* `backend/admin_testing.py`: explicit original-policy mode; existing disposable
-  defaults, authentication, CSRF, session and localhost protections preserved.
-* `backend/modules/classroom_wifi/router.py`,
-  `backend/modules/classroom_wifi/attendance.py`: updated composition descriptions/tags.
-* `backend/application_schema.py`: canonical application-table inventory.
-* `backend/original_fyp.py`, `start-fyp.ps1`: pinned original readiness/startup.
-* `install-fyp-android.ps1`: SDK-based USB build/install-r workflow.
-* `backend/tests/test_original_fyp.py`: original-mode offline regressions.
-* `docs/openapi.json`: regenerated from the shared app, no database connection.
-* `docs/ORIGINAL_FYP_SETUP.md`, `README.md`: instructions and blocker report.
-
-These are incremental changes; earlier uncommitted FYP/MySQL work remains intact.
-
-## Historical validation before original migration
-
-* Backend full discovery: **413 run, 399 passed, 14 skipped** (193.701 seconds).
-  The initial stale OpenAPI failure was fixed by regenerating the specification.
-* Original-setup focused tests: **26 passed**, including inherited admin security
-  regressions, original-mode forms, session creation and authenticated route registration.
-* Flutter: **255 passed, 1 skipped**. Analysis: **no issues**.
-* USB-configured Android debug APK: **build passed**, not installed. Existing
-  Kotlin plugin deprecation notice is non-blocking; Gradle files were not changed.
-* PowerShell parser checks, Python compilation and `git diff --check`: passed.
-* At this earlier stage, original database migration and live testing were
-  pending. See **Existing environment** and **End-to-end checks** above for the
-  later state.
-
-No new database, environment, public endpoint, student, policy or attendance
-record was created during this original-setup task. No Git commit/push occurred.

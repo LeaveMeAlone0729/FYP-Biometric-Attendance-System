@@ -64,6 +64,11 @@ class SyntheticBiometrics:
     def guided_face(self, image):
         return self.face(image)
 
+    def face_observation(self, image, *, guided=False):
+        # Synthetic adapter for the partner's combined inference/PAD contract.
+        encoding = self.guided_face(image) if guided else self.face(image)
+        return encoding, self.face_evidence(image)
+
     def head_pose(self, image):
         yaw = 25 if image.value.startswith(b"head-turn_left") else (-25 if image.value.startswith(b"head-turn_right") else 0)
         pitch = -20 if image.value.startswith(b"head-look_up") else (20 if image.value.startswith(b"head-look_down") else 0)

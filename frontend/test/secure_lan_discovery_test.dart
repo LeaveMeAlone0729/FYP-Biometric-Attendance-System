@@ -15,9 +15,10 @@ void main() {
   late LanTrust trust;
   setUpAll(() async {
     fixture = await Directory.systemTemp.createTemp('fyp-lan-test-');
-    final python = Platform.isWindows
-        ? '../backend/venv/Scripts/python.exe'
-        : '../backend/venv/bin/python';
+    final python = Platform.environment['FYP_TEST_PYTHON'] ??
+        (Platform.isWindows
+            ? '../backend/venv/Scripts/python.exe'
+            : '../backend/venv/bin/python');
     final result = await Process.run(python, [
       '-c',
       "import sys;from pathlib import Path;sys.path.insert(0,str(Path('../backend').resolve()));from lan_discovery import provision;provision(Path(sys.argv[1])/'full','Full','a'*64,protect=lambda _:None);provision(Path(sys.argv[1])/'rogue','Full','a'*64,protect=lambda _:None)",

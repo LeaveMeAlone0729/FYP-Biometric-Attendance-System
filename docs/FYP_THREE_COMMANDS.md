@@ -13,7 +13,7 @@ Use PowerShell on branch SH at `C:\FYP\FYP-Biometric-Attendance-System`.
 ```
 
 These commands operate the original `attendance_proposal_xampp:3306` environment.
-They do not use fyp-test.ps1, MySQL 3332, an isolated schema or database fallback.
+They do not use scripts\fyp-test.ps1, MySQL 3332, an isolated schema or database fallback.
 Existing legacy scripts remain available internally/for historical workflows;
 you do not need to call them separately for the normal demonstration.
 
@@ -136,23 +136,13 @@ copy is then removed. Output includes the selected serial, URLs and APK hash.
 This verifies installed build identity, not physical attendance success.
 
 The Python helper runs only the trusted repository-local installer as:
-`powershell.exe -NoProfile -ExecutionPolicy Bypass -File <repo>\install-fyp-android.ps1 ...`.
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File <repo>\scripts\install-fyp-android.ps1 ...`.
 This is a child-process/session setting, not a CurrentUser or LocalMachine policy
 change. It fixes the case where the outer fyp-install.ps1 runs but its fresh
 Windows PowerShell child rejects the nested script as disabled. Organizational
 MachinePolicy/UserPolicy still take precedence. A remaining policy denial is
 reported as ANDROID_CHILD_SCRIPT_POLICY_REJECTED_ADMIN_REVIEW_REQUIRED; there is
 no escalation, persistent policy change or alternate execution retry.
-
-Execution-policy correction validation: **69 tests passed** across operator,
-BLE bundle and gateway suites; all four PowerShell syntax checks passed. An
-actual harmless child-script fixture reproduced the disabled-scripts error under
-a child-only Restricted setting, then ran successfully with the explicit Bypass
-argument. Persistent/Group Policy registry values and the parent's process-policy
-environment value were unchanged before/after. The fixture did not run Flutter,
-the real installer or ADB, and no APK was installed. Device target, API URL
-arguments, signing error handling and installed-APK verification remain intact.
-Reference: [PowerShell policy precedence and scope](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies).
 
 ## Stop
 
@@ -194,90 +184,10 @@ stored there. Original credentials and encryption keys stay in their existing
 locations. Never share runtime logs, private .env or credentials as teammate
 setup. Do not commit generated APKs or the external beacon executable.
 
-## Validation scope
+## BLE dependencies
 
-The automated operator tests use mocked Windows processes, sockets, HTTP,
-database identity and ADB, with disposable state directories. They cover cold
-start/order, reuse, duplicate/conflicting backends, wrong DB, confirmation,
-missing beacon, LAN changes, device selection/missing ADB, changed PID creation
-times, tampered commands and tunnel-mapping confirmation. They do not start or
-stop the original services, advertise Bluetooth, install an APK or write the
-original database. Real startup/stop/install validation requires separate
-approval and is not implied by those tests.
-
-### Executed checks — 16 November 2026
-
-* Backend operator/gateway/original-launcher/attendance-authorization/network
-  regressions: **126 passed, 1 skipped**. This includes 25 mocked operator
-  scenarios. The skipped case is the opt-in isolated MariaDB FR-06 migration
-  and concurrency scenario; no migration was attempted on the original server.
-* Flutter routing/client/preflight/classroom regressions: **40 passed**.
-* Flutter analyze: **no issues**.
-* PowerShell parser checks: PASS for all three new commands and the reused
-  install-fyp-android.ps1. Python compilation and Git whitespace checks: PASS.
-* Read-only local inventory and original pinned application schema/database
-  identity check: PASS, attendance_proposal_xampp:3306. MariaDB PID 43424 was
-  left running. No backend/admin/gateway was started for validation.
-* Actual Wi-Fi discovery and known BLE executable/DLL marker inspection: PASS.
-  Bluetooth advertising readiness itself was NOT tested by starting the probe.
-* Cloudflared service: Running. Its token file is private; only file metadata
-  was accessible. The new protected-token-file confirmation path is tested
-  with disposable files, without changing permissions or reading the real token.
-* No service start/stop/restart, APK installation, database migration/write,
-  policy change, Cloudflare route edit, commit or push was performed.
-
-Evidence logs: `%TEMP%\fyp-three-command-backend-tests.log` and
-`%TEMP%\fyp-three-command-flutter-tests.log`. Live first-run readiness and actual
-APK installation/shutdown are pending separate authorization; do not describe
-the mocked cold-start tests as real service restart tests.
-
-## BLE startup dependency correction — 16 November 2026
-
-Failed-run evidence is preserved at `runtime/logs/20261116-024554/`:
-workflow.log reported BEACON_LAUNCH_EXITED, beacon.out.log was empty, and
-beacon.err.log recorded a managed FileNotFoundException for
-Microsoft.Windows.SDK.NET, assembly version 10.0.26100.38. The source executable
-folder contained only BleProbe's own files. Its dependency manifest required
-both Microsoft.Windows.SDK.NET.dll and WinRT.Runtime.dll, but neither was there.
-The installed .NET 9 runtime was present. The process failed before radio/GATT
-initialization; these logs do not establish a Bluetooth permission/foreground
-failure. Changing the working directory alone cannot supply missing assemblies.
-
-The exact SDK-cache package 10.0.26100.57 already contains compatible binaries:
-Microsoft.Windows.SDK.NET assembly 10.0.26100.38/file 10.0.26100.55, and WinRT.Runtime
-assembly 2.2.0.0/file 2.2.0.48161. The new internal ble_bundle.py checks those
-declared versions and prepares a complete app-local bundle in runtime/ble-beacon.
-The external probe source/output and beacon UUID/name behavior remain unchanged.
-An active bundle is never overwritten if a file would change; approved shutdown
-is required first. New launches use the bundle directory as cwd, --continuous,
-the same hidden user-session launch and existing diagnostic OFF environment.
-
-Readiness now detects a nonzero early exit immediately with its exit code and
-beacon.err.log path. It still requires an actual GATT Started message and a live
-owned process before reporting ready; an old Started line alone is insufficient
-for a new process. No radio operation or attendance authorization is simulated.
-Each invocation has a unique log directory even within the same clock second,
-so retries cannot accidentally reuse a previous publisher's Started line.
-
-A dependency-only .NET loader under ignored runtime/ble-load-check reproduced
-FileNotFoundException using an incomplete copy (exit 2), then resolved both exact
-assemblies successfully from the prepared bundle (exit 0). It loaded assembly
-metadata/dependencies only: BleProbe.Main was never invoked, and no Bluetooth API
-or advertising operation was called. SHA-256 comparison confirmed the original
-EXE/DLL were unchanged and the bundle's copies match them byte-for-byte.
-
-A real live BLE launch is still **NOT RUN** and requires approval. Once approved,
-rerun fyp-start.ps1 with current core services healthy: it must reuse them, start
-only the missing known broadcaster, observe its GATT Started log, and show BLE
-READY. Then use a fresh Xiaomi scan to confirm SENGHIN and the expected UUID.
-Do not describe the dependency-only loader test as a physical BLE PASS.
-
-Reference: [.NET dependency probing](https://learn.microsoft.com/en-us/dotnet/core/dependency-loading/default-probing).
-
-BLE fix regression result: **75 tests passed** across bundle, operator, gateway
-and attendance-shadow tests; all four PowerShell parser checks and Python
-compilation passed. Evidence: `%TEMP%\fyp-ble-launch-fix-tests.log`. Original
-failed-run logs remain untouched. Live backend/admin/gateway/MariaDB PIDs stayed
-47876/47976/50668/43424, and live /config still reported diagnostic mode false.
-No broadcaster was started or stopped, no APK was installed, and no database,
-Cloudflare, Wi-Fi policy, biometric or attendance changes were performed.
+Full mode prepares the beacon dependency bundle under `runtime/ble-beacon` through
+`backend/ble_bundle.py`. It requires a live owned process and a GATT Started result
+before reporting readiness. Missing dependencies or radio failures do not imply
+attendance authorization. Preserve active ownership state and stop through the
+matching workflow before replacing a running bundle.

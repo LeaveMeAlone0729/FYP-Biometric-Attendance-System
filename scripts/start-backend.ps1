@@ -1,6 +1,7 @@
 param([int]$Port = 8000)
 $ErrorActionPreference = 'Stop'
-Set-Location -LiteralPath (Join-Path $PSScriptRoot 'backend')
+$projectRoot = Split-Path -Parent $PSScriptRoot
+Set-Location -LiteralPath (Join-Path $projectRoot 'backend')
 $attendancePython = Join-Path $PWD 'venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $attendancePython)) { throw 'Create backend\venv with Python 3.12 and install backend\requirements.txt first.' }
 & $attendancePython -B -m modules.biometrics.model_assets

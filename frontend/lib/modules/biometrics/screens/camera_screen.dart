@@ -8,8 +8,11 @@ import 'package:flutter/services.dart';
 import '../../../services/api_client.dart';
 import '../../../theme.dart';
 import '../services/biometric_api.dart';
+import '../widgets/head_movement_demo.dart';
 
 enum _ScanFeedback { waiting, checking, adjust, ready }
+
+enum _BlinkCapturePhase { idle, preparing, blink, checking }
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({
@@ -42,15 +45,17 @@ class _CameraScreenState extends State<CameraScreen>
   bool _initializing = false, _paused = false, _deadlineReached = false;
   bool _cancelSent = false;
   bool _awaitingLiveness = false;
+  bool _awaitingHeadDemo = false;
   int _cameraGeneration = 0, _readyChecks = 0, _faceRemaining = 30;
   _ScanFeedback _feedback = _ScanFeedback.waiting;
+  _BlinkCapturePhase _blinkCapturePhase = _BlinkCapturePhase.idle;
   Future<void> _cameraDisposal = Future.value();
   String _stage = 'face',
       _message =
           'Center your face in the circle. Capture happens automatically.';
   String? _cameraError, _recordedAt;
   String? _headAction;
-  int _headStep = 0, _headSteps = 7, _headHeld = 0;
+  int _headStep = 0, _headSteps = 2, _headHeld = 0;
   int _fingers = 0, _valid = 0, _remaining = 90;
   Timer? _clock, _captureTimer;
   late final Stopwatch _elapsed, _faceElapsed;
@@ -121,6 +126,7 @@ class _CameraScreenState extends State<CameraScreen>
       !_paused &&
       !_deadlineReached &&
       !_awaitingLiveness &&
+      !_awaitingHeadDemo &&
       _camera?.value.isInitialized == true &&
       (!widget.enrollment || _consent);
 
@@ -254,6 +260,7 @@ class _CameraScreenState extends State<CameraScreen>
       _feedback = _ScanFeedback.waiting;
       _captureTimer?.cancel();
       unawaited(_releaseCamera());
+      if (mounted) setState(() {});
     } else if (state == AppLifecycleState.resumed) {
       _paused = false;
       _initializeCamera();
@@ -276,6 +283,39 @@ class _CameraScreenState extends State<CameraScreen>
     }
   }
 
+  void _applyHeadProgress(
+    Map<String, dynamic> response, {
+    bool capturedBlink = false,
+  }) {
+    _faceElapsed.stop();
+    final action = response['head_action'] as String;
+    final step = response['head_step'] as int;
+    final newMovement =
+        _stage != 'head' || action != _headAction || step != _headStep;
+    if (newMovement) _captureTimer?.cancel();
+    setState(() {
+      _stage = 'head';
+      _readyChecks = 1;
+      _headAction = action;
+      _headStep = step;
+      if (newMovement) _awaitingHeadDemo = true;
+      _headSteps = response['head_steps'] as int;
+      _headHeld = response['held_frames'] as int;
+      _feedback = capturedBlink && action == 'blink'
+          ? _ScanFeedback.checking
+          : response['ready'] == true
+          ? _ScanFeedback.ready
+          : _ScanFeedback.adjust;
+      // These are already captured frames. Do not ask for another live blink
+      // while the server is still processing the previous burst.
+      _message = capturedBlink && action == 'blink'
+          ? (_headHeld > 0
+                ? 'Blink detected. Checking the captured frames for reopened eyes.'
+                : 'Checking captured blink. Keep both eyes open and wait for the next cue.')
+          : response['message'] as String;
+    });
+  }
+
   Future<void> _scanFrame() async {
     if (!_canScan || _busy) return;
     final generation = _cameraGeneration;
@@ -287,6 +327,11 @@ class _CameraScreenState extends State<CameraScreen>
       _busy = true;
       if (_feedback == _ScanFeedback.waiting) {
         _feedback = _ScanFeedback.checking;
+      }
+      if (_stage == 'head' && _headAction == 'blink') {
+        _blinkCapturePhase = _BlinkCapturePhase.preparing;
+        _feedback = _ScanFeedback.checking;
+        _message = 'Keep both eyes open. Wait for "Blink now".';
       }
     });
     try {
@@ -304,7 +349,9 @@ class _CameraScreenState extends State<CameraScreen>
       } else if (isFace && _stage == 'head' && _headAction == 'blink') {
         final frames = <Uint8List>[bytes];
         var burstBytes = bytes.length;
-        for (var index = 1; index < 8; index++) {
+        // Establish open eyes before the cue, then allow time to react and
+        // reopen. Server processing must not block recording the blink.
+        for (var index = 1; index < BiometricApi.maxBlinkFrames; index++) {
           await Future<void>.delayed(const Duration(milliseconds: 100));
           if (!mounted ||
               _finished ||
@@ -313,8 +360,15 @@ class _CameraScreenState extends State<CameraScreen>
               generation != _cameraGeneration) {
             return;
           }
+          if (index == 3) {
+            setState(() {
+              _blinkCapturePhase = _BlinkCapturePhase.blink;
+              _feedback = _ScanFeedback.ready;
+              _message = 'Blink now: once normally, then keep both eyes open.';
+            });
+          }
           final frame = await _capture();
-          if (burstBytes + frame.length > 6 * 1024 * 1024) break;
+          if (burstBytes + frame.length > 12 * 1024 * 1024) break;
           frames.add(frame);
           burstBytes += frame.length;
         }
@@ -325,9 +379,26 @@ class _CameraScreenState extends State<CameraScreen>
             generation != _cameraGeneration) {
           return;
         }
+        setState(() {
+          _blinkCapturePhase = _BlinkCapturePhase.checking;
+          _message =
+              'Checking your blink. Keep looking at the camera with your eyes open.';
+        });
         response = await _biometrics.verifyBlink(
           widget.challenge!['challenge_id'] as String,
           frames,
+          shouldContinue: () =>
+              mounted &&
+              !_finished &&
+              !_paused &&
+              !_deadlineReached &&
+              !_awaitingHeadDemo &&
+              generation == _cameraGeneration,
+          onProgress: (progress) {
+            if (mounted && !_finished && progress['liveness_step'] == 'head') {
+              _applyHeadProgress(progress, capturedBlink: true);
+            }
+          },
         );
       } else if (isFace) {
         response = await _biometrics.verifyFace(
@@ -345,20 +416,13 @@ class _CameraScreenState extends State<CameraScreen>
       // Apply responses even while paused: the server may have advanced the
       // challenge. Only scheduling and camera capture are suspended.
       if (isFace && response['liveness_step'] == 'head') {
-        _faceElapsed.stop();
-        setState(() {
-          _stage = 'head';
-          _readyChecks = 1;
-          _headAction = response['head_action'] as String;
-          _headStep = response['head_step'] as int;
-          _headSteps = response['head_steps'] as int;
-          _headHeld = response['held_frames'] as int;
-          _feedback = response['ready'] == true
-              ? _ScanFeedback.ready
-              : _ScanFeedback.adjust;
-          _message = response['message'] as String;
-        });
-        nextDelay = const Duration(milliseconds: 500);
+        _applyHeadProgress(
+          response,
+          capturedBlink: _stage == 'head' && _headAction == 'blink',
+        );
+        // The server requires at least 250 ms between held turn frames.
+        // Inference time is additional; avoid another half-second idle wait.
+        nextDelay = const Duration(milliseconds: 250);
       } else if (isFace && response['ready'] == false) {
         setState(() {
           _readyChecks = 0;
@@ -366,6 +430,7 @@ class _CameraScreenState extends State<CameraScreen>
           _message = response['message'] as String;
         });
       } else if (isFace && response['preview_only'] == true) {
+        if (!widget.enrollment) nextDelay = const Duration(milliseconds: 250);
         setState(() {
           _readyChecks = _paused || generation != _cameraGeneration ? 0 : 1;
           _feedback = _ScanFeedback.ready;
@@ -386,6 +451,7 @@ class _CameraScreenState extends State<CameraScreen>
         _faceElapsed.stop();
         setState(() {
           _stage = 'liveness';
+          _awaitingHeadDemo = false;
           _awaitingLiveness = true;
           _feedback = _ScanFeedback.ready;
           _fingers = response['fingers'] as int;
@@ -493,16 +559,21 @@ class _CameraScreenState extends State<CameraScreen>
       : Colors.white70;
 
   String get _headTitle => switch (_headAction) {
-    'turn_left' => 'Turn your head to your left',
-    'turn_right' => 'Turn your head to your right',
-    'look_up' => 'Look slightly upward',
-    'look_down' => 'Look slightly downward',
-    'blink' => 'Blink naturally',
-    _ => 'Look straight at the camera',
+    'turn_left' => 'Turn slightly to your left',
+    'turn_right' => 'Turn slightly to your right',
+    'blink' => 'Blink once',
+    _ => 'Follow the facial instruction',
   };
 
   String get _guideLabel => _stage == 'head'
-      ? _headTitle.toUpperCase()
+      ? _headAction == 'blink'
+            ? switch (_blinkCapturePhase) {
+                _BlinkCapturePhase.idle => 'WAIT FOR THE BLINK CUE',
+                _BlinkCapturePhase.preparing => 'EYES OPEN \u00b7 GET READY',
+                _BlinkCapturePhase.blink => 'BLINK NOW',
+                _BlinkCapturePhase.checking => 'CHECKING \u00b7 EYES OPEN',
+              }
+            : _headTitle.toUpperCase()
       : switch (_feedback) {
           _ScanFeedback.waiting =>
             widget.enrollment && !_consent
@@ -613,6 +684,74 @@ class _CameraScreenState extends State<CameraScreen>
                     _scheduleScan(const Duration(milliseconds: 1600));
                   },
                   child: const Text('Start liveness challenge'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  void _startHeadMovement() {
+    if (_paused || _finished || _deadlineReached) return;
+    setState(() {
+      _awaitingHeadDemo = false;
+      _blinkCapturePhase = _BlinkCapturePhase.preparing;
+      _message = _headAction == 'blink'
+          ? 'Keep both eyes open. Wait for "Blink now".'
+          : '$_headTitle. Hold that small turn while the camera checks.';
+    });
+    _scheduleScan(const Duration(milliseconds: 250));
+  }
+
+  Widget _headDemoPrompt() => Positioned.fill(
+    child: BlockSemantics(
+      child: Stack(
+        children: [
+          const Positioned.fill(
+            child: ModalBarrier(dismissible: false, color: Colors.black54),
+          ),
+          Center(
+            child: AlertDialog(
+              key: const ValueKey('head-demo-popup'),
+              insetPadding: const EdgeInsets.all(16),
+              scrollable: true,
+              title: Row(
+                children: [
+                  Expanded(child: Text('Movement $_headStep of $_headSteps')),
+                  IconButton(
+                    tooltip: 'Close demo and start movement',
+                    onPressed: _paused ? null : _startHeadMovement,
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _headTitle,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  HeadMovementDemo(action: _headAction!, active: !_paused),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Watch the example, then close this popup to perform the movement. No frames are captured while this is open.',
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Verification time remaining: $_remaining s. The timer keeps running.',
+                  ),
+                ],
+              ),
+              actions: [
+                FilledButton(
+                  key: const ValueKey('start-head-movement'),
+                  onPressed: _paused ? null : _startHeadMovement,
+                  child: const Text('I\u2019m ready'),
                 ),
               ],
             ),
@@ -793,8 +932,8 @@ class _CameraScreenState extends State<CameraScreen>
                         ? 'Keep your face and one full hand visible, palm toward the camera. Neither needs to be centered. Leave space between them.'
                         : _stage == 'head'
                         ? _headAction == 'blink'
-                              ? 'Blink naturally, then look at the camera with your eyes open. Your hands can stay down.'
-                              : 'Keep your face visible and follow the instruction gently. Hold briefly until the next instruction. Your hands can stay down.'
+                              ? 'Wait for "Blink now", blink once normally, then keep both eyes open. Do not squeeze or hold your eyes shut.'
+                              : 'Make a small turn, keeping both eyes visible. Hold briefly until the next instruction. Your hands can stay down.'
                         : 'Look into the camera. Hold still when the circle turns green; we’ll capture automatically.',
                   ),
                   const SizedBox(height: 20),
@@ -925,7 +1064,11 @@ class _CameraScreenState extends State<CameraScreen>
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
                                             color: _guideColor,
-                                            fontSize: 10,
+                                            fontSize:
+                                                _stage == 'head' &&
+                                                    _headAction == 'blink'
+                                                ? 16
+                                                : 10,
                                             fontWeight: FontWeight.w700,
                                             letterSpacing: .5,
                                           ),
@@ -1017,6 +1160,16 @@ class _CameraScreenState extends State<CameraScreen>
                     ),
                     const SizedBox(height: 8),
                     Text('Facial challenge: step $_headStep of $_headSteps'),
+                    TextButton.icon(
+                      onPressed: _busy || _paused
+                          ? null
+                          : () {
+                              _captureTimer?.cancel();
+                              setState(() => _awaitingHeadDemo = true);
+                            },
+                      icon: const Icon(Icons.play_circle_outline),
+                      label: const Text('Watch movement again'),
+                    ),
                   ],
                   if (_stage == 'liveness') ...[
                     const SizedBox(height: 16),
@@ -1040,6 +1193,7 @@ class _CameraScreenState extends State<CameraScreen>
               ),
             ),
             if (_awaitingLiveness) _livenessPrompt(),
+            if (_awaitingHeadDemo) _headDemoPrompt(),
           ],
         ),
       ),

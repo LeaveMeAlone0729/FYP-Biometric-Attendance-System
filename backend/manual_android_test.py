@@ -159,7 +159,7 @@ def network_self_test():
 
 def validate_lan_config(config):
     require(type(config) is dict and set(config) in ({'address','subnet'},{'address','subnet','clients'}),'INVALID_LAN_CONFIG')
-    require(not config.get('clients'),'LEGACY_DEVICE_IP_ALLOWLIST: restart with fyp-test.ps1 start --lan')
+    require(not config.get('clients'),'LEGACY_DEVICE_IP_ALLOWLIST: restart with scripts/fyp-test.ps1 start --lan')
     address=ipaddress.IPv4Address(config['address'])
     subnet=ipaddress.IPv4Network(config['subnet'],strict=True)
     ranges=('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16')

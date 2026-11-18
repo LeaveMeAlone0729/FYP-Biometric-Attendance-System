@@ -24,8 +24,8 @@ class BiometricContractTests(unittest.TestCase):
         head = schemas["HeadMovementProgress"]
         self.assertEqual(head["properties"]["liveness_step"]["const"], "head")
         self.assertEqual(set(head["properties"]["head_action"]["enum"]),
-                         {"look_straight", "turn_left", "turn_right", "look_up", "look_down", "blink"})
-        self.assertEqual(head["properties"]["head_steps"]["const"], 7)
+                         {"turn_left", "turn_right", "blink"})
+        self.assertEqual(head["properties"]["head_steps"]["const"], 2)
         for name in ("FaceVerified", "LivenessProgress"):
             properties = schemas[name]["properties"]
             self.assertEqual(properties["liveness_step"]["const"], "hand")

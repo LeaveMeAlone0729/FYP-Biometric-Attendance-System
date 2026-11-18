@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/modules/biometrics/screens/camera_screen.dart';
+import 'package:frontend/modules/biometrics/services/biometric_api.dart';
 import 'package:frontend/services/api_client.dart';
 import 'package:frontend/theme.dart';
 
@@ -180,7 +181,7 @@ void main() {
                   'liveness_step': 'head',
                   'head_action': 'blink',
                   'head_step': 2,
-                  'head_steps': 7,
+                  'head_steps': 2,
                   'held_frames': 0,
                   'message': 'Blink naturally.',
                 },
@@ -232,9 +233,9 @@ void main() {
           'complete': false,
           'stage': 'face',
           'liveness_step': 'head',
-          'head_action': frames < 4 ? 'blink' : 'look_straight',
-          'head_step': frames < 4 ? 2 : 3,
-          'head_steps': 7,
+          'head_action': frames < 4 ? 'blink' : 'turn_left',
+          'head_step': frames < 4 ? 1 : 2,
+          'head_steps': 2,
           'held_frames': 0,
           'required_hold_frames': 2,
           'message':
@@ -244,16 +245,22 @@ void main() {
       await mountScan(tester, api, createCamera: () => camera);
       await advance(tester, 1200);
       await advance(tester, 900);
-      expect(find.text('Blink naturally'), findsOneWidget);
+      expect(find.byKey(const ValueKey('head-demo-popup')), findsOneWidget);
+      // The partner's movement demonstration must not capture before consent.
+      final beforeDemo = camera.captures;
+      await advance(tester, 500);
+      expect(camera.captures, beforeDemo);
+      await tester.tap(find.byKey(const ValueKey('start-head-movement')));
+      await tester.pump();
       expect(find.textContaining('Close your eyes'), findsNothing);
       await advance(tester, 500);
       expect(api.calls, hasLength(2));
-      for (var frame = 0; frame < 7; frame++) {
+      for (var frame = 0; frame < BiometricApi.maxBlinkFrames; frame++) {
         await advance(tester, 100);
       }
-      expect(camera.captures, 10);
+      expect(camera.captures, BiometricApi.maxBlinkFrames + 2);
       expect(api.calls, hasLength(5));
-      expect(find.text('Look straight at the camera'), findsOneWidget);
+      expect(find.text('Turn slightly to your left'), findsWidgets);
       expect(find.text('Start liveness challenge'), findsNothing);
       expect(api.maximumInFlight, 1);
       expect(tester.takeException(), isNull);
@@ -288,9 +295,9 @@ void main() {
           'complete': false,
           'stage': 'face',
           'liveness_step': 'head',
-          'head_action': headFrames == 1 ? 'look_straight' : 'turn_left',
+          'head_action': headFrames == 1 ? 'turn_right' : 'turn_left',
           'head_step': headFrames == 1 ? 1 : 2,
-          'head_steps': 7,
+          'head_steps': 2,
           'held_frames': headFrames == 1 ? 1 : 0,
           'required_hold_frames': 2,
           'message': headFrames == 1
@@ -305,11 +312,14 @@ void main() {
         find.byKey(const ValueKey('head-movement-progress')),
         findsOneWidget,
       );
-      expect(find.text('Look straight at the camera'), findsOneWidget);
+      expect(find.text('Turn slightly to your right'), findsWidgets);
       expect(find.text('Start liveness challenge'), findsNothing);
+      expect(find.byKey(const ValueKey('head-demo-popup')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('start-head-movement')));
+      await tester.pump();
       await advance(tester, 500);
-      expect(find.text('Turn your head to your left'), findsOneWidget);
-      expect(find.text('Facial challenge: step 2 of 7'), findsOneWidget);
+      expect(find.text('Turn slightly to your left'), findsWidgets);
+      expect(find.text('Facial challenge: step 2 of 2'), findsOneWidget);
       expect(api.calls.last['preview_only'], 'false');
       // The 30-second initial positioning timer must stop during head actions.
       await advance(tester, 31000);
@@ -323,6 +333,9 @@ void main() {
         isEmpty,
       );
       finishHead = true;
+      expect(find.byKey(const ValueKey('head-demo-popup')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('start-head-movement')));
+      await tester.pump();
       await advance(tester, 900);
       expect(find.text('Next: show 3 fingers'), findsOneWidget);
       expect(

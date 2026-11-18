@@ -397,7 +397,7 @@ def test_nested_installer_process_policy_handles_exact_disabled_scripts_failure(
     def command(args,**kwargs):
         calls.append(args)
         if args[0]=='powershell.exe':
-            if args[1:6] != ['-NoProfile','-ExecutionPolicy','Bypass','-File',tmp_path/'install-fyp-android.ps1']:
+            if args[1:6] != ['-NoProfile','-ExecutionPolicy','Bypass','-File',tmp_path/'scripts'/'install-fyp-android.ps1']:
                 return SimpleNamespace(returncode=1,stdout='',stderr=
                     'install-fyp-android.ps1 cannot be loaded because running scripts is disabled on this system.')
             assert args[args.index('-Serial')+1]=='7732690b'

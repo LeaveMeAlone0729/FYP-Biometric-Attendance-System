@@ -85,6 +85,10 @@ def verify_face(
     preview_only: bool = Form(
         False, description="Check the face without advancing to liveness."
     ),
+    blink_burst: bool = Form(
+        False,
+        description="For captured blink frames, use server pose inference to filter observations that cannot advance the blink. Every open/closed/reopened transition still requires identity and anti-spoof checks.",
+    ),
     identity=Depends(authenticated),
     db=Depends(get_db, scope="function"),
     service: BiometricService = Depends(get_biometric_service),
@@ -98,6 +102,7 @@ def verify_face(
         file,
         auto_capture=auto_capture,
         preview_only=preview_only,
+        blink_burst=blink_burst,
     )
 
 

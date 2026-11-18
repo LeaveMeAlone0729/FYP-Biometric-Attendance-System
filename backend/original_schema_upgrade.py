@@ -122,8 +122,9 @@ def main():
     args = parser.parse_args()
     try:
         result = upgrade(args.backup, args.apply)
-        Path(__file__).resolve().parents[1].joinpath('.work/original-schema-upgrade-result.json').write_text(
-            json.dumps(result, indent=2))
+        report_path = Path(__file__).resolve().parents[1] / '.work/original-schema-upgrade-result.json'
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(result, indent=2))
         print(json.dumps(result))
         return 0
     except Exception as exc:

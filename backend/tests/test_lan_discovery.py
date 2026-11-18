@@ -109,7 +109,7 @@ def test_launcher_rejects_unrelated_tls_process(tmp_path):
 
 
 def test_installer_only_exports_public_trust_never_provisions():
-    script=(Path(__file__).resolve().parents[2]/'install-fyp-android.ps1').read_text()
+    script=(Path(__file__).resolve().parents[2]/'scripts'/'install-fyp-android.ps1').read_text()
     assert "lan_discovery.py') export --mode $Mode --expected-identity $ready.identity" in script
     assert 'lan_discovery.py\') provision' not in script
     assert 'FYP_LAN_TRUST_B64=' in script
@@ -179,3 +179,13 @@ def test_lifecycle_rebind_and_cleanup_stay_in_same_process(provisioned, monkeypa
     assert sum(s.config.kw['port']==8005 for s in servers)==2
     assert all(s.config.kw.get('proxy_headers') is False for s in servers)
     assert all(s.config.kw['lifespan']=='off' for s in servers[1:])
+
+
+def test_relocated_installer_exports_trust_from_repository_root():
+    script=(Path(__file__).resolve().parents[2]/'scripts'/'install-fyp-android.ps1').read_text()
+    assert "$projectRoot = Split-Path -Parent $PSScriptRoot" in script
+    assert "Join-Path $projectRoot 'backend\\venv\\Scripts\\python.exe'" in script
+    assert "Join-Path $projectRoot 'backend\\lan_discovery.py'" in script
+    assert "Join-Path $PSScriptRoot 'backend" not in script
+    assert 'FYP_LAN_TRUST_B64' in script
+    assert '--expected-identity $ready.identity' in script

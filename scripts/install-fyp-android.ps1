@@ -1,6 +1,7 @@
 param([string]$Serial, [switch]$BuildOnly, [string]$LanIp, [string]$PublicApiUrl,
       [ValidateSet('Full','Local')][string]$Mode = 'Full', [string]$ExpectedIdentity)
 $ErrorActionPreference = 'Stop'
+$projectRoot = Split-Path -Parent $PSScriptRoot
 if (-not $BuildOnly -and [string]::IsNullOrWhiteSpace($Serial)) {
     throw 'Specify -Serial using adb devices, or use -BuildOnly to build without installing.'
 }
@@ -32,7 +33,7 @@ if ($Mode -eq 'Local') {
     }
     if (-not $BuildOnly -and $ExpectedIdentity -notmatch '^[0-9a-f]{64}$') { throw 'Use fyp-install.ps1 -Mode Local to supply the verified Local backend identity.' }
 }
-$frontend = Join-Path $PSScriptRoot 'frontend'
+$frontend = Join-Path $projectRoot 'frontend'
 $properties = Get-Content -LiteralPath (Join-Path $frontend 'android\local.properties')
 function PropertyPath([string]$name) {
     $line = $properties | Where-Object { $_.StartsWith($name + '=') } | Select-Object -First 1
@@ -77,8 +78,8 @@ try {
     if (-not $BuildOnly) {
         # Public certificates only, from the operator's existing private identity pin.
         # Provisioning is never called here. A missing profile keeps explicit legacy mode.
-        $python = Join-Path $PSScriptRoot 'backend\venv\Scripts\python.exe'
-        $trust = & $python (Join-Path $PSScriptRoot 'backend\lan_discovery.py') export --mode $Mode --expected-identity $ready.identity
+        $python = Join-Path $projectRoot 'backend\venv\Scripts\python.exe'
+        $trust = & $python (Join-Path $projectRoot 'backend\lan_discovery.py') export --mode $Mode --expected-identity $ready.identity
         if ($LASTEXITCODE -ne 0) { throw 'LAN discovery trust validation failed; no fallback or installation.' }
         if ($trust) {
             $trustB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($trust -join "`n")))

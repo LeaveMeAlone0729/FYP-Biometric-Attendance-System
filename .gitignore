@@ -2,9 +2,13 @@
 .work/
 /outputs/
 /backups/
-/docs/ORIGINAL_FYP_COMPLETION_20261109.md
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
 .vscode/
 
 # Backend secrets and generated files
@@ -73,6 +77,7 @@ frontend/ios/Runner/GeneratedPluginRegistrant.m
 **/.kotlin/
 **/.cloudflared/
 frontend/android/.gradle/
+frontend/android/.kotlin/
 frontend/linux/flutter/generated_plugin_registrant.*
 frontend/linux/flutter/generated_plugins.cmake
 frontend/macos/Flutter/GeneratedPluginRegistrant.swift

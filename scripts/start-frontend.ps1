@@ -1,6 +1,7 @@
 param([string]$DeviceId = '', [string]$ApiBaseUrl = 'http://127.0.0.1:8000')
 $ErrorActionPreference = 'Stop'
-Set-Location -LiteralPath (Join-Path $PSScriptRoot 'frontend')
+$projectRoot = Split-Path -Parent $PSScriptRoot
+Set-Location -LiteralPath (Join-Path $projectRoot 'frontend')
 
 # Forward the API through the connected Android debugging transport (USB or Wi-Fi).
 $apiUri = [uri]$ApiBaseUrl

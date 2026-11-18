@@ -23,9 +23,9 @@ import test_workflow as workflow
 
 class PassiveEvidenceTests(unittest.TestCase):
     def test_both_models_and_ensemble_must_pass(self):
-        self.assertEqual(validate_scores([0.8, 0.8]), [0.8, 0.8])
-        self.assertEqual(validate_scores([0.65, 0.95]), [0.65, 0.95])
-        for scores in ([0.64, 1.0], [1.0, 0.64], [0.79, 0.8]):
+        self.assertEqual(validate_scores([0.95, 0.95]), [0.95, 0.95])
+        self.assertEqual(validate_scores([0.9, 1.0]), [0.9, 1.0])
+        for scores in ([0.64, 1.0], [1.0, 0.64], [0.79, 0.8], [0.8, 0.8], [0.65, 0.95], [0.94, 0.95], [0.89, 1.0]):
             with self.subTest(scores=scores), self.assertRaises(BiometricError):
                 validate_scores(scores)
         for scores in (None, [], [1], [1, 1, 1], [float('nan'), 1], [float('inf'), 1], [-0.1, 1], [1.1, 1], ['1', 1], [True, 1]):
@@ -37,7 +37,7 @@ class PassiveEvidenceTests(unittest.TestCase):
         self.assertEqual(state['frames'], [])
         self.assertEqual(read_state(json.dumps(state)), state)
         for index in range(3):
-            state['frames'].append({'hash': f'{index:064x}', 'scores': [0.9, 0.9]})
+            state['frames'].append({'hash': f'{index:064x}', 'scores': [0.99, 0.99]})
         self.assertEqual(read_state(json.dumps(state)), state)
         bad_states = []
         for location in ('face', 'hand'):
@@ -51,7 +51,7 @@ class PassiveEvidenceTests(unittest.TestCase):
         bad['frames'][1]['hash'] = bad['frames'][0]['hash']
         bad_states.append(bad)
         bad = copy.deepcopy(state)
-        bad['frames'].append({'hash': 'f' * 64, 'scores': [0.9, 0.9]})
+        bad['frames'].append({'hash': 'f' * 64, 'scores': [0.99, 0.99]})
         bad_states.append(bad)
         bad = copy.deepcopy(state)
         bad['frames'][0]['hash'] = 'client-claimed-pass'

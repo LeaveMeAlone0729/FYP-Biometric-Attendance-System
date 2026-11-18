@@ -17,7 +17,7 @@ from sqlalchemy import select
 from .constants import MAX_IMAGE_BYTES, MAX_LIVENESS_FRAMES, REQUIRED_LIVENESS_FRAMES
 from .inference import BiometricError
 from .presentation import validate_scores
-from .head_movement import MESSAGES, HOLD_FRAMES
+from .head_movement import MESSAGES, HOLD_FRAMES, blink_needs_identity
 from .templates import decrypt_encoding, encrypt_encoding
 
 
@@ -31,6 +31,13 @@ class BiometricService:
     def face_evidence(self, image):
         try:
             return validate_scores(self.context.bio.face_evidence(image)["real_scores"])
+        except (RuntimeError, ImportError, KeyError, TypeError) as exc:
+            raise HTTPException(503, "Face anti-spoof verification is unavailable. Check the backend models before retrying.") from exc
+
+    def face_observation(self, image, *, guided=False):
+        try:
+            encoding, evidence = self.context.bio.face_observation(image, guided=guided)
+            return encoding, validate_scores(evidence["real_scores"])
         except (RuntimeError, ImportError, KeyError, TypeError) as exc:
             raise HTTPException(503, "Face anti-spoof verification is unavailable. Check the backend models before retrying.") from exc
 
@@ -68,6 +75,12 @@ class BiometricService:
 
     def head_progress(self, state, *, ready=False, message=None):
         action = state["actions"][state["step"]]
+        if message is None and action == "blink":
+            message = {
+                "open": "Look at the camera with both eyes open to start the blink.",
+                "blink": "Eyes open detected. Blink once normally, then open both eyes.",
+                "reopen": "Blink detected. Open both eyes and look at the camera.",
+            }[state["blink_phase"]]
         return {
             "success": True, "ready": ready, "complete": False,
             "stage": "face", "liveness_step": "head", "head_action": action,
@@ -75,6 +88,30 @@ class BiometricService:
             "held_frames": state["held"], "required_hold_frames": HOLD_FRAMES,
             "message": message or MESSAGES[action],
         }
+
+    def head_pose(self, image):
+        try:
+            return self.context.bio.head_pose(image)
+        except BiometricError:
+            raise
+        except (RuntimeError, ImportError, OSError, ValueError, AttributeError) as exc:
+            raise HTTPException(503, "Facial challenge verification is unavailable. Check the backend face model before retrying.") from exc
+
+    def advance_head_frame(self, student, db, challenge, session, hashes, image, pose, processing_started_at):
+        self.check_deadline(student, db, challenge, session)
+        if len(hashes) >= MAX_LIVENESS_FRAMES:
+            self.context.reject(db, student.student_id, "face", "Too many head movement frames. Start again.", session.session_id, 429, challenge)
+        digest = hashlib.sha256(image.tobytes()).hexdigest()
+        replayed = digest in hashes
+        if not replayed:
+            hashes.append(digest)
+            challenge.frame_hashes = json.dumps(hashes)
+        state = self.context.runtime_head.advance(challenge, None if replayed else pose,
+                                                 processing_started_at=processing_started_at)
+        if state is None:
+            raise HTTPException(409, "Head movement progress was reset. Enter the attendance PIN again.")
+        challenge.valid_frames = state["progress"]
+        return state, replayed
 
     def register_face(
         self, student, db, file, consent, *, auto_capture=False, preview_only=False, auth=None
@@ -147,7 +184,9 @@ class BiometricService:
         *,
         auto_capture=False,
         preview_only=False,
+        blink_burst=False,
     ):
+        processing_started_at = self.context.now()
         challenge, session = self.context.get_challenge(
             challenge_id, "face", db, student, auth
         )
@@ -156,14 +195,24 @@ class BiometricService:
         if ((head is None and (hashes or challenge.valid_frames))
                 or (head is not None and head["progress"] != challenge.valid_frames)):
             raise HTTPException(409, "Head movement progress was reset. Enter the attendance PIN again.")
+        pose = None
         try:
             image = self.read_image(file)
-            encoding = (
-                self.context.bio.guided_face(image)
-                if auto_capture and head is None
-                else self.context.bio.face(image)
+            if (blink_burst and head is not None
+                    and head['step'] < len(head['actions'])
+                    and head['actions'][head['step']] == 'blink'):
+                pose = self.head_pose(image)
+                if not blink_needs_identity(head, pose):
+                    state, replayed = self.advance_head_frame(
+                        student, db, challenge, session, hashes, image, pose, processing_started_at)
+                    # Ignored observations may only wait or reduce progress.
+                    if state['step'] != head['step'] or state['held'] > head['held']:
+                        raise HTTPException(503, "Blink evidence could not be verified. Start again.")
+                    return self.head_progress(state,
+                        message="Use fresh camera frames for the head movement check." if replayed else None)
+            encoding, face_scores = self.face_observation(
+                image, guided=auto_capture and head is None
             )
-            face_scores = self.face_evidence(image)
         except BiometricError as exc:
             if auto_capture:
                 if (
@@ -242,7 +291,8 @@ class BiometricService:
                 "message": "Face matched. Hold still for automatic capture.",
             }
         try:
-            pose = self.context.bio.head_pose(image)
+            if pose is None:
+                pose = self.head_pose(image)
         except BiometricError as exc:
             self.check_deadline(student, db, challenge, session)
             if head is None:
@@ -252,24 +302,13 @@ class BiometricService:
                 raise HTTPException(409, "Head movement progress was reset. Enter the attendance PIN again.")
             challenge.valid_frames = state["progress"]
             return self.head_progress(state, message=str(exc))
-        except (RuntimeError, ImportError, OSError, ValueError, AttributeError) as exc:
-            raise HTTPException(503, "Facial challenge verification is unavailable. Check the backend face model before retrying.") from exc
         self.check_deadline(student, db, challenge, session)
         if head is None:
             head = self.context.runtime_head.start(challenge)
         if head is None:
             raise HTTPException(409, "Head movement progress was reset. Enter the attendance PIN again.")
-        if len(hashes) >= MAX_LIVENESS_FRAMES:
-            self.context.reject(db, student.student_id, "face", "Too many head movement frames. Start again.", session.session_id, 429, challenge)
-        digest = hashlib.sha256(image.tobytes()).hexdigest()
-        replayed = digest in hashes
-        if not replayed:
-            hashes.append(digest)
-            challenge.frame_hashes = json.dumps(hashes)
-        state = self.context.runtime_head.advance(challenge, None if replayed else pose)
-        if state is None:
-            raise HTTPException(409, "Head movement progress was reset. Enter the attendance PIN again.")
-        challenge.valid_frames = state["progress"]
+        state, replayed = self.advance_head_frame(
+            student, db, challenge, session, hashes, image, pose, processing_started_at)
         if state["step"] < len(state["actions"]):
             return self.head_progress(state, ready=not replayed and state["held"] > 0,
                                       message="Use fresh camera frames for the head movement check." if replayed else None)

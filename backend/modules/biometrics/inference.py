@@ -115,6 +115,23 @@ class Biometrics:
         import face_recognition
 
         locations = face_recognition.face_locations(image, model="hog")
+        return self._encode_face(image, locations, guided=guided)
+
+    def face_observation(self, image, *, guided=False):
+        """Share this frame's detection between identity and presentation checks.
+
+        The locations stay local to the call: concurrent requests and subsequent
+        frames must always run their own detection and anti-spoof inference.
+        """
+        import face_recognition
+
+        locations = face_recognition.face_locations(image, model="hog")
+        encoding = self._encode_face(image, locations, guided=guided)
+        return encoding, self._presentation_evidence(image, locations)
+
+    def _encode_face(self, image, locations, *, guided=False):
+        import face_recognition
+
         if len(locations) != 1:
             raise BiometricError("Keep exactly one face visible in the camera frame.")
         top, right, bottom, left = locations[0]
@@ -223,9 +240,13 @@ class Biometrics:
 
     def face_evidence(self, image):
         import face_recognition
-        from .presentation import PresentationChecker
 
         locations = face_recognition.face_locations(image, model="hog")
+        return self._presentation_evidence(image, locations)
+
+    def _presentation_evidence(self, image, locations):
+        from .presentation import PresentationChecker
+
         if len(locations) != 1:
             raise BiometricError("Keep exactly one clear face visible.")
         with self._lock:
