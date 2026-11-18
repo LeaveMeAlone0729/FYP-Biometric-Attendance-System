@@ -7,6 +7,7 @@ from models import Course,ClassSchedule,ClassSession,StudentGroup,Attendance
 from manage import create_class_session
 from security import digest
 from manual_android_test import require,DB_PORT
+from services.staff_attendance import PRESENT_STATUSES
 
 
 def require_backend_ready(env):
@@ -26,14 +27,15 @@ def describe(db,session,now,timezone):
     schedule=db.get(ClassSchedule,session.schedule_id);course=db.get(Course,schedule.course_code)
     begin=datetime.combine(session.session_date,session.start_time)
     end=datetime.combine(session.session_date,session.end_time)
-    state=('CLOSED' if session.status!='active' else 'EXPIRED' if now>end
+    state=('CLOSED' if session.status!='active' else 'EXPIRED' if now>=end
         else 'SCHEDULED' if now<begin else 'OPEN')
     if state=='OPEN' and not schedule.start_date<=now.date()<=schedule.end_date:state='OUTSIDE_SCHEDULE'
     return dict(session_id=session.session_id,schedule_id=schedule.schedule_id,class_code=course.course_code,
         class_name=course.course_name,group_id=schedule.group_id,status=session.status,window_state=state,
         starts_at=begin.replace(tzinfo=ZoneInfo(timezone)).isoformat(),
         expires_at=end.replace(tzinfo=ZoneInfo(timezone)).isoformat(),
-        attendance_count=db.scalar(select(func.count()).select_from(Attendance).where(Attendance.session_id==session.session_id)))
+        attendance_count=db.scalar(select(func.count()).select_from(Attendance).where(Attendance.session_id==session.session_id,
+            Attendance.status.in_(PRESENT_STATUSES))))
 
 
 def list_sessions(db,*,now,timezone,course_code=None,include_all=False):

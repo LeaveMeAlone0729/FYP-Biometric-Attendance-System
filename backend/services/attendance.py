@@ -1,4 +1,7 @@
-"""The single runtime attendance writer; all three authorizations are mandatory."""
+"""Biometric attendance writer; all three student authorizations are mandatory.
+
+Explicit staff decisions use services.staff_attendance and a separate audit stage.
+"""
 from config import iso_time
 from models import Attendance,VerificationAttempt
 from sqlalchemy.exc import IntegrityError

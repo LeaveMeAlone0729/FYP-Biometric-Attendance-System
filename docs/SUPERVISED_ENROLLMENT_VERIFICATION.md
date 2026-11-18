@@ -113,7 +113,7 @@ The operator command records a current, authenticated `LOCAL_FYP_DEMO`
 evidence reference and audit event. The revision retains `UNVERIFIED`
 institutional assurance. It binds to the exact enrolled template and tablet
 key. The demo profile accepts this evidence only for DEMO001 Slot 2 enrollment.
-The resulting registration carries a `[LOCAL FYP DEMO]` label. Its key is
-accepted only while the original backend runs with that demo profile and
+The resulting registration keeps the device name entered by the user. Its key
+is accepted only while the original backend runs with that demo profile and
 credential. PIN, network, face, liveness and attendance device signatures
 continue through the normal checks.

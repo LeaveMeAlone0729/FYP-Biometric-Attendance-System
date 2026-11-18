@@ -1,6 +1,7 @@
 """Application composition; feature logic lives in routers and services."""
 
 from contextlib import asynccontextmanager
+import asyncio
 
 from api import API_VERSION
 from api.accounts import router as accounts_router
@@ -23,7 +24,7 @@ from modules.biometrics.router import router as biometrics_router
 
 
 def create_app(settings=None, engine=None, biometrics=None, clock=None, startup_validator=None,
-               classroom_features=False):
+               classroom_features=False, attendance_deadlines=False):
     settings = settings or Settings()
     engine = engine or make_engine(settings)
     context = AppContext(
@@ -32,16 +33,27 @@ def create_app(settings=None, engine=None, biometrics=None, clock=None, startup_
         biometrics or Biometrics(),
         clock or (lambda: local_now(settings)),
     )
+    context.automatic_absences = attendance_deadlines
 
     @asynccontextmanager
     async def lifespan(app):
+        worker = None
+        stop = asyncio.Event()
         try:
             if not settings.biometric_key:
                 raise RuntimeError("BIOMETRIC_KEY is missing. Run python setup.py first.")
             if startup_validator is not None:
                 startup_validator(engine, settings)
+            if attendance_deadlines:
+                from services.attendance_timing import finalize_due_attendance, run_absence_worker
+                with context.sessions() as db, db.begin():
+                    finalize_due_attendance(db, now=context.now())
+                worker = asyncio.create_task(run_absence_worker(context, stop))
             yield
         finally:
+            if worker is not None:
+                stop.set()
+                await worker
             context.runtime_liveness.clear()
             context.runtime_head.clear()
             context.bio.close()
