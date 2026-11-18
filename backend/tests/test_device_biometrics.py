@@ -42,7 +42,7 @@ class DeviceBiometricTests(unittest.TestCase):
     def tearDown(self):self.p.tearDown()
 
     def create(self,headers=None,pending=None):
-        return self.f.client.post(PREFIX,headers=headers or self.f.headers,json={'pending_registration_id':pending or self.pending['pending_registration_id']})
+        return self.f.client.post(PREFIX,headers=headers or self.f.headers,json={'pending_registration_id':pending or self.pending['pending_registration_id'],'verification_mode':'DIRECT_FACE_PAD_V1'})
 
     def frame(self,identifier,image=b'neutral-face',stage='face',headers=None,extra=None):
         return self.f.client.post(PREFIX+'/'+identifier+'/'+stage,headers=headers or self.f.headers,
@@ -83,15 +83,15 @@ class DeviceBiometricTests(unittest.TestCase):
         self.assertEqual(self.frame(identifier,b'neutral-new').status_code,409)
         self.assertEqual(self.frame(identifier,extra={'PASS':'true'}).status_code,422)
 
-    def test_liveness_wrong_gesture_resets_then_can_recover(self):
+    def test_passive_quality_error_resets_then_can_recover(self):
         identifier,response=self.face()
         self.frame(identifier,b'live1','liveness/frame')
-        self.f.fixture.app.state.context.bio.gesture=0
-        wrong=self.frame(identifier,b'wrong-gesture','liveness/frame').json()
+        wrong=self.frame(identifier,b'no-face-adjust','liveness/frame').json()
         self.assertFalse(wrong['complete']);self.assertEqual(wrong['valid_frames'],0)
-        self.f.fixture.app.state.context.bio.gesture=response.json()['fingers']
+        self.assertIsNone(wrong['fingers'])
         for i in range(3):last=self.frame(identifier,('retry-'+str(i)).encode(),'liveness/frame')
         self.assertEqual(last.json()['stage'],'COMPLETED_UNTRUSTED')
+        self.assertTrue(last.json()['anti_spoof_verified'])
 
     def test_face_substitution_during_liveness_fails(self):
         identifier,_=self.face()
@@ -141,85 +141,58 @@ class DeviceBiometricTests(unittest.TestCase):
         with self.f.sessions.begin() as db:db.get(DeviceBiometricSession,identifier).public_key_fingerprint='f'*64
         self.assertEqual(self.frame(identifier).json()['code'],'BIOMETRIC_BINDING_MISMATCH')
 
-    def test_random_challenge_is_server_generated_and_begin_retry_is_idempotent(self):
+    def test_direct_protocol_is_server_owned_and_begin_retry_is_idempotent(self):
         first=self.create().json();second=self.create().json()
         self.assertEqual(first['approval_id'],second['approval_id']);self.assertEqual(first['expires_at'],second['expires_at'])
-        with patch('modules.devices.biometric_service.secrets.randbelow',return_value=4) as random:
+        with patch('modules.devices.biometric_service.secrets.randbelow') as random:
             face=self.frame(first['approval_id']).json()
-        random.assert_called_once_with(5);self.assertEqual(face['fingers'],5)
+        random.assert_not_called();self.assertIsNone(face['fingers'])
+        self.assertEqual(face['verification_mode'],'DIRECT_FACE_PAD_V1')
+        self.assertFalse(face['anti_spoof_verified'])
         self.assertEqual(self.f.client.post(PREFIX,headers=self.f.headers,json={'pending_registration_id':self.pending['pending_registration_id'],'trusted':True}).status_code,422)
 
-    def test_controlled_randomness_covers_all_five_fresh_challenges(self):
+    def test_five_fresh_direct_sessions_never_issue_gesture_challenges(self):
         identifiers=[]
-        with patch('modules.devices.biometric_service.secrets.randbelow',side_effect=range(5)) as random:
-            for expected in range(1,6):
-                created=self.create().json();identifier=created['approval_id']
-                identifiers.append(identifier)
+        with patch('modules.devices.biometric_service.secrets.randbelow') as random:
+            for index in range(5):
+                created=self.create().json();identifier=created['approval_id'];identifiers.append(identifier)
                 self.assertIsNone(created['fingers'])
                 matched=self.frame(identifier).json()
-                self.assertEqual(matched['fingers'],expected)
-                self.assertEqual(matched['stage'],'LIVENESS')
-                # End this isolated test session through a genuine wrong-face rejection.
-                denied=self.frame(identifier,b'other-face-'+str(expected).encode(),'liveness/frame')
+                self.assertIsNone(matched['fingers']);self.assertEqual(matched['stage'],'LIVENESS')
+                denied=self.frame(identifier,b'other-face-'+str(index).encode(),'liveness/frame')
                 self.assertEqual(denied.status_code,403)
-            self.assertEqual(random.call_args_list,[unittest.mock.call(5)]*5)
+            random.assert_not_called()
         self.assertEqual(len(set(identifiers)),5)
-        self.assertEqual(self.p.count(Attendance),0)
-        self.assertEqual(self.p.count(RegisteredDevice),1)
+        self.assertEqual(self.p.count(Attendance),0);self.assertEqual(self.p.count(RegisteredDevice),1)
 
-    def test_session_reuse_keeps_one_gesture_and_three_frames_do_not_reroll(self):
-        with patch('modules.devices.biometric_service.secrets.randbelow',side_effect=[2,2]) as random:
-            created=self.create().json();identifier=created['approval_id']
-            self.assertEqual(self.create().json()['approval_id'],identifier)
-            random.assert_not_called()
-            self.assertFalse(self.frame(identifier,b'no-face').json()['ready'])
-            random.assert_not_called()
-            face=self.frame(identifier).json()
-            self.assertEqual(face['fingers'],3)
-            self.f.fixture.app.state.context.bio.gesture=3
-            self.assertEqual(self.create().json()['approval_id'],identifier)
-            self.assertEqual(self.create().json()['fingers'],3)
-            self.assertEqual(self.f.client.get(PREFIX+'/'+identifier,headers=self.f.headers).json()['fingers'],3)
-            for count in (1,2,3):
-                live=self.frame(identifier,('fresh-'+str(count)).encode(),'liveness/frame').json()
-                self.assertEqual(live['fingers'],3)
-                self.assertEqual(live['valid_frames'],count)
-                self.assertEqual(live['complete'],count==3)
-                random.assert_called_once_with(5)
-            completed=self.create().json()
-            self.assertEqual(completed['approval_id'],identifier)
-            self.assertEqual(completed['expires_at'],created['expires_at'])
-            self.assertEqual(completed['stage'],'COMPLETED_UNTRUSTED')
-            random.assert_called_once_with(5)
-            self.f.fixture.now+=timedelta(seconds=91)
-            new=self.create().json()
-            self.assertNotEqual(new['approval_id'],identifier)
-            self.assertIsNone(new['fingers'])
-            new_face=self.frame(new['approval_id']).json()
-            # A genuinely fresh random draw is allowed to repeat the same value.
-            self.assertEqual(new_face['fingers'],3)
-            self.assertEqual(random.call_count,2)
-            self.assertEqual(self.frame(identifier,b'expired-frame','liveness/frame').status_code,410)
+    def test_direct_retry_preserves_nonce_expiry_and_never_reuses_old_frames(self):
+        created=self.create().json();identifier=created['approval_id']
+        self.assertEqual(self.create().json()['approval_id'],identifier)
+        self.assertFalse(self.frame(identifier,b'no-face').json()['ready'])
+        face=self.frame(identifier).json();self.assertIsNone(face['fingers'])
+        self.assertEqual(self.create().json()['approval_id'],identifier)
+        self.assertIsNone(self.f.client.get(PREFIX+'/'+identifier,headers=self.f.headers).json()['fingers'])
+        for count in (1,2,3):
+            live=self.frame(identifier,('fresh-'+str(count)).encode(),'liveness/frame').json()
+            self.assertIsNone(live['fingers']);self.assertEqual(live['valid_frames'],count)
+            self.assertEqual(live['complete'],count==3);self.assertEqual(live['anti_spoof_verified'],count==3)
+        completed=self.create().json();self.assertEqual(completed['approval_id'],identifier)
+        self.assertEqual(completed['expires_at'],created['expires_at']);self.assertEqual(completed['stage'],'COMPLETED_UNTRUSTED')
+        self.f.fixture.now+=timedelta(seconds=91)
+        new=self.create().json();self.assertNotEqual(new['approval_id'],identifier);self.assertIsNone(new['fingers'])
+        self.assertEqual(self.frame(identifier,b'expired-frame','liveness/frame').status_code,410)
         self.assertEqual(self.p.count(Attendance),0)
 
-    def test_wrong_gesture_resets_progress_without_generating_a_new_challenge(self):
-        with patch('modules.devices.biometric_service.secrets.randbelow',return_value=0) as random:
-            identifier,face=self.face()
-            self.assertEqual(face.json()['fingers'],1)
-            accepted=self.frame(identifier,b'first-live','liveness/frame').json()
-            self.assertEqual(accepted['valid_frames'],1)
-            self.f.fixture.app.state.context.bio.gesture=2
-            rejected=self.frame(identifier,b'wrong-gesture','liveness/frame').json()
-            self.assertEqual(rejected['valid_frames'],0)
-            self.assertEqual(rejected['fingers'],1)
-            self.assertFalse(rejected['complete'])
-            self.f.fixture.app.state.context.bio.gesture=1
+    def test_passive_spoof_rejection_resets_progress_and_never_calls_hand(self):
+        with patch.object(self.f.fixture.app.state.context.bio,'hand',side_effect=AssertionError('No hand inference in direct mode')) as hand:
+            identifier,face=self.face();self.assertIsNone(face.json()['fingers'])
+            accepted=self.frame(identifier,b'first-live','liveness/frame').json();self.assertEqual(accepted['valid_frames'],1)
+            rejected=self.frame(identifier,b'photo-spoof','liveness/frame').json()
+            self.assertEqual(rejected['valid_frames'],0);self.assertFalse(rejected['complete']);self.assertFalse(rejected['anti_spoof_verified'])
             for count in (1,2,3):
                 result=self.frame(identifier,('retry-live-'+str(count)).encode(),'liveness/frame').json()
-                self.assertEqual(result['valid_frames'],count)
-                self.assertEqual(result['fingers'],1)
-                self.assertEqual(result['complete'],count==3)
-            random.assert_called_once_with(5)
+                self.assertEqual(result['valid_frames'],count);self.assertIsNone(result['fingers']);self.assertEqual(result['complete'],count==3)
+            hand.assert_not_called()
         self.assertEqual(self.p.count(Attendance),0)
 
     def test_quality_error_and_rate_limits(self):
@@ -232,7 +205,7 @@ class DeviceBiometricTests(unittest.TestCase):
 
     def test_inference_unavailable_is_audited_and_never_passes(self):
         identifier,_=self.face()
-        with patch.object(self.f.fixture.app.state.context.bio,'hand',side_effect=RuntimeError('model missing')):
+        with patch.object(self.f.fixture.app.state.context.bio,'face_observation',side_effect=RuntimeError('model missing')):
             denied=self.frame(identifier,b'hand-inference-unavailable','liveness/frame')
         self.assertEqual(denied.status_code,503)
         self.assertEqual(denied.json()['code'],'BIOMETRIC_ENGINE_UNAVAILABLE')
@@ -278,7 +251,7 @@ class DeviceBiometricMariaDBTests(unittest.TestCase):
             harness.engine_override=engine;harness.password_hash=hash_password('test-password');harness.setUp()
             self.assertEqual(upgrade_biometric_schema(engine)['created_tables'],[])
             def begin(_):
-                with TestClient(harness.f.fixture.app) as client:return client.post(PREFIX,headers=harness.f.headers,json={'pending_registration_id':harness.pending['pending_registration_id']})
+                with TestClient(harness.f.fixture.app) as client:return client.post(PREFIX,headers=harness.f.headers,json={'pending_registration_id':harness.pending['pending_registration_id'],'verification_mode':'DIRECT_FACE_PAD_V1'})
             with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(begin,range(2)))
             self.assertEqual([r.status_code for r in results],[201,201])
             self.assertEqual(results[0].json()['approval_id'],results[1].json()['approval_id'])

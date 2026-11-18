@@ -79,7 +79,9 @@ class ApiClient {
   int _networkRevision = 0;
   int? _attendanceRevision;
   void networkChanged() {
-    lanDiscovery?.invalidate();
+    // Retain only the user-entered address hint. The old transport is closed;
+    // subnet membership, pinned TLS and environment identity are checked anew.
+    lanDiscovery?.invalidate(preserveManual: true);
     _networkRevision++;
     // Existing signing/scan clients abandon old work on sessionRevision change.
     // The bearer, student and authenticated state remain intact.

@@ -65,6 +65,8 @@ void main() {
       final state = DeviceActivationState.fromBiometricResult({
         'stage': 'COMPLETED_UNTRUSTED',
         'complete': true,
+        'verification_mode': 'DIRECT_FACE_PAD_V1',
+        'anti_spoof_verified': true,
         'face_verified': true,
         'liveness_verified': true,
         'operation': 'replace_device',
@@ -85,7 +87,7 @@ void main() {
         ),
       );
       expect(find.text('Face recognition: PASS'), findsOneWidget);
-      expect(find.text('Liveness detection: PASS'), findsOneWidget);
+      expect(find.text('Anti-spoofing: PASS'), findsOneWidget);
       expect(find.text('Device key verification: PASS'), findsOneWidget);
       expect(find.textContaining('old device remains ACTIVE'), findsOneWidget);
       expect(find.text('Registration status: NOT ACTIVE'), findsOneWidget);

@@ -31,11 +31,13 @@ Map<String, dynamic> result(String stage, {int valid = 0}) => {
   'operation': 'enroll_second_device',
   'slot_number': 2,
   'stage': stage,
+  'verification_mode': 'DIRECT_FACE_PAD_V1',
+  'anti_spoof_verified': stage == 'COMPLETED_UNTRUSTED',
   'face_verified': stage != 'FACE',
   'liveness_verified': stage == 'COMPLETED_UNTRUSTED',
   'complete': stage == 'COMPLETED_UNTRUSTED',
   'ready': stage != 'FACE',
-  'fingers': stage == 'FACE' ? null : 3,
+  'fingers': null,
   'valid_frames': valid,
   'required_frames': 3,
   'expires_in': 90,
@@ -52,7 +54,7 @@ Map<String, dynamic> result(String stage, {int valid = 0}) => {
       ? 'Biometric checks completed — checking device authorization'
       : stage == 'FACE'
       ? 'Center your face.'
-      : 'Show three fingers with your face visible.',
+      : 'Keep your face centered for anti-spoof verification.',
 };
 
 class BioActivationKeys extends DeviceKeyStore {
@@ -129,6 +131,7 @@ class BioFixture {
         begins++;
         expect(jsonDecode(request.body), {
           'pending_registration_id': 'pending-test',
+          'verification_mode': 'DIRECT_FACE_PAD_V1',
         });
         state = result('FACE');
         return jsonResponse(
@@ -302,9 +305,7 @@ Future<void> tick(WidgetTester tester, [int milliseconds = 1000]) async {
 
 Color guideColor(WidgetTester tester, {bool liveness = false}) {
   final guide = tester.widget<AnimatedContainer>(
-    find.byKey(
-      ValueKey(liveness ? 'device-liveness-guide' : 'device-face-guide'),
-    ),
+    find.byKey(const ValueKey('device-face-guide')),
   );
   return ((guide.decoration! as BoxDecoration).border! as Border).top.color;
 }
@@ -433,8 +434,9 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(guideColor(tester, liveness: true), const Color(0xFF35D596));
-    expect(find.text('FACE VERIFIED · SHOW YOUR GESTURE'), findsOneWidget);
-    expect(find.text('Show 3 fingers'), findsOneWidget);
+    expect(find.text('FACE MATCHED · HOLD STEADY'), findsOneWidget);
+    expect(find.text('Show 3 fingers'), findsNothing);
+    expect(find.byType(DeviceLivenessPanel), findsNothing);
   });
   testWidgets(
     'New liveness request clears earlier green while awaiting the server',
@@ -487,12 +489,12 @@ void main() {
           findsOneWidget,
         );
         final progress = tester.widget<LinearProgressIndicator>(
-          find.byKey(const ValueKey('device-liveness-progress')),
+          find.byKey(const ValueKey('device-passive-pad-progress')),
         );
         expect(progress.value, accepted / 3);
         if (accepted < 3) {
           expect(guideColor(tester, liveness: true), const Color(0xFF35D596));
-          expect(find.text('GESTURE ACCEPTED · HOLD STEADY'), findsOneWidget);
+          expect(find.text('FACE/PAD ACCEPTED · HOLD STEADY'), findsOneWidget);
         }
       }
       await tick(tester); // Third accepted frame ends scanning.
@@ -500,7 +502,7 @@ void main() {
       expect(find.byType(DeviceLivenessPanel), findsNothing);
       expect(find.byType(CameraPreview), findsNothing);
       expect(find.byType(LinearProgressIndicator), findsNothing);
-      expect(find.text('Liveness detection: PASS'), findsOneWidget);
+      expect(find.text('Anti-spoofing: PASS'), findsOneWidget);
       expect(find.textContaining('Slot 2 remains inactive'), findsOneWidget);
       expect(
         f.paths.every(
@@ -513,7 +515,7 @@ void main() {
     },
   );
   testWidgets(
-    'Incorrect gesture makes the guide red and resets accepted progress',
+    'Passive face adjustment makes the guide red and resets accepted progress',
     (tester) async {
       final f = BioFixture();
       await mountBio(tester, f);
@@ -522,10 +524,10 @@ void main() {
       await tick(tester);
       expect(find.text('1/3 consecutive checks accepted'), findsOneWidget);
       f.livenessFeedback =
-          'Show 3 fingers on one hand, palm toward the camera.';
+          'Keep your face centered for anti-spoof verification.';
       await tick(tester);
       expect(guideColor(tester, liveness: true), const Color(0xFFEF5350));
-      expect(find.text('ADJUST YOUR GESTURE'), findsOneWidget);
+      expect(find.text('ADJUST YOUR POSITION'), findsOneWidget);
       expect(find.text('0/3 consecutive checks accepted'), findsOneWidget);
       expect(find.text(f.livenessFeedback!), findsOneWidget);
     },
@@ -717,7 +719,7 @@ void main() {
       await tick(tester);
       expect(f.faces, 1);
       expect(f.reads, 1);
-      expect(find.text('Step 2: Liveness challenge'), findsOneWidget);
+      expect(find.text('Direct face verification'), findsOneWidget);
     },
   );
   testWidgets('No single face produces visible feedback above the camera', (
@@ -766,7 +768,7 @@ void main() {
       await start(tester);
       await tick(tester);
       expect(find.text('Face verified'), findsOneWidget);
-      expect(find.text('Step 2: Liveness challenge'), findsOneWidget);
+      expect(find.text('Direct face verification'), findsOneWidget);
       expect(f.faces, 1);
       expect(f.live, 0);
     },
@@ -902,7 +904,7 @@ void main() {
       expect(find.byType(DeviceBiometricCompletion), findsOneWidget);
       for (final text in [
         'Face recognition: PASS',
-        'Liveness detection: PASS',
+        'Anti-spoofing: PASS',
         'Device key verification: PASS',
         'Registration status: NOT ACTIVE',
         'Trusted biometric approval: NOT YET AVAILABLE',
@@ -1010,4 +1012,40 @@ void main() {
       }
     },
   );
+  test('Direct device adapter rejects a legacy scan protocol', () async {
+    final f = BioFixture();
+    await f.login();
+    await f.api.begin('pending-test');
+    f.state = {...result('FACE'), 'verification_mode': 'LEGACY_GESTURE'};
+    await expectLater(
+      f.api.status(),
+      throwsA(
+        isA<ApiException>().having(
+          (e) => e.code,
+          'code',
+          'DIRECT_FACE_SCAN_BACKEND_REQUIRED',
+        ),
+      ),
+    );
+  });
+
+  test('Completed face without backend PAD evidence cannot advance', () async {
+    final f = BioFixture();
+    await f.login();
+    await f.api.begin('pending-test');
+    f.state = {
+      ...result('COMPLETED_UNTRUSTED', valid: 3),
+      'anti_spoof_verified': false,
+    };
+    await expectLater(
+      f.api.status(),
+      throwsA(
+        isA<ApiException>().having(
+          (e) => e.code,
+          'code',
+          'INVALID_BIOMETRIC_RESPONSE',
+        ),
+      ),
+    );
+  });
 }

@@ -43,3 +43,4 @@ class CurrentPendingResponse(BaseModel):
 class DeviceApprovalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     pending_registration_id: str = Field(min_length=20, max_length=64)
+    verification_mode: Literal["DIRECT_FACE_PAD_V1"] | None = None

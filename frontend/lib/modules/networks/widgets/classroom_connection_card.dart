@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../services/api_client.dart';
+import '../../../services/lan_discovery.dart';
 
 /// Manual input supplies only an address hint; the installed TLS pin is mandatory.
 class ClassroomConnectionCard extends StatefulWidget {
-  const ClassroomConnectionCard({super.key});
+  const ClassroomConnectionCard({super.key, this.onConnected});
+  final VoidCallback? onConnected;
   @override
   State<ClassroomConnectionCard> createState() =>
       _ClassroomConnectionCardState();
@@ -30,12 +32,16 @@ class _ClassroomConnectionCardState extends State<ClassroomConnectionCard> {
           () => _message =
               'Paired classroom server connected: ${discovery.address}',
         );
+        widget.onConnected?.call();
       }
-    } catch (_) {
+    } catch (error) {
+      final code = error is LanDiscoveryException
+          ? error.code
+          : discovery.lastError ?? 'LAN_DISCOVERY_UNAVAILABLE';
       if (mounted) {
         setState(
           () => _message =
-              'Cannot verify the paired classroom server. Check Wi-Fi and the server address. A different server requires explicit re-pairing.',
+              'Cannot verify the paired classroom server ($code). Check Wi-Fi and the server address. A different server requires explicit re-pairing.',
         );
       }
     } finally {

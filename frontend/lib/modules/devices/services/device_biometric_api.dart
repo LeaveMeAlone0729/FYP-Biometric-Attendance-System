@@ -36,7 +36,17 @@ class DeviceBiometricApi {
       'FAILED',
       'EXPIRED',
     };
-    if (result['pending_registration_id'] != _pending ||
+    if (result['verification_mode'] != 'DIRECT_FACE_PAD_V1') {
+      throw const ApiException(
+        'This backend does not support direct device face/PAD scanning. Ask the operator to update and restart the device backend.',
+        409,
+        'DIRECT_FACE_SCAN_BACKEND_REQUIRED',
+      );
+    }
+    if (result['anti_spoof_verified'] !=
+            (result['stage'] == 'COMPLETED_UNTRUSTED') ||
+        result['fingers'] != null ||
+        result['pending_registration_id'] != _pending ||
         result['operation'] != operation ||
         result['slot_number'] != slotNumber ||
         result['result_classification'] != 'UNTRUSTED_TEST_RESULT' ||
@@ -75,6 +85,7 @@ class DeviceBiometricApi {
     final raw = await _client
         .post('/api/v1/device-approvals', {
           'pending_registration_id': pendingId,
+          'verification_mode': 'DIRECT_FACE_PAD_V1',
         })
         .timeout(
           const Duration(seconds: 15),

@@ -4,6 +4,8 @@ import 'package:frontend/modules/devices/services/device_activation_state.dart';
 Map<String, dynamic> complete() => {
   'stage': 'COMPLETED_UNTRUSTED',
   'complete': true,
+  'verification_mode': 'DIRECT_FACE_PAD_V1',
+  'anti_spoof_verified': true,
   'face_verified': true,
   'liveness_verified': true,
   'operation': 'enroll_second_device',
@@ -52,6 +54,8 @@ void main() {
       {'activation_eligible': true},
       {'stage': 'ACTIVE'},
       {'face_verified': false},
+      {'anti_spoof_verified': false},
+      {'verification_mode': 'legacy'},
       {'liveness_verified': false},
       {'slot_number': 1},
     ]) {

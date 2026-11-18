@@ -15,7 +15,8 @@ void main() {
   late LanTrust trust;
   setUpAll(() async {
     fixture = await Directory.systemTemp.createTemp('fyp-lan-test-');
-    final python = Platform.environment['FYP_TEST_PYTHON'] ??
+    final python =
+        Platform.environment['FYP_TEST_PYTHON'] ??
         (Platform.isWindows
             ? '../backend/venv/Scripts/python.exe'
             : '../backend/venv/bin/python');
@@ -258,6 +259,96 @@ void main() {
       api.dispose();
     },
   );
+  for (final local in [false, true]) {
+    test(
+      '${local ? "Local" : "Full"}: manual recovery survives network events but never trusts cached transport',
+      () async {
+        final t = local
+            ? LanTrust.fromMap({
+                ...publicTrust,
+                'mode': 'Local',
+              }, localMode: true)
+            : trust;
+        var wifi = true, subnet = '192.168.1.2', validIdentity = true;
+        var probes = 0, deviceCalls = 0, fallbackCalls = 0;
+        final d = SecureLanDiscovery(
+          t,
+          discover: () async => {
+            'wifi': wifi,
+            'subnets': [
+              {'address': subnet, 'prefix': 24},
+            ],
+            'candidates': [], // Multicast is blocked on this network.
+          },
+          transport: (_) => MockClient((r) async {
+            expect(r.url.origin, t.origin);
+            if (r.url.path == '/classroom-discovery/identity') {
+              probes++;
+              expect(r.headers.containsKey('Authorization'), false);
+              return http.Response(
+                jsonEncode(validIdentity ? identity(t) : {}),
+                200,
+              );
+            }
+            deviceCalls++;
+            return http.Response('{}', 200);
+          }),
+        );
+        final api = ApiClient(
+          url: 'http://192.168.1.9:8000',
+          publicUrl: local
+              ? 'http://192.168.1.9:8000'
+              : 'https://fyp.test.example',
+          localMode: local,
+          discovery: d,
+          client: MockClient((_) async {
+            fallbackCalls++;
+            throw StateError('No HTTP/public device fallback');
+          }),
+        );
+        d.manualAddress('192.168.1.8');
+        await api.get('/api/v1/devices');
+        api.networkChanged(); // Android emits a fresh connectivity callback.
+        expect(
+          d.address,
+          null,
+        ); // A previous authenticated socket is never reused.
+        await api.get('/api/v1/devices');
+        expect(probes, 2);
+        expect(deviceCalls, 2);
+        wifi = false;
+        api.networkChanged();
+        await expectLater(
+          api.get('/api/v1/devices'),
+          throwsA(isA<ApiException>()),
+        );
+        expect(probes, 2);
+        wifi = true;
+        subnet = '10.46.58.11';
+        api.networkChanged();
+        await expectLater(
+          api.get('/api/v1/devices'),
+          throwsA(isA<ApiException>()),
+        );
+        expect(probes, 2); // Old hint is outside the new Wi-Fi subnet.
+        subnet = '192.168.1.2';
+        validIdentity = false;
+        api.networkChanged();
+        await expectLater(
+          api.get('/api/v1/devices'),
+          throwsA(isA<ApiException>()),
+        );
+        expect(probes, 3);
+        expect(
+          deviceCalls,
+          2,
+        ); // No credentials/operation sent to wrong identity.
+        expect(fallbackCalls, 0);
+        api.dispose();
+      },
+    );
+  }
+
   test('Full trust cannot be reused by Local installation', () {
     expect(
       () => LanTrust.fromMap(publicTrust, localMode: true),

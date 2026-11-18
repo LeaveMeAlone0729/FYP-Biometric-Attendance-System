@@ -10,6 +10,7 @@ from config import iso_time
 from modules.biometrics.constants import MAX_IMAGE_BYTES, MAX_LIVENESS_FRAMES, REQUIRED_LIVENESS_FRAMES
 from modules.biometrics.inference import BiometricError
 from modules.biometrics.templates import decrypt_encoding
+from modules.biometrics.presentation import validate_scores
 from .biometric_diagnostics import trace,adjustment_code
 from .biometric_models import DeviceBiometricSession, DeviceBiometricEvent
 from .pending_models import PendingDeviceRegistration
@@ -60,11 +61,28 @@ class DeviceBiometricService(PendingEnrollmentService):
             self.fail(db,student,409,"DEVICE_STATE_CHANGED","The initial device registration changed.")
         return pending
 
+    def require_direct_scan(self,db,student,session):
+        marker=db.scalar(select(DeviceBiometricEvent.event_id).where(
+            DeviceBiometricEvent.approval_id==session.approval_id,
+            DeviceBiometricEvent.student_id==student.student_id,
+            DeviceBiometricEvent.code=="DIRECT_FACE_PAD_SESSION_CREATED"))
+        if marker is None:
+            self.fail(db,student,409,"BIOMETRIC_PROTOCOL_CHANGED",
+                "This scan used the previous device protocol. Cancel the pending request and start a fresh direct face scan.")
+
+    def face_observation(self,image):
+        # Reuse the SAME partner inference and PAD evaluator as attendance.
+        # No client result, head action, gesture or hand detector is consulted.
+        encoding,evidence=self.context.bio.face_observation(image,guided=True)
+        validate_scores(evidence["real_scores"])
+        return encoding
+
     def result(self,session,message=None,ready=False,feedback_code=None):
         return dict(success=True,approval_id=session.approval_id,pending_registration_id=session.pending_registration_id,
             candidate_device_id=session.candidate_device_id,public_key_fingerprint=session.public_key_fingerprint,
             operation=session.operation,slot_number=session.slot_number,stage=session.stage,ready=ready,
             feedback_code=feedback_code or ("FACE_VERIFIED" if session.stage=="LIVENESS" else session.stage),
+            verification_mode="DIRECT_FACE_PAD_V1",anti_spoof_verified=session.stage=="COMPLETED_UNTRUSTED",
             face_verified=session.stage in ("LIVENESS","COMPLETED_UNTRUSTED"),
             liveness_verified=session.stage=="COMPLETED_UNTRUSTED",complete=session.stage=="COMPLETED_UNTRUSTED",
             fingers=session.fingers,valid_frames=session.valid_frames,required_frames=REQUIRED_LIVENESS_FRAMES,
@@ -74,7 +92,7 @@ class DeviceBiometricService(PendingEnrollmentService):
             consumable=False,activation_enabled=False,message=message or (
                 "Biometric checks completed — checking device authorization" if session.stage=="COMPLETED_UNTRUSTED"
                 else "Center your face in the camera." if session.stage=="FACE" else
-                f"Show {session.fingers} finger(s) on one hand, palm toward the camera; keep your face visible."))
+                "Keep your face centered while fresh anti-spoof checks complete."))
 
     def create(self,db,student,auth,identifier):
         student=self.lock_identity(db,student,auth,"device_biometrics")
@@ -94,6 +112,7 @@ class DeviceBiometricService(PendingEnrollmentService):
                     self.fail(db,student,403,"BIOMETRIC_BINDING_MISMATCH","Biometric test binding changed.",old)
                 if old.template_binding!=binding:
                     self.fail(db,student,409,"TEMPLATE_CHANGED","The template changed. Start a new pending request.",old)
+                self.require_direct_scan(db,student,old)
                 return self.result(old)
         db.flush()
         recent=db.scalar(select(func.count()).select_from(DeviceBiometricSession).where(
@@ -106,7 +125,7 @@ class DeviceBiometricService(PendingEnrollmentService):
             created_at=now,expires_at=min(now+timedelta(seconds=self.context.settings.challenge_seconds),now+timedelta(seconds=90),pending.expires_at,auth.expires_at))
         db.add(session);db.flush()
         capture_enrollment(db,student,session,pending,now)
-        self.bio_event(db,student,"create","ISSUED","UNTRUSTED_BIOMETRIC_SESSION_CREATED",session)
+        self.bio_event(db,student,"create","ISSUED","DIRECT_FACE_PAD_SESSION_CREATED",session)
         return self.result(session)
 
     def load(self,db,student,auth,identifier,stage=None):
@@ -121,6 +140,7 @@ class DeviceBiometricService(PendingEnrollmentService):
                 or session.slot_number!=pending.slot_number or session.operation!=pending.operation):
             self.fail(db,student,403,"BIOMETRIC_BINDING_MISMATCH","Biometric test does not match this candidate.",session)
         self.template(db,student,session)
+        self.require_direct_scan(db,student,session)
         if stage and session.stage!=stage:
             self.fail(db,student,409,"BIOMETRIC_STAGE_INVALID","This biometric stage has ended or has not started.")
         return student,session,pending
@@ -155,7 +175,7 @@ class DeviceBiometricService(PendingEnrollmentService):
         try:
             image=self.image(db,student,session,file)
             trace("face_detection_started")
-            encoding=self.context.bio.guided_face(image)
+            encoding=self.face_observation(image)
             trace("template_matching_started")
             _,reference=self.template(db,student,session)
             distance=self.context.bio.distance(encoding,reference)
@@ -164,13 +184,13 @@ class DeviceBiometricService(PendingEnrollmentService):
             self.after_inference(db,student,session,pending)
             self.bio_event(db,student,"face","FAIL","FACE_ADJUST",session)
             return self.result(session,str(exc),feedback_code=adjustment_code(exc))
-        except (RuntimeError,ImportError):
-            self.fail(db,student,503,"BIOMETRIC_ENGINE_UNAVAILABLE","Biometric inference is unavailable. Check backend dependencies and the hand model.",session)
+        except (RuntimeError,ImportError,AttributeError,KeyError,TypeError,ValueError):
+            self.fail(db,student,503,"BIOMETRIC_ENGINE_UNAVAILABLE","Face anti-spoof inference is unavailable. Check the existing backend face/PAD models.",session)
         self.after_inference(db,student,session,pending)
         if not math.isfinite(distance) or distance>=self.context.settings.face_threshold:
             self.fail(db,student,403,"FACE_NOT_MATCHED","Face not matched. Use your own enrolled face.",session)
         trace("face_verified")
-        session.stage="LIVENESS";session.fingers=secrets.randbelow(5)+1
+        session.stage="LIVENESS";session.fingers=None
         self.bio_event(db,student,"face","PASS","FACE_MATCHED_UNTRUSTED",session)
         return self.result(session,ready=True)
 
@@ -179,21 +199,21 @@ class DeviceBiometricService(PendingEnrollmentService):
         try:
             image=self.image(db,student,session,file)
             _,reference=self.template(db,student,session)
-            distance=self.context.bio.distance(self.context.bio.face(image),reference)
+            distance=self.context.bio.distance(self.face_observation(image),reference)
             if not math.isfinite(distance) or distance>=self.context.settings.face_threshold:
                 self.fail(db,student,403,"FACE_SUBSTITUTED","Your enrolled face must remain visible.",session)
-            count=self.context.bio.hand(image)
-            if count!=session.fingers:raise BiometricError(f"Show {session.fingers} finger(s) on one hand with your palm toward the camera.")
+
         except BiometricError as exc:
             trace("adjustment",code=adjustment_code(exc))
             self.after_inference(db,student,session,pending)
             session.valid_frames=0
             self.bio_event(db,student,"liveness","FAIL","LIVENESS_ADJUST",session)
             return self.result(session,str(exc),feedback_code=adjustment_code(exc))
-        except (RuntimeError,ImportError):
-            self.fail(db,student,503,"BIOMETRIC_ENGINE_UNAVAILABLE","Biometric inference is unavailable. Check backend dependencies and the hand model.",session)
+        except (RuntimeError,ImportError,AttributeError,KeyError,TypeError,ValueError):
+            self.fail(db,student,503,"BIOMETRIC_ENGINE_UNAVAILABLE","Face anti-spoof inference is unavailable. Check the existing backend face/PAD models.",session)
         self.after_inference(db,student,session,pending)
         session.valid_frames+=1
+        self.bio_event(db,student,"passive_face","PASS","DIRECT_FACE_PAD_FRAME_VERIFIED",session)
         if session.valid_frames==REQUIRED_LIVENESS_FRAMES:
             session.stage="COMPLETED_UNTRUSTED";session.completed_at=self.context.now()
             issue_device_authorization(db,student,session,pending,session.completed_at)
