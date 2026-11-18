@@ -3,11 +3,17 @@
 Records UNVERIFIED demo provenance, NOT a device grant. A new operation/scan
 afterward must obtain the ordinary short-lived single-use authorization.
 """
+import argparse
 import hashlib
+import json
+import os
+from pathlib import Path
 import re
 import secrets
+import subprocess
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from models import Student, AuthSession
 from modules.devices import local_demo
@@ -98,8 +104,62 @@ def record_account(db, student_id, scan_id, now):
     return revision.revision_id
 
 
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--student', required=True)
+    parser.add_argument('--scan', required=True)
+    parser.add_argument('--confirm', required=True)
+    parser.add_argument('--backup-dir', required=True, type=Path)
+    args = parser.parse_args(argv)
+    engine = None
+    try:
+        require(args.confirm == 'LOCAL-FYP-UNVERIFIED', 'Explicit UNVERIFIED local-test attestation required.')
+        import original_fyp
+        import httpx
+        from config import local_now
+        from reset_demo_slot2 import packed
+        settings = original_fyp.settings()
+        require(settings.demo_mode and local_demo.account_profile(original_fyp.PRIVATE), 'Local test profile is OFF.')
+        pinned = original_fyp.probe()
+        key = (original_fyp.PRIVATE / 'local-demo-slot2.key').read_bytes()
+        require(len(key) == 32, 'Private operator credential invalid.')
+        with httpx.Client(timeout=4, trust_env=False) as client:
+            status = client.get('http://127.0.0.1:8000/local-fyp/demo-slot2')
+            require(status.status_code == 200 and status.json().get('device_management_enabled') is True
+                    and status.json().get('credential_sha256') == hashlib.sha256(key).hexdigest(),
+                    'Matching live local account profile is required.')
+        require(args.backup_dir.is_absolute() and not args.backup_dir.exists(), 'New private backup directory required.')
+        args.backup_dir.mkdir(parents=False)
+        owner = subprocess.check_output(['whoami'], text=True).strip()
+        subprocess.run(['icacls', str(args.backup_dir), '/inheritance:r', '/grant:r',
+                        owner + ':(OI)(CI)F', 'SYSTEM:(OI)(CI)F'], capture_output=True, check=True, timeout=10)
+        engine = original_fyp.bounded_engine(settings)
+        info = {local_demo.CREDENTIAL: key, local_demo.ACCOUNT_POLICY: True}
+        with Session(engine, info=info) as db, db.begin():
+            require(original_fyp.identity(db.connection(), settings) == pinned, 'Original database identity changed.')
+            # Same student lock as normal device operations; snapshot before any revision write.
+            student = db.scalar(select(Student).where(Student.student_id == args.student).with_for_update())
+            require(student is not None, 'Student not found.')
+            rows = db.scalars(select(EnrollmentRevision).where(EnrollmentRevision.student_id == args.student)).all()
+            backup = packed({'purpose': 'EXPLICIT_LOCAL_ACCOUNT_SETUP', 'student': args.student,
+                'scan': args.scan, 'revisions': [{c.name: getattr(row, c.name) for c in EnrollmentRevision.__table__.columns} for row in rows]})
+            with (args.backup_dir / 'prior-revisions.json').open('xb') as stream:
+                stream.write(backup); stream.flush(); os.fsync(stream.fileno())
+            digest = hashlib.sha256(backup).hexdigest()
+            require(hashlib.sha256((args.backup_dir / 'prior-revisions.json').read_bytes()).hexdigest() == digest, 'Backup verification failed.')
+            (args.backup_dir / 'manifest.json').write_text(json.dumps({'sha256': digest, 'bytes': len(backup)}))
+            revision = record_account(db, args.student, args.scan, local_now(settings))
+        print(json.dumps({'result': 'LOCAL_FYP_ACCOUNT_RECORDED_UNVERIFIED', 'student': args.student,
+                          'revision': revision, 'backup': str(args.backup_dir), 'device_activated': False,
+                          'next': 'Cancel the setup request; prepare a NEW request and genuine scan for device authorization.'}))
+        return 0
+    except Exception as error:
+        print(json.dumps({'result': 'ACCOUNT_SETUP_NOT_COMPLETED', 'reason': str(error) if isinstance(error, AccountVerificationRejected) else type(error).__name__, 'no_automatic_retry': True}))
+        return 1
+    finally:
+        if engine is not None:
+            engine.dispose()
+
 
 if __name__ == '__main__':
-    import sys
-    from local_enrollment import main
-    raise SystemExit(main(['record', *sys.argv[1:]]))
+    raise SystemExit(main())

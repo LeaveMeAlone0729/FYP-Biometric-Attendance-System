@@ -1,0 +1,375 @@
+path,classification,reason
+.gitignore,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+Enable-FypTestLan.ps1,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+README.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+backend/.env.example,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/admin_testing.css,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/admin_testing.js,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/admin_testing.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/admin_testing_launcher.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/api/__init__.py,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+backend/api/accounts.py,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+backend/api/attendance.py,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+backend/api/context.py,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+backend/api/dependencies.py,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+backend/api/errors.py,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+backend/api/schemas.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/api/system.py,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+backend/app.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/app_time.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/application_factory.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/application_schema.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/ble_bundle.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/config.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/database.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/database_compat.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/demo.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/disposable_processes.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/export_openapi.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/fyp_operator.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/fyp_test.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/lan_discovery.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/local_account_verification.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/local_fyp.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/main.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/manage.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/manage_network_policy.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/manual_android_test.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/manual_sessions.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/migrate.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/migrate_attendance_authorization.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/migrate_classroom_wifi_test.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/migrate_device_activation.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/migrate_device_biometrics.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/migrate_device_management.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/migrate_device_replacement.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/migrate_device_verification.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/migrate_devices.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/migrate_network_verification.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/migrate_pending_devices.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/migrate_two_devices.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/models.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/modules/__init__.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/modules/authorization/__init__.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/modules/authorization/migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/authorization/models.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/modules/authorization/router.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/modules/authorization/service.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/modules/biometrics/__init__.py,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/constants.py,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/enrollment_policy.py,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/head_movement.py,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/inference.py,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/licenses/MiniFASNet-ONNX-LICENSE.txt,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/licenses/NOTICE.txt,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/licenses/Silent-Face-LICENSE.txt,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/biometrics/model_assets.py,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/passive_liveness.py,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/presentation.py,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/router.py,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/schemas.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/biometrics/service.py,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/biometrics/templates.py,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+backend/modules/classroom_ble/__init__.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/classroom_ble/diagnostic_mode.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/classroom_ble/migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/classroom_ble/models.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/classroom_ble/policies.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/classroom_ble/router.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/classroom_ble/service.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/classroom_ble/shadow.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/classroom_wifi/__init__.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/classroom_wifi/attendance.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/classroom_wifi/migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/classroom_wifi/models.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/classroom_wifi/policies.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/classroom_wifi/router.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/classroom_wifi/service.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/__init__.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/activation_migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/activation_models.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/activation_router.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/activation_schemas.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/activation_service.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/approval_provider.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/biometric_diagnostics.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/biometric_migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/biometric_models.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/biometric_router.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/biometric_schemas.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/biometric_service.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/crypto.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/local_demo.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/management_approval.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/management_migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/management_models.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/models.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/pending_migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/pending_models.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/pending_router.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/pending_schemas.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/pending_service.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/replacement_migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/replacement_router.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/replacement_service.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/router.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/schemas.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/service.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/two_device_migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/verification_migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/verification_models.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/devices/verification_schemas.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/devices/verification_service.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/networks/__init__.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/networks/cidr.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/networks/migration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/networks/models.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/networks/policies.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/networks/router.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/modules/networks/schemas.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/modules/networks/service.py,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+backend/mysql_testing.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/original_fyp.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/original_schema_upgrade.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/partner-local.example.json,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/prepare_manual_android_test.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/production-profile.example.json,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/production_app.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/production_guard.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/public_gateway.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/pytest.ini,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/requirements.txt,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/reset_demo_slot2.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/security.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/seed_sample.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/services/__init__.py,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+backend/services/attendance.py,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+backend/setup.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+backend/tests/prepare_attendance_phone_test.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/run_account_bound_mariadb.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/run_attendance_authorization_restored.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/run_device_management_demo.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/run_multi_policy_mariadb.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/run_mysql_acceptance.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/run_network_simulation.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/run_production_guard_disposable.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/run_simple_network_mariadb.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/run_slot2_end_to_end.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/slot2_fixture_signer.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_account_bound_enrollment.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_admin_testing.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_admin_testing_launcher.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_attendance_authorization.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_attendance_ble_shadow.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_biometric_api_contract.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_biometric_inference.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_ble_bundle.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_classroom_attendance.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_classroom_ble.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_classroom_wifi.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_demo_slot2_reset.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_device_activation.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_device_biometrics.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_device_frame_orientation.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_device_management.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_device_registration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_device_replacement.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_device_verification.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_disposable_processes.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_fyp_operator.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_fyp_test_workflow.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_head_movement.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_lan_discovery.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_local_account_replacement.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_manual_android_config.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_manual_sessions.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_migrations.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_mysql_integration.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_mysql_profiles.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_network_ble_test_mode.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_network_verification.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_original_fyp.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_partner_local_mode.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_passive_liveness.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_pending_device_enrollment.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_production_guard.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_public_gateway.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_reusable_replacement_policy.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_sample_data.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_setup.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_two_device_stage_a.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/tests/test_workflow.py,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+backend/verify_enrollment_identity.py,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+docs/ADMIN_TESTING_PANEL.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/API_INTEGRATION.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/ATTENDANCE_AUTHORIZATION_PHASE5.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/ATTENDANCE_RETRY_NETWORK_FIX.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/BLE_BEACON_PHASE4A.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/BLE_BEACON_PHASE4B_DESIGN.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/CLASSROOM_BLE_PHASE4B.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/CLASSROOM_WIFI_ATTENDANCE_PHASE3.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/CLASSROOM_WIFI_PHASE2.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/DEMO001_SLOT2_RESET_TEST.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/DEVICE_PREPARATION_CONNECTION_AND_NAME_FIX.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/DUAL_PATH_CONNECTIVITY.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/FLUTTER_NOTICE_CLEANUP.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/FYP_ACCOUNT_BOUND_ENROLLMENT.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/FYP_MULTIPLE_NETWORK_POLICIES.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/FYP_NETWORK_TEST_WORKFLOW.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/FYP_SESSION_OPERATOR.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/FYP_STARTUP_IDENTITY_FIX.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/FYP_THREE_COMMANDS.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/LOCAL_DEMO_SLOT1_REPLACEMENT_PLAN.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/MANUAL_ANDROID_TEST_ENVIRONMENT.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/MARIADB_CUTOVER_READINESS.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/MARIADB_PRODUCTION_CUTOVER_PLAN.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/MODULE_OWNERSHIP.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/MYSQL_TESTING.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/NETWORK_BLE_TEST_MODE.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/NETWORK_VERIFICATION_PHASE4.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/ORIGINAL_FYP_SETUP.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/PARTNER_LOCAL_MODE.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/REUSABLE_DEVICE_REPLACEMENT.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/SECURE_LAN_DISCOVERY.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/SELF_SERVICE_DEVICE_MANAGEMENT.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/SUPERVISED_ENROLLMENT_VERIFICATION.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/TABLET_LAN_TEST_READINESS.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/TRUSTED_BIOMETRIC_PROVIDER_CONTRACT.md,SHARED,Shared provider integration/security contract; read-only.
+docs/WIFI_DISCOVERY_PHASE1.md,MY MODULE,SH-authored device/network implementation history and user task evidence.
+docs/final_acceptance/CODE_EXPLANATION.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/final_acceptance/FINAL_SYSTEM_STATUS.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/final_acceptance/FINAL_TEST_CASES.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/final_acceptance/PHYSICAL_TEST_CHECKLIST.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/final_acceptance/PRESENTATION_DEMO.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/final_acceptance/REMAINING_BLOCKERS.md,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+docs/openapi.json,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/.gitignore,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/.metadata,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/analysis_options.yaml,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/.gitignore,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/build.gradle.kts,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/debug/AndroidManifest.xml,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/AndroidManifest.xml,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/kotlin/com/example/frontend/BleDiagnosticsChannel.kt,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/kotlin/com/example/frontend/DeviceCameraChannel.kt,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/kotlin/com/example/frontend/DeviceKeyStoreChannel.kt,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/kotlin/com/example/frontend/LanDiscoveryChannel.kt,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/kotlin/com/example/frontend/MainActivity.kt,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/kotlin/com/example/frontend/NetworkChangesChannel.kt,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/kotlin/com/example/frontend/WifiDiagnosticsChannel.kt,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/res/drawable-v21/launch_background.xml,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/res/drawable/launch_background.xml,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/res/mipmap-hdpi/ic_launcher.png,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/res/mipmap-mdpi/ic_launcher.png,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/res/values-night/styles.xml,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/main/res/values/styles.xml,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/app/src/profile/AndroidManifest.xml,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/build.gradle.kts,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/gradle.properties,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/gradle/wrapper/gradle-wrapper.properties,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/android/settings.gradle.kts,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/assets/fonts/OFL-PatrickHand.txt,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/assets/fonts/PatrickHand-Regular.ttf,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/assets/portal/SOURCES.md,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/assets/portal/career-interest.jpg,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/assets/portal/steam-event.jpg,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/assets/portal/tarumt-logo.png,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/integration_test/existing_device_smoke_test.dart,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/lib/main.dart,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/lib/modules/biometrics/screens/camera_screen.dart,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+frontend/lib/modules/biometrics/services/biometric_api.dart,PARTNER MODULE,MODULE_OWNERSHIP.md: Chew Zhexuan facial recognition/liveness.
+frontend/lib/modules/devices/screens/device_biometric_approval_screen.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/screens/device_registration_screen.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/screens/my_device_screen.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/screens/pending_device_screen.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/services/attendance_device_authorization.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/services/authorized_attendance_biometric_api.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/services/device_activation_service.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/services/device_activation_state.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/services/device_api.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/services/device_biometric_api.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/services/device_camera_orientation.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/services/device_key_store.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/services/device_verification_service.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/services/pending_device_service.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/widgets/device_biometric_completion.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/widgets/device_biometric_feedback.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/devices/widgets/device_camera_preview.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/screens/network_ble_test_screen.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/screens/network_verification_screen.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/services/ble_diagnostics.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/services/classroom_ble_api.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/services/classroom_ble_observation.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/services/classroom_wifi_api.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/services/network_ble_test_api.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/services/network_verification_api.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/services/network_verification_failure.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/services/wifi_diagnostics.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/widgets/ble_diagnostics_card.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/widgets/classroom_ble_card.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/widgets/classroom_connection_card.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/widgets/classroom_wifi_card.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/modules/networks/widgets/wifi_diagnostics_card.dart,MY MODULE,MODULE_OWNERSHIP.md device/network boundaries; classroom policy/diagnostic extensions.
+frontend/lib/screens/attendance_flow_screen.dart,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/lib/screens/auth_screen.dart,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/lib/screens/history_screen.dart,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/lib/screens/portal_attendance_screen.dart,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/lib/screens/portal_home_screen.dart,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/lib/screens/portal_services.dart,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/lib/screens/portal_student_screen.dart,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/lib/screens/student_dashboard.dart,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/lib/screens/student_profile_screen.dart,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/lib/services/api_client.dart,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/lib/services/api_routes.dart,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/lib/services/lan_discovery.dart,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+frontend/lib/theme.dart,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/pubspec.lock,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/pubspec.yaml,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+frontend/test/api_client_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/attendance_authorization_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/attendance_preflight_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/auto_scan_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/biometric_api_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/biometric_profile_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/ble_diagnostics_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/classroom_attendance_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/classroom_ble_observation_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/classroom_ble_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/classroom_wifi_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/device_activation_service_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/device_activation_state_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/device_biometric_completion_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/device_biometric_feedback_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/device_biometric_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/device_camera_preview_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/device_registration_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/device_replacement_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/device_verification_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/dual_api_routing_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/network_ble_test_mode_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/network_verification_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/partner_local_routing_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/pending_device_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/portal_ui_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/secure_lan_discovery_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/slot2_end_to_end_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/widget_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test/wifi_diagnostics_test.dart,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+frontend/test_driver/existing_device_smoke_driver.dart,UNKNOWN OWNERSHIP,No exclusive SH ownership established; read-only.
+fyp-install.ps1,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+fyp-mysql.ps1,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+fyp-start.ps1,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+fyp-stop.ps1,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+fyp-test.ps1,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+install-fyp-android.ps1,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+seed-sample-data.ps1,SHARED,Migration/schema/seed or shared regression suite: explicitly protected.
+start-admin-testing.ps1,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+start-backend.ps1,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+start-frontend.ps1,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+start-fyp.ps1,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.
+start-recovered-backend.ps1,SHARED,Cross-module documentation/integration/configuration/root workflow; read-only.

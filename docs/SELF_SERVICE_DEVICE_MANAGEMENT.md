@@ -1,3 +1,5 @@
+> Historical self-service implementation evidence. For the current reusable BOTH-slot workflow and the explicit LOCAL FYP / UNVERIFIED legacy-account policy, use [Reusable device replacement](REUSABLE_DEVICE_REPLACEMENT.md). No historical or self-enrolled template is silently promoted to institutional assurance.
+
 # Self-service Slot 2 and device replacement
 
 The [ACCOUNT_BOUND_FYP policy](FYP_ACCOUNT_BOUND_ENROLLMENT.md) defines first-enrollment assurance. Device activation still requires the fresh

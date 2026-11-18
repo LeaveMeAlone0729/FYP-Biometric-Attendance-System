@@ -59,15 +59,17 @@ such as `.\scripts\start-backend.ps1`, `.\scripts\start-frontend.ps1` and
 `.\scripts\fyp-mysql.ps1`. The MySQL helper creates a separate disposable
 environment; it is not needed for your existing Laragon database.
 
-Old standalone migration launchers, test suites, test reports and build output
-have been removed. Shared schema helpers remain because setup and validation
-use them. Normal startup never creates or migrates a database. For an existing
+Obsolete standalone migration launchers and generated build output are excluded.
+Backend/Flutter regression suites and relevant dated test evidence are retained.
+Shared schema helpers remain because setup and validation use them. Normal startup never creates or migrates a database. For an existing
 database, retain its key and verify a backup before a reviewed schema upgrade;
 do not rerun setup or seed data as a repair.
 
-Flutter regenerates dependencies/build output when needed. Validate source with
-`flutter analyze` from `frontend/`. This repository no longer contains automated
-test suites.
+Flutter regenerates dependencies/build output when needed. From `frontend/`, run
+`flutter pub get`, `flutter test --no-pub` and `flutter analyze --no-pub`. Backend
+regressions use synthetic fixtures; live SQL integrations are opt-in. Run tests
+in an isolated test process/environment and never enable database integration
+flags against original student or attendance data.
 
 ## App and integration
 

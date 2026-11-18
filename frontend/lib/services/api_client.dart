@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:flutter/services.dart';
 import 'api_routes.dart';
+import 'lan_discovery.dart';
 
 class ApiException implements Exception {
   const ApiException(this.message, [this.status = 0, this.code]);
@@ -23,15 +24,29 @@ class ApiClient {
     String? publicUrl,
     bool localMode = defaultLocalMode,
     Stream<dynamic>? networkChanges,
+    SecureLanDiscovery? discovery,
     this.generalTimeout = const Duration(seconds: 10),
     this.classroomTimeout = const Duration(seconds: 10),
   }) : _injected = client,
+       _localMode = localMode,
        baseUrl = url ?? defaultLanUrl,
        routes = ApiRoutes(
          lan: url ?? defaultLanUrl,
          public: publicUrl ?? (url == null ? defaultPublicUrl : ''),
          localMode: localMode,
        ) {
+    lanDiscovery =
+        discovery ??
+        (client == null && defaultTrust.isNotEmpty
+            ? SecureLanDiscovery(
+                LanTrust.fromMap(
+                  Map<String, dynamic>.from(
+                    jsonDecode(utf8.decode(base64Decode(defaultTrust))) as Map,
+                  ),
+                  localMode: localMode,
+                ),
+              )
+            : null);
     if (networkChanges != null) {
       _networkSubscription = networkChanges.listen((_) => networkChanged());
     } else if (client == null && !kIsWeb && Platform.isAndroid) {
@@ -46,6 +61,7 @@ class ApiClient {
   );
   static const defaultPublicUrl = String.fromEnvironment('PUBLIC_API_BASE_URL');
   static const defaultLocalMode = bool.fromEnvironment('FYP_LOCAL_MODE');
+  static const defaultTrust = String.fromEnvironment('FYP_LAN_TRUST_B64');
   static const defaultUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'http://127.0.0.1:8000',
@@ -53,6 +69,8 @@ class ApiClient {
   static ApiClient instance = ApiClient();
   static int _diagnosticSequence = 0;
   final http.Client? _injected;
+  final bool _localMode;
+  late final SecureLanDiscovery? lanDiscovery;
   final ApiRoutes routes;
   final Duration generalTimeout;
   final Duration classroomTimeout;
@@ -61,6 +79,7 @@ class ApiClient {
   int _networkRevision = 0;
   int? _attendanceRevision;
   void networkChanged() {
+    lanDiscovery?.invalidate();
     _networkRevision++;
     // Existing signing/scan clients abandon old work on sessionRevision change.
     // The bearer, student and authenticated state remain intact.
@@ -72,6 +91,7 @@ class ApiClient {
   }
 
   void dispose() {
+    lanDiscovery?.invalidate();
     _networkSubscription?.cancel();
     for (final client in _transports.values) {
       client.close();
@@ -137,6 +157,38 @@ class ApiClient {
       _send('POST', path, body: body, invalidateSessionOnUnauthorized: false);
   Future<dynamic> delete(String path) => _send('DELETE', path);
 
+  bool _secureLan(String path) =>
+      lanDiscovery != null && (_localMode || !ApiRoutes.general(path));
+
+  /// Explicit user-initiated preparation, before any new candidate/key proof.
+  Future<void> prepareDeviceOperation() async {
+    await _requestUri('/api/v1/devices/pending-registrations', fresh: true);
+  }
+
+  Future<Uri> _requestUri(String path, {bool fresh = false}) async {
+    // Preserve path validation, including when discovery overrides the origin.
+    final original = routes.uri(path);
+    if (!_secureLan(path)) return original;
+    try {
+      if (fresh || path == '/attendance/start') {
+        // Fresh PIN submission is a NEW operation, not a retry/replay of old
+        // signed work. Revalidate the paired server before transmitting it.
+        await lanDiscovery!.refresh();
+      } else {
+        await lanDiscovery!.ensureReady();
+      }
+    } catch (error) {
+      throw ApiException(
+        'Paired classroom server unavailable. Connect to classroom Wi-Fi or refresh the classroom connection.',
+        0,
+        error is LanDiscoveryException
+            ? error.code
+            : 'LAN_DISCOVERY_UNAVAILABLE',
+      );
+    }
+    return Uri.parse('${lanDiscovery!.trust.origin}$path');
+  }
+
   Future<dynamic> _send(
     String method,
     String path, {
@@ -148,9 +200,10 @@ class ApiClient {
         _attendanceRevision != _networkRevision) {
       throw changed;
     }
-    final networkRevision = _networkRevision;
     Future<dynamic> attempt() async {
-      final request = http.Request(method, routes.uri(path));
+      final networkRevision = _networkRevision;
+      final request = http.Request(method, await _requestUri(path));
+      if (networkRevision != _networkRevision) throw changed;
       request.headers['Content-Type'] = 'application/json';
       if (_token != null) request.headers['Authorization'] = 'Bearer $_token';
       if (body != null) request.body = jsonEncode(body);
@@ -191,7 +244,7 @@ class ApiClient {
         _attendanceRevision != _networkRevision) {
       throw changed;
     }
-    final request = http.MultipartRequest('POST', routes.uri(path));
+    final request = http.MultipartRequest('POST', await _requestUri(path));
     if (_token != null) request.headers['Authorization'] = 'Bearer $_token';
     request.fields.addAll(fields);
     request.files.add(
@@ -214,6 +267,7 @@ class ApiClient {
     final deviceBiometric = request.url.path.startsWith(
       '/api/v1/device-approvals',
     );
+    final deviceManagement = request.url.path.startsWith('/api/v1/devices');
     final requestId = deviceBiometric
         ? 'b3-${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}-${++_diagnosticSequence}'
         : null;
@@ -233,7 +287,9 @@ class ApiClient {
     }
     try {
       final response = await (() async {
-        final streamed = await transport(general).send(request);
+        final streamed = await (_secureLan(request.url.path)
+            ? lanDiscovery!.send(request)
+            : transport(general).send(request));
         return http.Response.fromStream(streamed);
       })().timeout(timeout);
       if (generation != _networkRevision) {
@@ -295,6 +351,8 @@ class ApiClient {
       throw ApiException(
         general
             ? 'Unable to connect to server. Please check your internet connection.'
+            : deviceManagement
+            ? 'Cannot reach the paired device-registration server. Check classroom Wi-Fi and refresh the paired connection.'
             : 'Cannot reach the classroom verification server. Classroom Wi-Fi is required for attendance.',
         0,
         'REQUEST_TIMEOUT',
@@ -313,6 +371,8 @@ class ApiClient {
       throw ApiException(
         general
             ? 'Cannot reach the server. Please check your internet connection.'
+            : deviceManagement
+            ? 'Cannot reach the paired device-registration server. Check classroom Wi-Fi and refresh the paired connection.'
             : 'Cannot reach the classroom verification server. Classroom Wi-Fi is required for attendance.',
         0,
         'NETWORK_ERROR',
@@ -331,6 +391,8 @@ class ApiClient {
       throw ApiException(
         general
             ? 'Cannot reach the server. Please check your internet connection.'
+            : deviceManagement
+            ? 'Cannot reach the paired device-registration server. Check classroom Wi-Fi and refresh the paired connection.'
             : 'Cannot reach the classroom verification server. Classroom Wi-Fi is required for attendance.',
         0,
         'NETWORK_ERROR',

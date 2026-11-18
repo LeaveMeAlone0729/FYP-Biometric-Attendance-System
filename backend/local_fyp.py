@@ -215,6 +215,7 @@ def create_backend():
         return dict(environment='partner_local', identity=actual['identity'],
             first_enrollment_enabled=value.fyp_account_bound_enrollment,
             device_management_enabled=management_enabled, credential_sha256=credential_fingerprint)
+    app.state.lan_database_identity = actual['identity']
     @app.get('/local-fyp/identity',include_in_schema=False)
     def identity(request:Request):
         if request.client is None or request.client.host not in ('127.0.0.1','::1'):
@@ -262,7 +263,12 @@ def main(argv=None):
             app=create_panel(engine(value),**credentials(private()/'panel-admin.json'),
                 ready=backend_ready,timezone=value.timezone,database_port=value.db_port,simulation_only=True)
             host='127.0.0.1';port=8003
-        uvicorn.run(app,host=host,port=port,proxy_headers=False,access_log=False)
+        if args.action=='serve-backend':
+            from lan_discovery import run_backend
+            run_backend(app,host=host,port=port,parent=private(),mode='Local',
+                        database_identity=app.state.lan_database_identity)
+        else:
+            uvicorn.run(app,host=host,port=port,proxy_headers=False,access_log=False)
         return 0
     except Exception as exc:
         number = getattr(getattr(exc, 'orig', exc), 'errno', None)

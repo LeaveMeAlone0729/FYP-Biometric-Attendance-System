@@ -17,7 +17,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
-from tests.test_staff_portal import fixture_engine, NOW
+from test_staff_portal import fixture_engine, NOW
 from models import AuthSession, Student
 from modules.devices import local_demo
 from modules.devices.models import RegisteredDevice, DeviceRegistrationEvent

@@ -1,0 +1,849 @@
+"""Contract tests use synthetic biometric results; they do not claim camera accuracy."""
+
+import sys
+import base64
+import unittest
+from dataclasses import replace
+from datetime import datetime, timedelta
+from pathlib import Path
+from unittest.mock import patch
+
+import numpy as np
+from cryptography.fernet import Fernet
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event, func, select
+from sqlalchemy.pool import StaticPool
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from app import create_app
+from modules.biometrics.inference import BiometricError
+from config import Settings
+from database import make_sessions
+from demo import seed_demo
+from models import (
+    Attendance,
+    Base,
+    Challenge,
+    ClassSession,
+    Student,
+    VerificationAttempt,
+)
+from cryptography.hazmat.primitives import hashes,serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from modules.devices.models import RegisteredDevice
+from modules.devices.crypto import canonical_public_key
+from modules.networks.models import NetworkPolicy
+from security import (
+    decrypt_encoding,
+    encrypt_encoding,
+    hash_password,
+    verify_password,
+)
+
+
+class SyntheticImage:
+    def __init__(self, value):
+        self.value = value
+
+    def tobytes(self):
+        return self.value
+
+
+class SyntheticBiometrics:
+    def __init__(self):
+        self.gesture = 1
+
+    def decode(self, data):
+        return SyntheticImage(data)
+
+    def face(self, image):
+        if image.value.startswith(b"no-face"):
+            raise BiometricError("Keep exactly one face visible in the camera frame.")
+        return [1.0] * 128 if image.value.startswith(b"other-face") else [0.0] * 128
+
+    def guided_face(self, image):
+        return self.face(image)
+
+    def face_observation(self, image, *, guided=False):
+        # Synthetic adapter for the partner's combined inference/PAD contract.
+        encoding = self.guided_face(image) if guided else self.face(image)
+        return encoding, self.face_evidence(image)
+
+    def head_pose(self, image):
+        yaw = 25 if image.value.startswith(b"head-turn_left") else (-25 if image.value.startswith(b"head-turn_right") else 0)
+        pitch = -20 if image.value.startswith(b"head-look_up") else (20 if image.value.startswith(b"head-look_down") else 0)
+        blink = 0.9 if image.value.startswith(b"head-blink_closed") else 0.0
+        return {"yaw": yaw, "pitch": pitch, "roll": 0,
+                "blink_left": blink, "blink_right": blink}
+
+    def hand(self, image):
+        if image.value.startswith(b"no-hand"):
+            raise BiometricError("Show one hand next to your face.")
+        return self.gesture
+
+    def face_evidence(self, image):
+        if image.value.startswith((b"photo", b"screen", b"video")):
+            raise BiometricError("Photo or screen presentation detected.")
+        if image.value.startswith(b"pad-unavailable"):
+            raise RuntimeError("PAD model unavailable")
+        if image.value.startswith(b"pad-invalid"):
+            return {"real_scores": [float("nan"), 0.99]}
+        return {"real_scores": [0.99, 0.99]}
+
+    def distance(self, value, reference):
+        return float(np.linalg.norm(np.array(value) - np.array(reference)))
+
+    def close(self):
+        pass
+
+
+class WorkflowTests(unittest.TestCase):
+    # Chew Zhexuan: integration checks for the public biometric result endpoint.
+    def test_result_tracks_server_evidence_and_persists_after_success(self):
+        identifier = self.start()
+        path = f"/verification/{identifier}"
+        response = self.client.get(path, headers=self.headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertEqual(result["status"], "pending")
+        self.assertEqual(result["stage"], "face")
+        self.assertFalse(result["face_verified"])
+        self.assertFalse(result["liveness_verified"])
+        self.assertIsNone(result["attendance_id"])
+        self.assertNotIn("face_distance", result)
+        self.assertNotIn("face_encoding", result)
+        self.face(identifier)
+        result = self.client.get(path, headers=self.headers).json()
+        self.assertEqual(result["stage"], "liveness")
+        self.assertTrue(result["face_verified"])
+        self.assertFalse(result["liveness_verified"])
+        for index in range(3):
+            self.image("/liveness/frame", identifier, f"result-frame-{index}".encode())
+        result = self.client.get(path, headers=self.headers).json()
+        self.assertEqual(result["status"], "success")
+        self.assertTrue(result["liveness_verified"])
+        self.assertEqual(result["valid_frames"], 3)
+        self.assertIsNotNone(result["attendance_id"])
+        self.current += timedelta(seconds=91)
+        self.assertEqual(
+            self.client.get(path, headers=self.headers).json()["status"], "success"
+        )
+        self.assertEqual(self.count_attendance(), 1)
+
+    def test_result_is_read_only_and_does_not_trust_client_flags(self):
+        identifier = self.start()
+        self.current += timedelta(seconds=91)
+        response = self.client.get(
+            f"/verification/{identifier}",
+            params={"face_verified": "true", "liveness_verified": "true"},
+            headers=self.headers,
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["status"], "expired")
+        self.assertFalse(response.json()["face_verified"])
+        self.assertFalse(response.json()["liveness_verified"])
+        with self.sessions() as db:
+            challenge = db.get(Challenge, identifier)
+            self.assertFalse(challenge.consumed)
+            self.assertEqual(
+                db.get(
+                    VerificationAttempt, challenge.verification_id
+                ).verification_result,
+                "pending",
+            )
+        self.assertEqual(self.count_attendance(), 0)
+
+    def test_result_requires_the_original_authenticated_login(self):
+        identifier = self.start()
+        path = f"/verification/{identifier}"
+        self.assertEqual(self.client.get(path).status_code, 401)
+        self.assertEqual(
+            self.client.get("/verification/missing", headers=self.headers).status_code,
+            404,
+        )
+        for student_id in ("TEST001", "TEST002"):
+            login = self.client.post(
+                "/login", json={"student_id": student_id, "password": "test-password"}
+            )
+            headers = {"Authorization": "Bearer " + login.json()["access_token"]}
+            self.assertEqual(self.client.get(path, headers=headers).status_code, 404)
+        self.assertEqual(
+            self.client.get(path, headers=self.headers).json()["status"], "pending"
+        )
+
+    def test_result_reports_failed_and_cancelled_verifications(self):
+        identifier = self.start()
+        self.image("/verify-face", identifier, b"other-face")
+        result = self.client.get(
+            f"/verification/{identifier}", headers=self.headers
+        ).json()
+        self.assertEqual(result["status"], "failed")
+        self.assertFalse(result["liveness_verified"])
+        identifier = self.start()
+        self.client.post(f"/attendance/cancel/{identifier}", headers=self.headers)
+        result = self.client.get(
+            f"/verification/{identifier}", headers=self.headers
+        ).json()
+        self.assertEqual(result["status"], "cancelled")
+        self.assertFalse(result["liveness_verified"])
+        self.assertEqual(self.count_attendance(), 0)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.password_hash = hash_password("test-password")
+        cls.key = Fernet.generate_key().decode()
+
+    def setUp(self):
+        self.current = datetime(2026, 10, 20, 12, 0, 0)
+        self.engine = getattr(self,'engine_override',None) or create_engine(
+            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+        )
+
+        if self.engine.dialect.name=='sqlite':
+            @event.listens_for(self.engine, "connect")
+            def foreign_keys(connection, record):
+                connection.execute("PRAGMA foreign_keys=ON")
+
+        Base.metadata.create_all(self.engine)
+        self.sessions = make_sessions(self.engine)
+        self.settings = replace(Settings(), demo_mode=True, biometric_key=self.key)
+        with self.sessions.begin() as db:
+            seed_demo(db, self.current)
+            db.add(
+                Student(
+                    student_id="TEST001",
+                    group_id=1,
+                    name="Test Student",
+                    email="student@example.test",
+                    password_hash=self.password_hash,
+                    face_encoding=encrypt_encoding([0.0] * 128, self.key),
+                    biometric_status="active",
+                    consent_at=self.current,
+                    created_at=self.current,
+                )
+            )
+            db.add(
+                Student(
+                    student_id="TEST002",
+                    group_id=2,
+                    name="Other Student",
+                    email="other@example.test",
+                    password_hash=self.password_hash,
+                    created_at=self.current,
+                )
+            )
+        self.device_key=ec.generate_private_key(ec.SECP256R1())
+        public=base64.b64encode(self.device_key.public_key().public_bytes(serialization.Encoding.DER,serialization.PublicFormat.SubjectPublicKeyInfo)).decode()
+        public,self.device_fingerprint=canonical_public_key(public)
+        with self.sessions.begin() as db:
+            db.add(RegisteredDevice(device_id='workflow-fixture-device',student_id='TEST001',slot_number=1,public_key_spki=public,
+                public_key_fingerprint=self.device_fingerprint,device_name='Isolated regression key',device_model='Software P256 fixture',platform='android',status='ACTIVE',registered_at=self.current))
+            db.add(NetworkPolicy(network_id='workflow-sim',network_name='Isolated regression network',network_cidr='192.0.2.0/24',enabled=True,created_at=self.current,updated_at=self.current))
+        self.bio = SyntheticBiometrics()
+        self.app = create_app(
+            self.settings, self.engine, self.bio, lambda: self.current
+        )
+        self.client = TestClient(self.app, client=("192.0.2.10", 50000))
+        response = self.client.post(
+            "/login", json={"student_id": "TEST001", "password": "test-password"}
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.headers = {"Authorization": "Bearer " + response.json()["access_token"]}
+
+    def tearDown(self):
+        self.client.close()
+        self.engine.dispose()
+
+    def start(self, pin="123456"):
+        response = self.client.post(
+            "/attendance/start", json={"pin": pin}, headers=self.headers
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()["challenge_id"]
+
+    def image(self, endpoint, identifier, data=b"neutral"):
+        fields={"challenge_id":identifier}
+        if endpoint=="/liveness/frame":
+            with self.sessions() as db:
+                attempt=db.get(Challenge,identifier)
+                eligible=attempt is not None and not attempt.consumed and attempt.stage=='liveness' and attempt.expires_at>self.current
+            if eligible:
+                issued=self.client.post('/api/v1/attendance/device-challenges',headers=self.headers,json={'attendance_challenge_id':identifier,'public_key_fingerprint':self.device_fingerprint})
+                if issued.status_code==201:
+                    proof=issued.json();fields.update(device_challenge_id=proof['challenge_id'],device_signature=base64.b64encode(self.device_key.sign(base64.b64decode(proof['signing_payload']),ec.ECDSA(hashes.SHA256()))).decode())
+        return self.client.post(
+            endpoint,
+            data=fields,
+            files={"file": ("capture.jpg", data, "image/jpeg")},
+            headers=self.headers,
+        )
+
+    def face(self, identifier):
+        response = self.image("/verify-face", identifier)
+        self.assertEqual(response.status_code, 200, response.text)
+        return self.finish_head(identifier, response)
+
+    def finish_head(self, identifier, response, *, auto=False):
+        blink_index = 0
+        for index in range(24):
+            if response.json().get("face_verified"):
+                break
+            self.assertEqual(response.json().get("liveness_step"), "head", response.text)
+            action = response.json()["head_action"]
+            if action == 'blink':
+                action = ('blink_open', 'blink_closed', 'blink_reopen')[blink_index % 3]
+                blink_index += 1
+            self.current += timedelta(milliseconds=500)
+            image = f"head-{action}-{index}".encode()
+            response = self.auto_face(identifier, image) if auto else self.image("/verify-face", identifier, image)
+            self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["face_verified"])
+        self.assertTrue(response.json()["head_movement_verified"])
+        self.bio.gesture = response.json()["fingers"]
+        return response
+
+    def count_attendance(self):
+        with self.sessions() as db:
+            return db.scalar(select(func.count()).select_from(Attendance))
+
+    def complete(self):
+        identifier = self.start()
+        self.face(identifier)
+        for index in range(3):
+            response = self.image(
+                "/liveness/frame", identifier, f"live-frame-{index}".encode()
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["complete"])
+        return identifier, response
+
+    def test_attendance_requires_pin_face_then_three_live_frames(self):
+        identifier = self.start()
+        self.assertEqual(self.count_attendance(), 0)
+        self.face(identifier)
+        self.assertEqual(self.count_attendance(), 0)
+        for index in range(3):
+            response = self.image(
+                "/liveness/frame", identifier, f"frame-{index}".encode()
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["complete"], index == 2)
+            self.assertEqual(self.count_attendance(), int(index == 2))
+        self.assertTrue(response.json()["liveness_verified"])
+        self.assertEqual(
+            len(self.client.get("/attendance/history", headers=self.headers).json()), 1
+        )
+        with self.sessions() as db:
+            attendance = db.scalar(select(Attendance))
+            self.assertEqual(
+                db.get(
+                    VerificationAttempt, attendance.verification_id
+                ).verification_result,
+                "success",
+            )
+
+    def test_wrong_group_pin_is_rejected_and_logged(self):
+        response = self.client.post(
+            "/attendance/start", json={"pin": "222222"}, headers=self.headers
+        )
+        self.assertEqual(response.status_code, 400)
+        attempts = self.client.get(
+            "/verification-attempts", headers=self.headers
+        ).json()
+        self.assertEqual(attempts[0]["stage"], "pin")
+        self.assertEqual(attempts[0]["result"], "failed")
+
+    def test_failed_pins_are_logged_without_blocking_a_valid_pin(self):
+        for _ in range(7):
+            self.assertEqual(
+                self.client.post(
+                    "/attendance/start", json={"pin": "999999"}, headers=self.headers
+                ).status_code,
+                400,
+            )
+        with self.sessions() as db:
+            failures = db.scalar(
+                select(func.count())
+                .select_from(VerificationAttempt)
+                .where(
+                    VerificationAttempt.student_id == "TEST001",
+                    VerificationAttempt.stage == "pin",
+                    VerificationAttempt.verification_result == "failed",
+                )
+            )
+            self.assertEqual(failures, 7)
+        response = self.client.post(
+            "/attendance/start", json={"pin": "123456"}, headers=self.headers
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["stage"], "face")
+        self.assertEqual(self.count_attendance(), 0)
+
+    def test_malformed_pin_is_rejected(self):
+        self.assertEqual(
+            self.client.post(
+                "/attendance/start", json={"pin": "abc"}, headers=self.headers
+            ).status_code,
+            422,
+        )
+
+    def test_inactive_session_rejected(self):
+        with self.sessions.begin() as db:
+            for session in db.scalars(select(ClassSession)):
+                session.status = "closed"
+        self.assertEqual(
+            self.client.post(
+                "/attendance/start", json={"pin": "123456"}, headers=self.headers
+            ).status_code,
+            400,
+        )
+
+    def test_outside_class_hours_rejected(self):
+        from datetime import time
+
+        with self.sessions.begin() as db:
+            for session in db.scalars(select(ClassSession)):
+                session.end_time = time(10)
+        self.assertEqual(
+            self.client.post(
+                "/attendance/start", json={"pin": "123456"}, headers=self.headers
+            ).status_code,
+            400,
+        )
+
+    def test_unknown_or_missing_auth_rejected(self):
+        self.assertEqual(self.client.get("/me").status_code, 401)
+        self.assertEqual(
+            self.client.get(
+                "/attendance/history", headers={"Authorization": "Bearer fake"}
+            ).status_code,
+            401,
+        )
+
+    def test_login_only_needs_credentials_and_new_session_can_verify(self):
+        login = self.client.post(
+            "/login", json={"student_id": "TEST001", "password": "test-password"}
+        )
+        self.assertEqual(login.status_code, 200, login.text)
+        self.assertNotIn("registered_device", login.json())
+        self.headers = {"Authorization": "Bearer " + login.json()["access_token"]}
+        self.assertNotIn(
+            "registered_device", self.client.get("/me", headers=self.headers).json()
+        )
+        _, result = self.complete()
+        self.assertNotIn("device_verified", result.json())
+        self.assertNotIn("network_verified", result.json())
+
+    def test_face_registration_is_independent_but_attendance_requires_authorized_source(self):
+        # Set up a first enrollment directly; students cannot delete an existing one.
+        with self.sessions.begin() as db:
+            student = db.get(Student, "TEST001")
+            student.face_encoding = None
+            student.biometric_status = "not_registered"
+            student.consent_at = None
+        with TestClient(self.app, client=("203.0.113.5", 50000)) as remote:
+            response = remote.post(
+                "/register-face",
+                data={"consent": "true"},
+                files={"file": ("face.jpg", b"enrollment", "image/jpeg")},
+                headers=self.headers,
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            with patch.object(self, "client", remote):
+                identifier=self.start();self.face(identifier)
+                for i in range(3):result=self.image('/liveness/frame',identifier,('remote-'+str(i)).encode())
+                self.assertEqual(result.status_code,403,result.text)
+                self.assertEqual(result.json()['code'],'NETWORK_NOT_AUTHORIZED')
+            self.assertEqual(self.count_attendance(), 0)
+
+    def test_challenge_stays_bound_to_the_login_that_started_it(self):
+        identifier = self.start()
+        login = self.client.post(
+            "/login", json={"student_id": "TEST001", "password": "test-password"}
+        )
+        response = self.client.post(
+            "/verify-face",
+            data={"challenge_id": identifier},
+            files={"file": ("face.jpg", b"neutral")},
+            headers={"Authorization": "Bearer " + login.json()["access_token"]},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.count_attendance(), 0)
+
+    def test_wrong_face_never_records_attendance(self):
+        identifier = self.start()
+        self.assertEqual(
+            self.image("/verify-face", identifier, b"other-face").status_code, 400
+        )
+        self.assertEqual(self.count_attendance(), 0)
+        self.assertEqual(self.image("/verify-face", identifier).status_code, 409)
+
+    def test_missing_face_is_rejected(self):
+        identifier = self.start()
+        self.assertEqual(
+            self.image("/verify-face", identifier, b"no-face").status_code, 400
+        )
+
+    def auto_face(self, identifier, data=b"neutral", preview=False):
+        return self.client.post(
+            "/verify-face",
+            data={
+                "challenge_id": identifier,
+                "auto_capture": "true",
+                "preview_only": str(preview).lower(),
+            },
+            files={"file": ("capture.jpg", data, "image/jpeg")},
+            headers=self.headers,
+        )
+
+    def test_auto_scan_can_recover_then_complete_without_preview_recording_attendance(
+        self,
+    ):
+        identifier = self.start()
+        response = self.auto_face(identifier, b"no-face")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertFalse(response.json()["ready"])
+        with self.sessions() as db:
+            self.assertFalse(db.get(Challenge, identifier).consumed)
+            self.assertEqual(db.get(Challenge, identifier).stage, "face")
+        response = self.auto_face(identifier, preview=True)
+        self.assertTrue(response.json()["ready"])
+        self.assertTrue(response.json()["preview_only"])
+        self.assertEqual(self.count_attendance(), 0)
+        with self.sessions() as db:
+            self.assertEqual(db.get(Challenge, identifier).stage, "face")
+        response = self.auto_face(identifier)
+        response = self.finish_head(identifier, response, auto=True)
+        self.assertTrue(response.json()["face_verified"])
+        self.bio.gesture = response.json()["fingers"]
+        for index in range(3):
+            response = self.image(
+                "/liveness/frame", identifier, f"auto-live-{index}".encode()
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["complete"])
+        self.assertEqual(self.count_attendance(), 1)
+
+    def test_auto_scan_identity_mismatch_is_terminal_even_in_preview(self):
+        identifier = self.start()
+        self.assertEqual(
+            self.auto_face(identifier, b"other-face", preview=True).status_code, 400
+        )
+        self.assertEqual(self.auto_face(identifier).status_code, 409)
+        self.assertEqual(self.count_attendance(), 0)
+
+    def test_auto_scan_still_checks_expiry_after_slow_detection(self):
+        identifier = self.start()
+
+        def slow_detection(image):
+            self.current += timedelta(seconds=91)
+            return [0.0] * 128
+
+        self.bio.guided_face = slow_detection
+        self.assertEqual(self.auto_face(identifier, preview=True).status_code, 410)
+        self.assertEqual(self.count_attendance(), 0)
+
+    def test_auto_enrollment_requires_consent_and_preview_never_saves_a_template(self):
+        with self.sessions.begin() as db:
+            student = db.get(Student, "TEST001")
+            student.face_encoding = None
+            student.biometric_status = "not_registered"
+            student.consent_at = None
+
+        def enroll(image, consent="true", preview="true"):
+            return self.client.post(
+                "/register-face",
+                data={
+                    "consent": consent,
+                    "auto_capture": "true",
+                    "preview_only": preview,
+                },
+                files={"file": ("capture.jpg", image, "image/jpeg")},
+                headers=self.headers,
+            )
+
+        self.assertEqual(enroll(b"neutral", consent="false").status_code, 400)
+        self.assertFalse(enroll(b"no-face").json()["ready"])
+        self.assertTrue(enroll(b"neutral").json()["ready"])
+        with self.sessions() as db:
+            self.assertIsNone(db.get(Student, "TEST001").face_encoding)
+            self.assertIsNone(db.get(Student, "TEST001").consent_at)
+        self.assertTrue(enroll(b"neutral", preview="false").json()["registered"])
+        with self.sessions() as db:
+            self.assertIsNotNone(db.get(Student, "TEST001").face_encoding)
+            self.assertIsNotNone(db.get(Student, "TEST001").consent_at)
+
+    def test_liveness_cannot_be_called_before_face(self):
+        identifier = self.start()
+        self.assertEqual(
+            self.image("/liveness/frame", identifier, b"frame").status_code, 409
+        )
+        self.assertEqual(self.count_attendance(), 0)
+
+    def test_wrong_gesture_resets_consecutive_count_and_is_logged(self):
+        identifier = self.start()
+        self.face(identifier)
+        self.image("/liveness/frame", identifier, b"frame-one")
+        self.bio.gesture = self.bio.gesture % 5 + 1
+        response = self.image("/liveness/frame", identifier, b"wrong-gesture")
+        self.assertFalse(response.json()["complete"])
+        self.assertEqual(response.json()["valid_frames"], 0)
+        self.assertEqual(self.count_attendance(), 0)
+        with self.sessions() as db:
+            self.assertTrue(
+                db.scalar(
+                    select(VerificationAttempt).where(
+                        VerificationAttempt.verification_result == "failed",
+                        VerificationAttempt.stage == "liveness",
+                    )
+                )
+            )
+
+    def test_face_must_remain_visible_during_gesture(self):
+        identifier = self.start()
+        self.face(identifier)
+        response = self.image("/liveness/frame", identifier, b"no-face-live")
+        self.assertEqual(response.json()["valid_frames"], 0)
+        self.assertEqual(self.count_attendance(), 0)
+
+    def test_liveness_face_mismatch_resets_progress_but_allows_a_fresh_genuine_streak(self):
+        identifier = self.start()
+        self.face(identifier)
+        for index in range(2):
+            self.image("/liveness/frame", identifier, f"before-mismatch-{index}".encode())
+        with patch.object(self.bio, "hand", wraps=self.bio.hand) as hand:
+            response = self.image("/liveness/frame", identifier, b"other-face-live")
+            hand.assert_not_called()
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertFalse(response.json()["complete"])
+        self.assertEqual(response.json()["valid_frames"], 0)
+        self.assertEqual(self.count_attendance(), 0)
+        with self.sessions() as db:
+            self.assertFalse(db.get(Challenge, identifier).consumed)
+        for index in range(3):
+            response = self.image("/liveness/frame", identifier, f"after-mismatch-{index}".encode())
+            self.assertEqual(response.json()["complete"], index == 2)
+            self.assertEqual(self.count_attendance(), int(index == 2))
+
+    def test_repeated_wrong_faces_and_nonfinite_distances_never_advance_liveness(self):
+        identifier = self.start()
+        self.face(identifier)
+        for index in range(4):
+            response = self.image("/liveness/frame", identifier, f"other-face-{index}".encode())
+            self.assertFalse(response.json()["complete"])
+            self.assertEqual(response.json()["valid_frames"], 0)
+        with patch.object(self.bio, "distance", return_value=float("nan")):
+            response = self.image("/liveness/frame", identifier, b"invalid-distance")
+            self.assertFalse(response.json()["complete"])
+            self.assertEqual(response.json()["valid_frames"], 0)
+        self.assertEqual(self.count_attendance(), 0)
+        self.current += timedelta(seconds=91)
+        self.assertEqual(self.image("/liveness/frame", identifier, b"too-late").status_code, 410)
+
+    def test_same_frame_cannot_be_replayed(self):
+        identifier = self.start()
+        self.face(identifier)
+        self.image("/liveness/frame", identifier, b"one-identical-frame")
+        response = self.image("/liveness/frame", identifier, b"one-identical-frame")
+        self.assertEqual(response.json()["valid_frames"], 0)
+        self.assertEqual(self.count_attendance(), 0)
+
+    def test_challenge_expiry(self):
+        identifier = self.start()
+        self.current += timedelta(seconds=91)
+        self.assertEqual(self.image("/verify-face", identifier).status_code, 410)
+        self.assertEqual(self.count_attendance(), 0)
+
+    def test_consumed_challenge_and_duplicate_class_rejected(self):
+        identifier, response = self.complete()
+        self.assertEqual(
+            self.image("/liveness/frame", identifier, b"extra").status_code, 409
+        )
+        self.assertEqual(
+            self.client.post(
+                "/attendance/start", json={"pin": "123456"}, headers=self.headers
+            ).status_code,
+            409,
+        )
+        self.assertEqual(self.count_attendance(), 1)
+
+    def test_challenges_cannot_cross_student_accounts(self):
+        identifier = self.start()
+        login = self.client.post(
+            "/login", json={"student_id": "TEST002", "password": "test-password"}
+        )
+        response = self.client.post(
+            "/verify-face",
+            data={"challenge_id": identifier},
+            files={"file": ("x.jpg", b"neutral")},
+            headers={"Authorization": "Bearer " + login.json()["access_token"]},
+        )
+        self.assertEqual(response.status_code, 403)
+        history = self.client.get(
+            "/attendance/history",
+            headers={"Authorization": "Bearer " + login.json()["access_token"]},
+        )
+        self.assertEqual(history.json(), [])
+
+    def test_logout_revokes_session_and_cancels_challenge(self):
+        identifier = self.start()
+        self.assertEqual(
+            self.client.post("/logout", headers=self.headers).status_code, 200
+        )
+        self.assertEqual(self.client.get("/me", headers=self.headers).status_code, 401)
+        with self.sessions() as db:
+            self.assertTrue(db.get(Challenge, identifier).consumed)
+
+    def test_cancel_never_records_attendance(self):
+        identifier = self.start()
+        self.face(identifier)
+        self.assertEqual(
+            self.client.post(
+                "/attendance/cancel/" + identifier, headers=self.headers
+            ).status_code,
+            200,
+        )
+        self.assertEqual(self.count_attendance(), 0)
+
+    def test_enrollment_requires_consent_and_encrypts_template(self):
+        with self.sessions.begin() as db:
+            student = db.get(Student, "TEST001")
+            student.face_encoding = None
+            student.biometric_status = "not_registered"
+        files = {"file": ("face.jpg", b"enrollment", "image/jpeg")}
+        self.assertEqual(
+            self.client.post(
+                "/register-face",
+                data={"consent": "false"},
+                files=files,
+                headers=self.headers,
+            ).status_code,
+            400,
+        )
+        self.assertEqual(
+            self.client.post(
+                "/register-face",
+                data={"consent": "true"},
+                files=files,
+                headers=self.headers,
+            ).status_code,
+            200,
+        )
+        with self.sessions() as db:
+            student = db.get(Student, "TEST001")
+            self.assertEqual(
+                decrypt_encoding(student.face_encoding, self.key), [0.0] * 128
+            )
+            self.assertNotIn("[0.0", student.face_encoding)
+            self.assertIsNotNone(student.consent_at)
+        self.assertEqual(
+            self.client.post(
+                "/register-face",
+                data={"consent": "true"},
+                files=files,
+                headers=self.headers,
+            ).status_code,
+            409,
+        )
+
+    def test_removed_deletion_endpoint_cannot_unlock_registration_or_change_records(self):
+        self.complete()
+        identifier = self.start("654321")
+        with self.sessions() as db:
+            student = db.get(Student, "TEST001")
+            original = (student.face_encoding, student.biometric_status, student.consent_at)
+        self.assertEqual(
+            self.client.delete("/biometrics", headers=self.headers).status_code, 404
+        )
+        for preview in ("false", "true"):
+            response = self.client.post(
+                "/register-face",
+                data={"consent": "true", "preview_only": preview},
+                files={"file": ("face.jpg", b"other-face", "image/jpeg")},
+                headers=self.headers,
+            )
+            self.assertEqual(response.status_code, 409, response.text)
+            self.assertIn("department", response.json()["message"])
+        with self.sessions() as db:
+            student = db.get(Student, "TEST001")
+            self.assertEqual(
+                (student.face_encoding, student.biometric_status, student.consent_at),
+                original,
+            )
+            self.assertFalse(db.get(Challenge, identifier).consumed)
+        self.face(identifier)
+        self.assertEqual(self.count_attendance(), 1)
+
+    def test_missing_or_inactive_template_does_not_allow_student_reenrollment(self):
+        for status in ("active", "inactive"):
+            with self.subTest(status=status):
+                with self.sessions.begin() as db:
+                    student = db.get(Student, "TEST001")
+                    student.face_encoding = None
+                    student.biometric_status = status
+                response = self.client.post(
+                    "/register-face",
+                    data={"consent": "true"},
+                    files={"file": ("face.jpg", b"other-face", "image/jpeg")},
+                    headers=self.headers,
+                )
+                self.assertEqual(response.status_code, 409, response.text)
+                self.assertIn("department", response.json()["message"])
+
+    def test_live_course_history_and_percentage_are_scoped_to_student(self):
+        self.complete()
+        classes = self.client.get("/classes", headers=self.headers)
+        self.assertEqual(classes.status_code, 200, classes.text)
+        self.assertEqual(len(classes.json()), 2)
+        summary = self.client.get("/attendance/summary", headers=self.headers).json()
+        lab = next(x for x in summary if x["course_code"] == "DEMO101")
+        self.assertEqual(lab["attended"], 1)
+        self.assertEqual(lab["total"], 4)
+        self.assertEqual(lab["percentage"], 25.0)
+
+    def test_registration_hashes_password_and_validates_duplicate_email(self):
+        data = {
+            "student_id": "NEW001",
+            "name": "New Student",
+            "email": "new@example.test",
+            "password": "new-password",
+            "group_id": 1,
+        }
+        response = self.client.post("/register", json=data)
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(self.client.post("/register", json=data).status_code, 409)
+        with self.sessions() as db:
+            student = db.get(Student, "NEW001")
+            self.assertNotEqual(student.password_hash, data["password"])
+            self.assertTrue(verify_password(data["password"], student.password_hash))
+
+    def test_production_disables_self_assigned_groups_and_signup(self):
+        prod = create_app(
+            replace(self.settings, demo_mode=False),
+            self.engine,
+            self.bio,
+            lambda: self.current,
+        )
+        with TestClient(prod, client=("192.0.2.10", 50000)) as client:
+            self.assertEqual(client.get("/groups").json(), [])
+            self.assertEqual(
+                client.post(
+                    "/register",
+                    json={
+                        "student_id": "NEW001",
+                        "name": "Student",
+                        "email": "new@example.test",
+                        "password": "long-password",
+                        "group_id": 1,
+                    },
+                ).status_code,
+                403,
+            )
+
+    def test_expired_session_rejected(self):
+        self.current += timedelta(hours=9)
+        self.assertEqual(self.client.get("/me", headers=self.headers).status_code, 401)
+
+
+if __name__ == "__main__":
+    unittest.main()
