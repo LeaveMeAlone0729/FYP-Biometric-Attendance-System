@@ -20,6 +20,15 @@ class PendingDeviceService {
   final DeviceApi _api;
   final DeviceKeyStore _keys;
 
+  Future<T> _keyOperation<T>(Future<T> operation) => operation.timeout(
+    const Duration(seconds: 8),
+    onTimeout: () => throw const ApiException(
+      'Android device key operation timed out. Unlock the device and try a fresh preparation.',
+      0,
+      'DEVICE_KEY_TIMEOUT',
+    ),
+  );
+
   /// Restores display state with read-only key access; never generates a key.
   Future<Map<String, dynamic>?> current() async {
     final student = _client.student?['student_id'] as String?;
@@ -104,6 +113,10 @@ class PendingDeviceService {
     if (deviceName.trim().isEmpty) {
       throw const ApiException('Enter a name for this candidate device.');
     }
+    // Refresh only at this explicit new operation boundary. Never automatically
+    // resend candidate creation or its signed proof following transport failure.
+    await _client.prepareDeviceOperation();
+    checkSession();
     final listing = await _api.listDevices();
     checkSession();
     if (replacementTarget == null &&
@@ -113,11 +126,11 @@ class PendingDeviceService {
       );
     }
     final devices = (listing['devices'] as List).cast<Map>();
-    var key = await _keys.getPublicKey(student!);
+    var key = await _keyOperation(_keys.getPublicKey(student!));
     checkSession();
     if (key != null &&
         devices.any(
-          (d) => d['public_key_fingerprint'] == key!['public_key_fingerprint'],
+          (d) => d['public_key_fingerprint'] == key['public_key_fingerprint'],
         )) {
       throw const ApiException(
         'This installation is already registered. Start replacement on the new Android device; keep existing keys unchanged.',
@@ -126,17 +139,21 @@ class PendingDeviceService {
       );
     }
     // Called only after an explicit preparation action. Existing aliases are reused.
-    key ??= await _keys.getOrCreateKey(student);
+    final candidateKey =
+        key ??
+        await _keyOperation<Map<String, dynamic>>(
+          _keys.getOrCreateKey(student),
+        );
     checkSession();
-    final fingerprint = key['public_key_fingerprint'];
+    final fingerprint = candidateKey['public_key_fingerprint'];
     final Map<String, dynamic> pending;
     if (replacementTarget != null) {
       pending = Map<String, dynamic>.from(
         await _client.post('/api/v1/devices/replacements', {
-              'public_key_spki': key['public_key_spki'],
+              'public_key_spki': candidateKey['public_key_spki'],
               'platform': 'android',
               'device_name': deviceName.trim(),
-              'device_model': key['device_model'],
+              'device_model': candidateKey['device_model'],
               'slot_number': slot,
               'old_device_id': replacementTarget!['device_id'],
             })
@@ -144,9 +161,9 @@ class PendingDeviceService {
       );
     } else {
       pending = await _api.beginPending(
-        publicKey: key['public_key_spki'] as String,
+        publicKey: candidateKey['public_key_spki'] as String,
         deviceName: deviceName.trim(),
-        deviceModel: key['device_model'] as String,
+        deviceModel: candidateKey['device_model'] as String,
       );
     }
     checkSession();
@@ -176,9 +193,8 @@ class PendingDeviceService {
       );
     }
     final id = pending['pending_registration_id'] as String;
-    final signature = await _keys.sign(
-      student,
-      pending['signing_payload'] as String,
+    final signature = await _keyOperation(
+      _keys.sign(student, pending['signing_payload'] as String),
     );
     checkSession();
     try {

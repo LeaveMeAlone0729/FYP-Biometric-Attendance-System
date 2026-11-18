@@ -75,6 +75,17 @@ try {
     if ($PublicApiUrl) { $defines += "--dart-define=PUBLIC_API_BASE_URL=$PublicApiUrl" }
     $localBuild = if ($Mode -eq 'Local') { 'true' } else { 'false' }
     $defines += "--dart-define=FYP_LOCAL_MODE=$localBuild"
+    if (-not $BuildOnly) {
+        # Public certificates only, from the operator's existing private identity pin.
+        # Provisioning is never called here. A missing profile keeps explicit legacy mode.
+        $python = Join-Path $projectRoot 'backend\venv\Scripts\python.exe'
+        $trust = & $python (Join-Path $projectRoot 'backend\lan_discovery.py') export --mode $Mode --expected-identity $ready.identity
+        if ($LASTEXITCODE -ne 0) { throw 'LAN discovery trust validation failed; no fallback or installation.' }
+        if ($trust) {
+            $trustB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($trust -join "`n")))
+            $defines += "--dart-define=FYP_LAN_TRUST_B64=$trustB64"
+        }
+    }
     & $flutter build apk --debug @defines
     if ($LASTEXITCODE -ne 0) { throw 'APK build failed.' }
     if (-not $BuildOnly) {

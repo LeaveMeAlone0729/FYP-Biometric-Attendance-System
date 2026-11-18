@@ -32,6 +32,9 @@ class DeviceReplacementService(PendingEnrollmentService):
             DeviceEnrollmentEvent.action=="replace_prepare",DeviceEnrollmentEvent.result=="ISSUED",DeviceEnrollmentEvent.occurred_at>now-timedelta(minutes=5)))
         if recent>=5:self.refuse(db,student,"replace_prepare",429,"REPLACEMENT_RATE_LIMITED","Too many replacement requests. Try again later.")
         identifier,candidate=secrets.token_urlsafe(32),secrets.token_urlsafe(32)
+        from .local_demo import PREFIX, local_candidate
+        if local_candidate(db, student.student_id):
+            candidate = PREFIX + candidate
         expires=min(now+timedelta(minutes=5),auth.expires_at);challenge_expires=min(now+timedelta(seconds=120),expires)
         payload=json.dumps(dict(version=1,operation="replace_device",slot_number=target.slot_number,
             pending_registration_id=identifier,candidate_device_id=candidate,student_id=student.student_id,auth_session_hash=auth.token_hash,

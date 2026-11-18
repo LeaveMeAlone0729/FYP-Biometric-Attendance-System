@@ -117,18 +117,22 @@ def create_backend(*, local_demo_slot2=False):
     engine = bounded_engine(value)
     app = create_app(settings=value, engine=engine, classroom_features=True,
                      startup_validator=lambda *_: probe())
+    app.state.lan_database_identity = public_identity(actual)['identity']
 
     if local_demo_slot2:
-        from modules.devices.local_demo import CREDENTIAL
+        from modules.devices.local_demo import CREDENTIAL, ACCOUNT_POLICY, account_profile
         key = (PRIVATE / 'local-demo-slot2.key').read_bytes()
         require(value.demo_mode and len(key) == 32, 'LOCAL_DEMO_SLOT2_CREDENTIAL_REQUIRED')
-        app.state.sessions.configure(info={**app.state.sessions.kw['info'], CREDENTIAL: key})
+        account_management = account_profile(PRIVATE)
+        app.state.sessions.configure(info={**app.state.sessions.kw['info'], CREDENTIAL: key,
+                                           ACCOUNT_POLICY: account_management})
 
         @app.get('/local-fyp/demo-slot2', include_in_schema=False)
         def local_demo_status(request: Request):
             if request.client is None or request.client.host not in ('127.0.0.1', '::1'):
                 raise HTTPException(403, 'Local operator only.')
-            return {'credential_sha256': hashlib.sha256(key).hexdigest()}
+            return {'credential_sha256': hashlib.sha256(key).hexdigest(),
+                    'device_management_enabled': account_management}
 
     @app.get('/local-fyp/identity', include_in_schema=False)
     def local_identity(request: Request):
@@ -170,7 +174,12 @@ def serve(role, *, lan=False, local_demo_slot2=False):
             ready=backend_ready, timezone=value.timezone, database_port=3306, simulation_only=False)
         port = 8003
     host = '0.0.0.0' if role == 'backend' and lan else '127.0.0.1'
-    uvicorn.run(app, host=host, port=port, proxy_headers=False, access_log=False)
+    if role == 'backend':
+        from lan_discovery import run_backend
+        run_backend(app, host=host, port=port, parent=PRIVATE, mode='Full',
+                    database_identity=app.state.lan_database_identity)
+    else:
+        uvicorn.run(app, host=host, port=port, proxy_headers=False, access_log=False)
 
 
 def start():

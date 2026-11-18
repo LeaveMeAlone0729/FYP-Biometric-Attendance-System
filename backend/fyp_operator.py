@@ -146,7 +146,7 @@ class Host:
 
     def listeners(self):
         return objects(self.ps("Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | "
-            "Where-Object { $_.LocalPort -in 3306,8000,8003,8004 } | "
+            "Where-Object { $_.LocalPort -in 3306,8000,8003,8004,8005 } | "
             "Select-Object LocalAddress,LocalPort,OwningProcess | ConvertTo-Json -Compress"))
 
     def processes(self):
@@ -342,6 +342,17 @@ class Host:
         require(adb.is_file(), 'ANDROID_ADB_MISSING')
         return adb
 
+    def discovery_health(self, identity, lan):
+        from lan_discovery import private, load_trust, probe_tls
+        mode = getattr(self, 'mode', 'Full')
+        folder = private(mode) / 'lan-discovery'
+        if folder.exists():
+            require(bool(lan), 'DISCOVERY_LAN_ADDRESS_REQUIRED')
+            try:
+                probe_tls(lan, load_trust(folder, mode, identity['identity']))
+            except (OSError, ValueError):
+                raise Blocked('DISCOVERY_TLS_NOT_READY') from None
+
     def install(self, serial, lan, logs, *, local_identity=None):
         adb = self.tools()
         apk = self.root / 'frontend/build/app/outputs/flutter-apk/app-debug.apk'
@@ -389,7 +400,7 @@ class LocalHost(Host):
     def listeners(self):
         port=self.db_port
         return objects(self.ps('Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | '
-            'Where-Object { $_.LocalPort -in 3306,8000,8003,8004,'+str(port)+' } | '
+            'Where-Object { $_.LocalPort -in 3306,8000,8003,8004,8005,'+str(port)+' } | '
             'Select-Object LocalAddress,LocalPort,OwningProcess | ConvertTo-Json -Compress'))
 
     def profile(self):
@@ -481,6 +492,11 @@ class Workflow:
         require(self.mode!='Local' or not any(r['LocalPort']==8004 for r in listeners),
                 'LOCAL_MODE_PUBLIC_GATEWAY_PRESENT_STOP_FULL_OWNER_FIRST')
         processes = self.host.processes()
+        # TLS discovery shares the verified backend PID, never a separate adopted process.
+        backend_owners = {r['OwningProcess'] for r in listeners if r['LocalPort'] == 8000}
+        for tls in [r for r in listeners if r['LocalPort'] == 8005]:
+            require(tls['OwningProcess'] in backend_owners
+                and tls['LocalAddress'] != '0.0.0.0', 'DISCOVERY_PORT_IDENTITY_CONFLICT')
         for role, port in self.roles.items():
             rows = [r for r in listeners if r['LocalPort'] == port]
             owners = {r['OwningProcess'] for r in rows}
@@ -547,6 +563,8 @@ class Workflow:
         status, config = self.host.http('/config', lan=lan)
         require(status == 200 and config.get('network_ble_test_mode') is False, 'DIAGNOSTIC_MODE_NOT_OFF')
         self.backend_config = {k:v for k,v in config.items() if k != 'server_time'}
+        if hasattr(self.host, 'discovery_health'):
+            self.host.discovery_health(identity, lan)
         return True
 
     def gateway_health(self, public=False):

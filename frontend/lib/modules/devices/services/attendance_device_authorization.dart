@@ -101,7 +101,16 @@ class AttendanceDeviceAuthorization {
     try {
       local = await _keys
           .getPublicKey(student!)
-          .timeout(const Duration(seconds: 5));
+          .timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              throw const ApiException(
+                'Android device key lookup timed out. Unlock the device and try again.',
+                0,
+                'DEVICE_KEY_TIMEOUT',
+              );
+            },
+          );
     } on PlatformException {
       throw const ApiException(
         'The registered Android key is unavailable. Use the original registered installation.',
@@ -208,7 +217,16 @@ class AttendanceDeviceAuthorization {
     try {
       signature = await _keys
           .sign(student, challenge['signing_payload'] as String)
-          .timeout(const Duration(seconds: 8));
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () {
+              throw const ApiException(
+                'Android device signing timed out. Unlock the device and start a fresh attempt.',
+                0,
+                'DEVICE_KEY_TIMEOUT',
+              );
+            },
+          );
     } on PlatformException {
       throw const ApiException(
         'The registered device key could not sign attendance. Keep existing keys unchanged.',

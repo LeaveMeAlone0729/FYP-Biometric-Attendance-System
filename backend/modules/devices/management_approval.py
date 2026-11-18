@@ -52,7 +52,7 @@ class LocalDeviceApprovalProvider:
         if row is None or row.invalidated_at is not None or row.verified_at > now or not row.evidence_reference:
             return False
         if row.revision_id.startswith(local_demo.PREFIX):
-            if local_demo.verified_fingerprint(db, row) is None:
+            if local_demo.verified_fingerprint(db, row) is None and not local_demo.verified_account(db, row):
                 return False
         elif row.provenance == 'synthetic_fixture':
             engine = db.get_bind()
@@ -115,11 +115,18 @@ class LocalDeviceApprovalProvider:
 
     def find_fresh_approval(self, db, binding, now):
         self.storage(db)
-        if self.current_template_revision(db, binding.student_id, now) is None:
+        revision = self.current_template_revision(db, binding.student_id, now)
+        if revision is None:
+            if local_demo.account_enabled(db) and binding.candidate_device_id.startswith(local_demo.PREFIX):
+                deny('LOCAL_FYP_ACCOUNT_VERIFICATION_REQUIRED', 'Local test account enrollment verification must be recorded before starting a new device scan. No replacement approval was issued.')
             if (local_demo.enabled(db, binding.student_id) and binding.candidate_device_id.startswith(local_demo.PREFIX)
                     and binding.operation == 'enroll_second_device' and binding.slot_number == 2):
                 deny('LOCAL_DEMO_EVIDENCE_REQUIRED', 'LOCAL DEMO verification needs the local operator to record evidence from this fresh scan.')
             deny()
+        actual = db.get(EnrollmentRevision, revision.revision_id)
+        if not local_demo.permits_binding(db, actual, binding):
+            deny('LOCAL_FYP_ACCOUNT_VERIFICATION_REQUIRED' if actual.revision_id.startswith(local_demo.PREFIX) else 'APPROVAL_MISMATCH',
+                 'The current enrollment evidence does not authorize this device operation. Establish eligible account provenance before a new scan.')
         row = db.scalar(select(DeviceBiometricAuthorization).where(
             DeviceBiometricAuthorization.binding == encode(binding),
             DeviceBiometricAuthorization.consumed_at == None,
@@ -171,7 +178,7 @@ def capture_enrollment(db, student, session, pending, now):
     db.add(EnrollmentObservation(session_id=session.approval_id, revision_id=revision.revision_id,
         binding=encode(binding), created_at=now))
     db.add(DeviceTrustEvent(student_id=student.student_id, action='capture',
-        code='VERIFIED_ENROLLMENT_CAPTURED', revision_id=revision.revision_id, occurred_at=now))
+        code='LOCAL_FYP_ACCOUNT_SCOPE_CAPTURED' if revision.revision_id.startswith(local_demo.PREFIX) and local_demo.verified_account(db, db.get(EnrollmentRevision, revision.revision_id)) else 'VERIFIED_ENROLLMENT_CAPTURED', revision_id=revision.revision_id, occurred_at=now))
     db.flush()
 
 
@@ -203,6 +210,6 @@ def issue_device_authorization(db, student, session, pending, now):
         verified_at=now, expires_at=min(now+timedelta(seconds=60), session.expires_at, pending.expires_at, auth.expires_at))
     db.add(grant)
     db.add(DeviceTrustEvent(student_id=student.student_id, action='issue',
-        code='FRESH_DEVICE_AUTHORIZATION_ISSUED', revision_id=revision.revision_id,
+        code='LOCAL_FYP_REPLACEMENT_APPROVAL_ISSUED' if session.operation == 'replace_device' and revision.revision_id.startswith(local_demo.PREFIX) else 'FRESH_DEVICE_AUTHORIZATION_ISSUED', revision_id=revision.revision_id,
         authorization_id=grant.approval_id, occurred_at=now))
     db.flush()
