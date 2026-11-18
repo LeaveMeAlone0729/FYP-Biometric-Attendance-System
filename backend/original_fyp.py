@@ -116,7 +116,11 @@ def create_backend(*, local_demo_slot2=False):
     actual = probe(pin=True)
     engine = bounded_engine(value)
     app = create_app(settings=value, engine=engine, classroom_features=True,
-                     startup_validator=lambda *_: probe())
+                     startup_validator=lambda *_: probe(), attendance_deadlines=True)
+    from staff_portal import install_staff_portal
+    from admin_testing_launcher import credentials
+    install_staff_portal(app, credential_loader=lambda: credentials(PRIVATE / 'panel-admin.json'),
+                         ready=backend_ready, policy_simulation_only=False)
     app.state.lan_database_identity = public_identity(actual)['identity']
 
     if local_demo_slot2:

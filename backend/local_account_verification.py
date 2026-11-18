@@ -89,13 +89,18 @@ def record_account(db, student_id, scan_id, now):
         previous.invalidated_at = now
         db.flush()  # Release only the current-revision uniqueness key.
     revision = EnrollmentRevision(revision_id=local_demo.PREFIX + secrets.token_urlsafe(32), student_id=student_id,
-        template_hash=template_hash, provenance='account_bound_fyp', assurance_level='UNVERIFIED', verified_at=now)
+        template_hash=template_hash, provenance='account_bound_fyp', assurance_level='UNVERIFIED',
+        verified_at=now.replace(microsecond=0))
     revision.evidence_reference = local_demo.account_evidence(db.info[local_demo.CREDENTIAL], revision, scan_id)
     db.add(revision)
     db.add(DeviceTrustEvent(student_id=student_id, action='local_account_verify',
         code='LOCAL_FYP_ACCOUNT_VERIFIED_UNVERIFIED', revision_id=revision.revision_id,
         authorization_id=scan_id, occurred_at=now))
     db.flush()
+    # MySQL DATETIME(0) can round fractional seconds. Sign a whole-second value
+    # and verify the actual stored row before reporting setup success.
+    db.refresh(revision)
+    require(local_demo.verified_account(db, revision), 'Stored Local enrollment evidence did not validate; setup was rolled back.')
     return revision.revision_id
 
 

@@ -101,9 +101,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         'No attendance recorded yet.',
                         (r) => ListTile(
                           contentPadding: const EdgeInsets.all(16),
-                          leading: const CircleAvatar(
-                            backgroundColor: Color(0xFFE5F3F0),
-                            child: Icon(Icons.check_rounded, color: teal),
+                          leading: CircleAvatar(
+                            backgroundColor: r['status'] == 'Absent'
+                                ? const Color(0xFFFBEDED)
+                                : const Color(0xFFE5F3F0),
+                            child: Icon(
+                              r['status'] == 'Absent'
+                                  ? Icons.close_rounded
+                                  : Icons.check_rounded,
+                              color: r['status'] == 'Absent'
+                                  ? const Color(0xFFAD5353)
+                                  : teal,
+                            ),
                           ),
                           title: Text(
                             r['course_name'] as String,
@@ -116,8 +125,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           isThreeLine: true,
                           trailing: Text(
                             r['status'] as String,
-                            style: const TextStyle(
-                              color: teal,
+                            style: TextStyle(
+                              color: r['status'] == 'Absent'
+                                  ? const Color(0xFFAD5353)
+                                  : teal,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),

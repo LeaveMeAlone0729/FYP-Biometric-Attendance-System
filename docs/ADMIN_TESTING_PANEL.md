@@ -1,5 +1,10 @@
 # Local admin panel
 
+For the new admin/teacher workspace, open **http://127.0.0.1:8000/** and see
+[Staff portal](STAFF_PORTAL.md). It includes manual Present/Absent recording and
+all four sections below in the new UI with one staff login.
+The separate port-8003 policy panel described below keeps its existing scope.
+
 The panel manages attendance sessions, PINs and network/classroom policies.
 It runs only on the laptop at **http://127.0.0.1:8003/login**. Keep its listener
 private; the phone uses the student API instead.

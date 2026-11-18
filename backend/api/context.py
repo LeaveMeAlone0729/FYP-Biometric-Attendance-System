@@ -70,7 +70,7 @@ class AppContext:
             schedule.group_id == student.group_id
             and session.status == "active"
             and session.session_date == current.date()
-            and session.start_time <= current.time() <= session.end_time
+            and session.start_time <= current.time() < session.end_time
             and schedule.start_date <= current.date() <= schedule.end_date
         )
 

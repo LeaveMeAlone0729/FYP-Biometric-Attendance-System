@@ -193,7 +193,28 @@ def create_backend():
     from fastapi import Request, HTTPException
     profile=load_profile(); value=settings(profile); actual=probe(profile=profile)
     app=create_app(settings=value,engine=engine(value),classroom_features=True,
-                   startup_validator=lambda *_:probe())
+                   startup_validator=lambda *_:probe(),attendance_deadlines=True)
+    from staff_portal import install_staff_portal
+    from admin_testing_launcher import credentials
+    install_staff_portal(app, credential_loader=lambda: credentials(private()/'panel-admin.json'),
+                         ready=backend_ready, local_default_accounts=True)
+    from modules.devices import local_demo
+    management_enabled = local_demo.account_profile(private())
+    credential_fingerprint = None
+    if management_enabled:
+        require(value.fyp_account_bound_enrollment, 'LOCAL_FIRST_ENROLLMENT_POLICY_REQUIRED')
+        key = (private()/'local-enrollment.key').read_bytes()
+        require(len(key) == 32, 'LOCAL_ENROLLMENT_CREDENTIAL_INVALID')
+        app.state.context.sessions.configure(info={**app.state.context.sessions.kw['info'],
+            local_demo.CREDENTIAL: key, local_demo.ACCOUNT_POLICY: True})
+        credential_fingerprint = hashlib.sha256(key).hexdigest()
+    @app.get('/local-fyp/enrollment-status',include_in_schema=False)
+    def enrollment_status(request:Request):
+        if request.client is None or request.client.host not in ('127.0.0.1','::1'):
+            raise HTTPException(403,'Local operator only.')
+        return dict(environment='partner_local', identity=actual['identity'],
+            first_enrollment_enabled=value.fyp_account_bound_enrollment,
+            device_management_enabled=management_enabled, credential_sha256=credential_fingerprint)
     app.state.lan_database_identity = actual['identity']
     @app.get('/local-fyp/identity',include_in_schema=False)
     def identity(request:Request):

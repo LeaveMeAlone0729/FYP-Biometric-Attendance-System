@@ -17,6 +17,8 @@ from models import (
 )
 from modules.biometrics.schemas import ChallengeStarted
 from security import digest
+from services.staff_attendance import PRESENT_STATUSES
+from services.attendance_timing import finalize_due_attendance
 from sqlalchemy import select
 
 from .context import AppContext
@@ -143,6 +145,8 @@ def classes(
     student, auth = identity
     if context.settings.demo_mode:
         seed_demo(db, context.now())
+    if getattr(context, 'automatic_absences', False):
+        finalize_due_attendance(db, now=context.now(), student_id=student.student_id, limit=None)
     rows = db.execute(
         select(ClassSession, ClassSchedule, Course)
         .select_from(ClassSession)
@@ -159,7 +163,8 @@ def classes(
     attended = set(
         db.scalars(
             select(Attendance.session_id).where(
-                Attendance.student_id == student.student_id
+                Attendance.student_id == student.student_id,
+                Attendance.status.in_(PRESENT_STATUSES),
             )
         )
     )
@@ -188,6 +193,8 @@ def history(
     context: AppContext = Depends(get_context),
 ):
     student, auth = identity
+    if getattr(context, 'automatic_absences', False):
+        finalize_due_attendance(db, now=context.now(), student_id=student.student_id, limit=None)
     rows = db.execute(
         select(Attendance, ClassSession, Course)
         .select_from(Attendance)
@@ -222,6 +229,8 @@ def summary(
     student, auth = identity
     if context.settings.demo_mode:
         seed_demo(db, context.now())
+    if getattr(context, 'automatic_absences', False):
+        finalize_due_attendance(db, now=context.now(), student_id=student.student_id, limit=None)
     rows = db.execute(
         select(ClassSession, Course)
         .select_from(ClassSession)
@@ -236,14 +245,15 @@ def summary(
     attended = set(
         db.scalars(
             select(Attendance.session_id).where(
-                Attendance.student_id == student.student_id
+                Attendance.student_id == student.student_id,
+                Attendance.status.in_(PRESENT_STATUSES),
             )
         )
     )
     counts = {}
     for session, course in rows:
         # Exclude sessions that have not ended, unless attendance was already submitted.
-        ended = datetime.combine(session.session_date, session.end_time) < context.now()
+        ended = datetime.combine(session.session_date, session.end_time) <= context.now()
         if ended or session.session_id in attended:
             item = counts.setdefault(
                 course.course_code,

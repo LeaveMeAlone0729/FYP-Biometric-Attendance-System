@@ -1,7 +1,8 @@
 """Public demo health and camera configuration."""
 
 from app_time import iso_time
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
 from modules.biometrics.constants import REQUIRED_LIVENESS_FRAMES
 
 from . import API_VERSION
@@ -12,6 +13,13 @@ router = APIRouter(tags=["Demo system"])
 
 
 @router.get("/")
+def home(request: Request, context: AppContext = Depends(get_context)):
+    if getattr(request.app.state, 'staff_portal_enabled', False):
+        return RedirectResponse('/portal/', status_code=303)
+    return health(context)
+
+
+@router.get('/health')
 def health(context: AppContext = Depends(get_context)):
     return {
         "message": "Backend running",

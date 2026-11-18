@@ -539,6 +539,11 @@ class _DeviceBiometricApprovalScreenState
             _trustedStatus = 'ENROLLMENT PROVENANCE UNVERIFIED';
           }
           if (error is ApiException &&
+              error.code == 'LOCAL_FYP_ACCOUNT_VERIFICATION_REQUIRED') {
+            _activationStatus = 'SETUP REQUIRED';
+            _trustedStatus = 'LOCAL FYP SETUP REQUIRED';
+          }
+          if (error is ApiException &&
               error.code == 'LOCAL_DEMO_EVIDENCE_REQUIRED') {
             _activationStatus = 'BLOCKED';
             _trustedStatus = 'LOCAL DEMO EVIDENCE REQUIRED';
@@ -590,11 +595,12 @@ class _DeviceBiometricApprovalScreenState
         trustedApprovalStatus: _trustedStatus,
         activationBusy: _activationBusy,
         activationError: _activationError,
-        localDemo: _trustedStatus == 'LOCAL DEMO EVIDENCE REQUIRED',
+        localDemo: _trustedStatus == 'LOCAL DEMO EVIDENCE REQUIRED' ||
+            _trustedStatus == 'LOCAL FYP SETUP REQUIRED',
         supervisedScanReference:
             (_trustedStatus == 'ENROLLMENT PROVENANCE UNVERIFIED' ||
-                    _trustedStatus == 'LOCAL DEMO EVIDENCE REQUIRED') &&
-                _result!['operation'] == 'enroll_second_device'
+                    _trustedStatus == 'LOCAL DEMO EVIDENCE REQUIRED' ||
+                    _trustedStatus == 'LOCAL FYP SETUP REQUIRED')
             ? _result!['approval_id'] as String
             : null,
         onBack: () => Navigator.pop(context, true),
